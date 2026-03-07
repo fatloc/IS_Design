@@ -1,0 +1,60 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+' Thêm dấu / để tạo Business Actor (có gạch chéo ở đầu)
+actor/ "Khách thuê / Đại diện nhóm" as Khach
+
+rectangle "Nghiệp vụ Quản lý Lưu trú" <<Business>> {
+    ' Thêm dấu / để tạo Business Use Case (có gạch chéo trong oval)
+    
+    ' Quy trình Đăng ký & Tư vấn
+    usecase/ "Đăng ký thuê phòng" as UC1
+    usecase/ "Sắp xếp lịch xem phòng" as UC1_1
+    usecase/ "Xem phòng" as UC1_2
+
+    ' Quy trình Đặt cọc & Xác nhận
+    usecase/ "Bổ sung/cập nhật thông tin" as UC2_2
+    usecase/ "Đặt cọc & Xác nhận thuê" as UC2
+    usecase/ "Thanh toán tiền cọc" as UC2_1
+
+    ' Quy trình Nhận phòng & Ký kết
+    usecase/ "Nhận phòng & Ký hợp đồng" as UC3
+    usecase/ "Cung cấp thông tin cư trú" as UC3_1
+    usecase/ "Ký hợp đồng thuê" as UC3_2
+    usecase/ "Thanh toán khi vào ở" as UC3_3
+    usecase/ "Bàn giao tài sản" as UC3_4
+
+    ' Quy trình Trả phòng & Hoàn cọc
+    usecase/ "Trả phòng & Hoàn cọc" as UC4
+    usecase/ "Đối soát chi phí" as UC4_1
+    usecase/ "Thanh toán khoản phát sinh" as UC4_2
+    usecase/ "Ký thanh lý hợp đồng" as UC4_3
+    usecase/ "Hoàn trả tiền cọc" as UC4_4
+}
+
+' Kết nối Actor với các Use Case chính
+Khach --> UC1
+Khach --> UC2
+Khach --> UC3
+Khach --> UC4
+Khach --> UC2_2
+
+' Các mối quan hệ <<include>> (bắt buộc) và <<extend>> (tùy chọn/điều kiện)
+UC1 ..> UC1_1 : <<include>>
+UC1 ..> UC1_2 : <<include>>
+
+UC2 ..> UC2_1 : <<include>>
+UC2_2 .up.> UC2 : <<extend>>
+
+UC3 ..> UC3_1 : <<include>>
+UC3 ..> UC3_2 : <<include>>
+UC3 ..> UC3_3 : <<include>>
+UC3 ..> UC3_4 : <<include>>
+
+UC4 ..> UC4_1 : <<include>>
+UC4 ..> UC4_3 : <<include>>
+UC4_2 .up.> UC4 : <<extend>>
+UC4_4 .up.> UC4 : <<extend>>
+
+@enduml
