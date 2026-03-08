@@ -540,8 +540,8 @@
   <path d="M 145 153 L 150 167 L 155 153" shape-rendering="auto"/>
   <path d="M 151 209 L 151 304 L 340 304" shape-rendering="auto"/>
   <path d="M 326 309 L 340 304 L 326 299" shape-rendering="auto"/>
-  <path d="M 384 327 L 171 402" shape-rendering="auto"/>
-  <path d="M 183 393 L 171 402 L 186 402" shape-rendering="auto"/>
+  <path d="M 397 327 L 397 576" shape-rendering="auto"/>
+  <path d="M 392 562 L 397 576 L 402 562" shape-rendering="auto"/>
   <path d="M 188 502 L 342 603" shape-rendering="auto"/>
   <path d="M 328 600 L 342 603 L 333 591" shape-rendering="auto"/>
   <path d="M 401 618 L 401 679" shape-rendering="auto"/>
@@ -568,19 +568,19 @@
   <path d="M 277 1535 L 291 1530 L 277 1525" shape-rendering="auto"/>
   <path d="M 476 1545 L 476 1616" shape-rendering="auto"/>
   <path d="M 471 1602 L 476 1616 L 481 1602" shape-rendering="auto"/>
-  <path d="M 328 1558 L 197 1625" shape-rendering="auto"/>
-  <path d="M 207 1614 L 197 1625 L 212 1623" shape-rendering="auto"/>
-  <path d="M 397 327 L 397 576" shape-rendering="auto"/>
-  <path d="M 392 562 L 397 576 L 402 562" shape-rendering="auto"/>
-  <path d="M 347 1558 L 347 1746" shape-rendering="auto"/>
-  <path d="M 342 1732 L 347 1746 L 352 1732" shape-rendering="auto"/>
   <path d="M 492 1545 L 655 1787" shape-rendering="auto"/>
   <path d="M 643 1778 L 655 1787 L 651 1773" shape-rendering="auto"/>
+  <path d="M 328 1558 L 197 1625" shape-rendering="auto"/>
+  <path d="M 207 1614 L 197 1625 L 212 1623" shape-rendering="auto"/>
+  <path d="M 347 1558 L 347 1746" shape-rendering="auto"/>
+  <path d="M 342 1732 L 347 1746 L 352 1732" shape-rendering="auto"/>
+  <path d="M 207 422 L 354 327" shape-rendering="auto"/>
+  <path d="M 345 339 L 354 327 L 340 330" shape-rendering="auto"/>
 </g>
 <g style="stroke-width:1;stroke-linecap:round;stroke-linejoin:bevel; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00;">
-	<text x="161.00" y="1434.00" textLength="28" style="font-family:Calibri; font-weight:0; font-style:normal; font-size:10px; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00; stroke-width:0; white-space: pre;" xml:space="preserve" transform="rotate(-0.00 161.00 1434.00)">Đồng ý</text>
 	<text x="426.00" y="1013.00" textLength="25" style="font-family:Calibri; font-weight:0; font-style:normal; font-size:10px; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00; stroke-width:0; white-space: pre;" xml:space="preserve" transform="rotate(-0.00 426.00 1013.00)">Không</text>
-	<text x="374.00" y="1017.00" textLength="10" style="font-family:Calibri; font-weight:0; font-style:normal; font-size:10px; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00; stroke-width:0; white-space: pre;" xml:space="preserve" transform="rotate(-0.00 374.00 1017.00)">Có</text>
 	<text x="145.00" y="1521.00" textLength="66" style="font-family:Calibri; font-weight:0; font-style:normal; font-size:10px; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00; stroke-width:0; white-space: pre;" xml:space="preserve" transform="rotate(-0.00 145.00 1521.00)">Chưa quyết định</text>
+	<text x="374.00" y="1017.00" textLength="10" style="font-family:Calibri; font-weight:0; font-style:normal; font-size:10px; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00; stroke-width:0; white-space: pre;" xml:space="preserve" transform="rotate(-0.00 374.00 1017.00)">Có</text>
+	<text x="161.00" y="1434.00" textLength="28" style="font-family:Calibri; font-weight:0; font-style:normal; font-size:10px; fill:#595959;fill-opacity:1.00; stroke:#000000; stroke-opacity:0.00; stroke-width:0; white-space: pre;" xml:space="preserve" transform="rotate(-0.00 161.00 1434.00)">Đồng ý</text>
 </g>
 </svg>
