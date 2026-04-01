@@ -2,59 +2,55 @@
 left to right direction
 skinparam packageStyle rectangle
 
-' Thêm dấu / để tạo Business Actor (có gạch chéo ở đầu)
-actor/ "Khách thuê / Đại diện nhóm" as Khach
+' BƯỚC 1: KHAI BÁO TÁC NHÂN (Không dùng người dùng chung)
+actor "Quản lý nhà hàng" as QL
+actor "Nhân viên kiểm kho" as Kho
+actor "Nhân viên thu mua" as ThuMua
+actor "Giám đốc" as GD
 
-rectangle "Nghiệp vụ Quản lý Lưu trú" <<Business>> {
-    ' Thêm dấu / để tạo Business Use Case (có gạch chéo trong oval)
+' BƯỚC 2: KHAI BÁO USE CASE HỆ THỐNG
+rectangle "Hệ Thống Quản Lý Đặt Hàng" {
+    usecase "Đăng nhập" as UC_DangNhap
     
-    ' Quy trình Đăng ký & Tư vấn
-    usecase/ "Đăng ký thuê phòng" as UC1
-    usecase/ "Sắp xếp lịch xem phòng" as UC1_1
-    usecase/ "Xem phòng" as UC1_2
-
-    ' Quy trình Đặt cọc & Xác nhận
-    usecase/ "Bổ sung/cập nhật thông tin" as UC2_2
-    usecase/ "Đặt cọc & Xác nhận thuê" as UC2
-    usecase/ "Thanh toán tiền cọc" as UC2_1
-
-    ' Quy trình Nhận phòng & Ký kết
-    usecase/ "Nhận phòng & Ký hợp đồng" as UC3
-    usecase/ "Cung cấp thông tin cư trú" as UC3_1
-    usecase/ "Ký hợp đồng thuê" as UC3_2
-    usecase/ "Thanh toán khi vào ở" as UC3_3
-    usecase/ "Bàn giao tài sản" as UC3_4
-
-    ' Quy trình Trả phòng & Hoàn cọc
-    usecase/ "Trả phòng & Hoàn cọc" as UC4
-    usecase/ "Đối soát chi phí" as UC4_1
-    usecase/ "Thanh toán khoản phát sinh" as UC4_2
-    usecase/ "Ký thanh lý hợp đồng" as UC4_3
-    usecase/ "Hoàn trả tiền cọc" as UC4_4
+    usecase "Xem báo cáo thống kê" as UC_XemBaoCao
+    usecase "Lập yêu cầu nguyên vật liệu" as UC_LapYeuCau
+    
+    usecase "Kiểm tra tồn kho" as UC_KiemTraTon
+    usecase "Lập danh sách cần nhập" as UC_LapDSNhap
+    
+    usecase "Tra cứu nhà cung cấp" as UC_TraCuuNCC
+    usecase "Cập nhật thông tin nhà cung cấp" as UC_CapNhatNCC
+    usecase "Lập đơn đặt hàng" as UC_LapDonHang
+    usecase "Tổng hợp đơn đặt hàng" as UC_TongHopDon
+    
+    usecase "Xét duyệt đơn hàng" as UC_XetDuyet
+    usecase "Ghi chú từ chối" as UC_TuChoi
 }
 
-' Kết nối Actor với các Use Case chính
-Khach --> UC1
-Khach --> UC2
-Khach --> UC3
-Khach --> UC4
-Khach --> UC2_2
+' BƯỚC 3: THIẾT LẬP MỐI QUAN HỆ
 
-' Các mối quan hệ <<include>> (bắt buộc) và <<extend>> (tùy chọn/điều kiện)
-UC1 ..> UC1_1 : <<include>>
-UC1 ..> UC1_2 : <<include>>
+' Nối Tác nhân với Use Case Đăng nhập
+QL -- UC_DangNhap
+Kho -- UC_DangNhap
+ThuMua -- UC_DangNhap
+GD -- UC_DangNhap
 
-UC2 ..> UC2_1 : <<include>>
-UC2_2 .up.> UC2 : <<extend>>
+' Nối Tác nhân với các Use Case nghiệp vụ chính
+QL -- UC_LapYeuCau
 
-UC3 ..> UC3_1 : <<include>>
-UC3 ..> UC3_2 : <<include>>
-UC3 ..> UC3_3 : <<include>>
-UC3 ..> UC3_4 : <<include>>
+Kho -- UC_KiemTraTon
+Kho -- UC_LapDSNhap
 
-UC4 ..> UC4_1 : <<include>>
-UC4 ..> UC4_3 : <<include>>
-UC4_2 .up.> UC4 : <<extend>>
-UC4_4 .up.> UC4 : <<extend>>
+ThuMua -- UC_TraCuuNCC
+ThuMua -- UC_LapDonHang
+ThuMua -- UC_TongHopDon
+
+GD -- UC_XetDuyet
+
+' Quan hệ Include và Extend
+UC_XemBaoCao .> UC_LapYeuCau : <<extend>>
+UC_CapNhatNCC .> UC_TraCuuNCC : <<extend>>
+UC_LapDonHang .> UC_TraCuuNCC : <<include>>
+UC_TuChoi .> UC_XetDuyet : <<extend>>
 
 @enduml
