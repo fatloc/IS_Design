@@ -1,0 +1,305 @@
+import { useState } from "react";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
+import { TrendingUp, TrendingDown, DollarSign, Search, ArrowUpRight, ArrowDownRight, Filter } from "lucide-react";
+import {
+  financialEntries, monthlyRevenue, occupancyData,
+  conversionData, contractExpirationData
+} from "../data/mockData";
+
+const fmtCurrency = (v: number) => v >= 1000000
+  ? `${(v / 1000000).toFixed(1)}M`
+  : `${(v / 1000).toFixed(0)}K`;
+
+// ──────────────── Financial Reconciliations ────────────────
+function ReconciliationsView() {
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All");
+
+  const filtered = financialEntries.filter(e => {
+    const matchSearch = e.description.toLowerCase().includes(search.toLowerCase()) || e.relatedTo.toLowerCase().includes(search.toLowerCase());
+    const matchType = typeFilter === "All" || e.type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  const totalIncome = financialEntries.filter(e => e.type === "Receipt" && e.status === "Completed").reduce((a, e) => a + e.amount, 0);
+  const totalPending = financialEntries.filter(e => e.type === "Receipt" && e.status === "Pending").reduce((a, e) => a + e.amount, 0);
+  const totalExpense = financialEntries.filter(e => e.type === "Payment").reduce((a, e) => a + e.amount, 0);
+  const net = totalIncome - totalExpense;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Tổng thu tháng 4", value: totalIncome, sub: "Đã hoàn tất", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-200" },
+          { label: "Chờ thu", value: totalPending, sub: "Đang xử lý", icon: DollarSign, color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-200" },
+          { label: "Tổng chi tháng 4", value: totalExpense, sub: "Đã thanh toán", icon: TrendingDown, color: "text-red-600", bg: "bg-red-50", ring: "ring-red-200" },
+          { label: "Lợi nhuận ròng", value: net, sub: "Tháng 4/2025", icon: DollarSign, color: "text-indigo-600", bg: "bg-indigo-50", ring: "ring-indigo-200" },
+        ].map(s => (
+          <div key={s.label} className={`bg-white rounded-xl p-5 border border-slate-100 ring-1 ${s.ring} shadow-sm`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-9 h-9 ${s.bg} rounded-lg flex items-center justify-center`}>
+                <s.icon size={18} className={s.color} />
+              </div>
+              <span className={`text-xs ${s.color === "text-emerald-600" || s.color === "text-indigo-600" ? "text-emerald-500" : "text-red-500"}`}>
+                {s.color === "text-emerald-600" || s.color === "text-indigo-600" ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+              </span>
+            </div>
+            <div className={`text-xl ${s.color}`} style={{ fontWeight: 700 }}>{s.value.toLocaleString()}đ</div>
+            <div className="text-sm text-slate-600 mt-0.5">{s.label}</div>
+            <div className="text-xs text-slate-400">{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters + table */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-52">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Tìm kiếm..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-1">
+            {["All", "Receipt", "Payment"].map(t => (
+              <button key={t} onClick={() => setTypeFilter(t)}
+                className={`px-3 py-2 rounded-lg text-sm transition ${typeFilter === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              >
+                {t === "All" ? "Tất cả" : t === "Receipt" ? "Thu" : "Chi"}
+              </button>
+            ))}
+          </div>
+          <button className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50">
+            <Filter size={13} /> Lọc ngày
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                {["Mô tả", "Loại", "Danh mục", "Ngày", "Liên quan", "Số tiền", "Trạng thái"].map(h => (
+                  <th key={h} className="text-left px-4 py-2.5 text-xs text-slate-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filtered.map(e => (
+                <tr key={e.id} className="hover:bg-slate-50/60">
+                  <td className="px-4 py-3.5 text-slate-700">{e.description}</td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${e.type === "Receipt" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                      {e.type === "Receipt" ? "Thu" : "Chi"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-xs text-slate-500">{e.category}</td>
+                  <td className="px-4 py-3.5 text-xs text-slate-500">{e.date}</td>
+                  <td className="px-4 py-3.5 text-xs text-indigo-600">{e.relatedTo}</td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-sm ${e.type === "Receipt" ? "text-emerald-600" : "text-red-600"}`} style={{ fontWeight: 600 }}>
+                      {e.type === "Receipt" ? "+" : "-"}{e.amount.toLocaleString()}đ
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${e.status === "Completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      {e.status === "Completed" ? "Hoàn tất" : "Đang xử lý"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────── Reports ────────────────
+function CustomTooltip({ active, payload, label }: any) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-lg text-xs">
+        <p className="text-slate-600 mb-1" style={{ fontWeight: 600 }}>{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.name} style={{ color: p.color }}>
+            {p.name}: {typeof p.value === 'number' && p.value > 1000 ? fmtCurrency(p.value) : p.value}{p.name === "Tỷ lệ" ? "%" : ""}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
+function ReportsView() {
+  const [period, setPeriod] = useState("monthly");
+
+  return (
+    <div className="space-y-5">
+      {/* Period toggle */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-600">Kỳ báo cáo:</span>
+          <div className="flex gap-1">
+            {[{ id: "monthly", label: "Tháng" }, { id: "quarterly", label: "Quý" }].map(p => (
+              <button key={p.id} onClick={() => setPeriod(p.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm transition ${period === p.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none" defaultValue="2025-01-01" />
+          <span className="text-slate-400">→</span>
+          <input type="date" className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none" defaultValue="2025-12-31" />
+        </div>
+      </div>
+
+      {/* Revenue Chart */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-slate-800">Báo cáo doanh thu</h3>
+            <p className="text-xs text-slate-500">Doanh thu và chi phí theo tháng</p>
+          </div>
+          <div className="flex gap-3 text-xs">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500" />Doanh thu</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-400" />Chi phí</span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={monthlyRevenue} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={fmtCurrency} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="revenue" name="Doanh thu" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="expense" name="Chi phí" fill="#f87171" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Occupancy Rate */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="mb-5">
+            <h3 className="text-slate-800">Tỷ lệ lấp đầy</h3>
+            <p className="text-xs text-slate-500">Phần trăm phòng có người thuê theo tháng</p>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={occupancyData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis domain={[70, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Line type="monotone" dataKey="rate" name="Tỷ lệ" stroke="#10b981" strokeWidth={2.5} dot={{ fill: "#10b981", r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Contract Expiration */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="mb-5">
+            <h3 className="text-slate-800">Dự báo hết hạn HĐ</h3>
+            <p className="text-xs text-slate-500">Phân bổ hợp đồng theo thời gian còn lại</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <ResponsiveContainer width={160} height={160}>
+              <PieChart>
+                <Pie data={contractExpirationData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                  {contractExpirationData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(val: any) => [`${val} HĐ`]} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex-1 space-y-2.5">
+              {contractExpirationData.map(d => (
+                <div key={d.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                    <span className="text-xs text-slate-600">{d.name}</span>
+                  </div>
+                  <span className="text-sm" style={{ fontWeight: 600, color: d.color }}>{d.value}</span>
+                </div>
+              ))}
+              <div className="pt-1 border-t border-slate-100">
+                <div className="text-xs text-slate-400">Tổng: {contractExpirationData.reduce((a, d) => a + d.value, 0)} hợp đồng</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Conversion Funnel */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <div className="mb-5">
+          <h3 className="text-slate-800">Phễu chuyển đổi khách hàng</h3>
+          <p className="text-xs text-slate-500">Từ lượt xem → Ký hợp đồng (Tháng 4/2025)</p>
+        </div>
+        <div className="flex items-end gap-2 h-48">
+          {conversionData.map((d, i) => {
+            const maxVal = conversionData[0].value;
+            const pct = (d.value / maxVal) * 100;
+            const colors = ["bg-indigo-500", "bg-blue-500", "bg-cyan-500", "bg-emerald-500", "bg-teal-500"];
+            const conversion = i > 0 ? Math.round((d.value / conversionData[i - 1].value) * 100) : 100;
+            return (
+              <div key={d.stage} className="flex-1 flex flex-col items-center gap-2">
+                {i > 0 && (
+                  <div className="text-xs text-slate-400">{conversion}%</div>
+                )}
+                <div className="w-full flex flex-col items-center justify-end" style={{ height: "160px" }}>
+                  <div
+                    className={`w-full ${colors[i]} rounded-t-lg transition-all duration-500 flex items-end justify-center pb-1`}
+                    style={{ height: `${pct}%` }}
+                  >
+                    <span className="text-white text-xs" style={{ fontWeight: 700 }}>{d.value}</span>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500 text-center leading-tight">{d.stage}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────── Main Page ────────────────
+export default function Financials() {
+  const [subView, setSubView] = useState<"reconciliation" | "reports">("reconciliation");
+
+  return (
+    <div className="space-y-5">
+      {/* Sub-view switcher */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-1 flex gap-1">
+        <button
+          onClick={() => setSubView("reconciliation")}
+          className={`flex-1 py-2.5 rounded-lg text-sm transition ${subView === "reconciliation" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+        >
+          Đối soát tài chính
+        </button>
+        <button
+          onClick={() => setSubView("reports")}
+          className={`flex-1 py-2.5 rounded-lg text-sm transition ${subView === "reports" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+        >
+          Báo cáo & Phân tích
+        </button>
+      </div>
+
+      {subView === "reconciliation" && <ReconciliationsView />}
+      {subView === "reports" && <ReportsView />}
+    </div>
+  );
+}

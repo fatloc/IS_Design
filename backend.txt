@@ -1,0 +1,19 @@
+backend/src/main/java/com/homestay/dorm/
+├── config/                  # Cấu hình hệ thống (CORS, Security, Quartz/CronJob)
+├── controller/              # Tầng giao tiếp: Định nghĩa các API endpoints (RESTful)
+│   ├── BookingController.java
+│   └── DepositController.java
+├── dto/                     # Data Transfer Object: Gói dữ liệu gửi/nhận (rất quan trọng)
+│   ├── request/             # Dữ liệu Frontend gửi lên (vd: CreateDepositRequest)
+│   └── response/            # Dữ liệu trả về cho Frontend (vd: RoomDetailResponse)
+├── entity/                  # Mapping thực thể với các bảng MySQL
+│   ├── Room.java
+│   ├── Booking.java
+│   └── User.java
+├── exception/               # Xử lý lỗi tập trung (GlobalExceptionHandler)
+├── repository/              # Spring Data JPA: Giao tiếp trực tiếp với MySQL
+│   └── RoomRepository.java
+└── service/                 # Tầng logic nghiệp vụ (Business Logic) - TRÁI TIM CỦA APP
+    ├── impl/
+    │   └── DepositServiceImpl.java
+    └── DepositService.java
