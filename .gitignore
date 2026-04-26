@@ -1,0 +1,42 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Java / Maven ---
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+
+# --- Node / Frontend ---
+**/node_modules/
+**/dist/
+**/.vite/
+**/.cache/
+
+# --- Python ---
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.venv/
+**/venv/
+
+# --- Generic build outputs ---
+**/out/
+**/coverage/
+**/.temp/
+**/tmp/
