@@ -2,7 +2,6 @@
 .DS_Store
 Thumbs.db
 .vscode/*
-!.vscode/settings.json
 !.vscode/extensions.json
 .idea/
 
@@ -27,6 +26,8 @@ pnpm-debug.log*
 **/dist/
 **/.vite/
 **/.cache/
+package-lock.json
+**/package-lock.json
 
 # --- Python ---
 **/__pycache__/
