@@ -86,6 +86,8 @@ CREATE TABLE NHANVIEN (
     HoTen VARCHAR(50),
     SoDienThoai CHAR(10),
     Email VARCHAR(30),
+    TenDangNhap VARCHAR(50) UNIQUE,
+    MatKhau VARCHAR(255),
     Phai VARCHAR(3) CHECK (Phai IN ('Nam', 'Nữ')),
     CCCD CHAR(12),
     LoaiNhanVien VARCHAR(30)

@@ -4,11 +4,8 @@ import com.homestay.dorm.dto.request.LoginRequest;
 import com.homestay.dorm.dto.request.RegisterRequest;
 import com.homestay.dorm.dto.response.AuthResponse;
 import com.homestay.dorm.dto.response.UserDTO;
-import com.homestay.dorm.entity.KhachHang;
 import com.homestay.dorm.entity.NhanVien;
-import com.homestay.dorm.repository.KhachHangRepository;
 import com.homestay.dorm.repository.NhanVienRepository;
-import com.homestay.dorm.security.CustomUserDetails;
 import com.homestay.dorm.security.JwtTokenProvider;
 import com.homestay.dorm.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -30,13 +27,12 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final NhanVienRepository nhanVienRepository;
-    private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public AuthResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -44,46 +40,42 @@ public class AuthServiceImpl implements AuthService {
 
         return AuthResponse.builder()
                 .token(jwt)
-                .user(getCurrentUser(request.getEmail()))
+            .user(getCurrentUser(authentication.getName()))
                 .build();
     }
 
     @Override
     public AuthResponse register(RegisterRequest request) {
-        if (nhanVienRepository.existsByEmail(request.getEmail()) || khachHangRepository.existsByEmail(request.getEmail())) {
+        if (nhanVienRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email đã được sử dụng!");
         }
 
-        String role = request.getRole().toUpperCase();
-        String encodedPassword = passwordEncoder.encode(request.getPassword());
-        UserDTO userDTO = new UserDTO();
-        
-        if (role.equals("CUSTOMER") || role.equals("KHACH")) {
-            KhachHang khachHang = KhachHang.builder()
-                    .maKhachHang(UUID.randomUUID().toString().substring(0, 6)) // Dummy PK generation
-                    .hoTen(request.getFullName())
-                    .email(request.getEmail())
-                    .matKhau(encodedPassword)
-                    .build();
-            khachHang = khachHangRepository.save(khachHang);
-            
-            userDTO = mapToUserDTO(khachHang);
+        String requestedUsername = request.getUsername() == null ? "" : request.getUsername().trim();
+        String finalUsername;
+        if (!requestedUsername.isEmpty()) {
+            if (nhanVienRepository.existsByTenDangNhap(requestedUsername)) {
+                throw new RuntimeException("Tên đăng nhập đã được sử dụng!");
+            }
+            finalUsername = requestedUsername;
         } else {
-            NhanVien nhanVien = NhanVien.builder()
-                    .maNhanVien(UUID.randomUUID().toString().substring(0, 4)) // Dummy PK generation
-                    .hoTen(request.getFullName())
-                    .email(request.getEmail())
-                    .loaiNhanVien(request.getRole())
-                    .matKhau(encodedPassword)
-                    .build();
-            nhanVien = nhanVienRepository.save(nhanVien);
-            
-            userDTO = mapToUserDTO(nhanVien);
+            finalUsername = generateUniqueUsername(request.getEmail());
         }
+
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+        NhanVien nhanVien = NhanVien.builder()
+                .maNhanVien(UUID.randomUUID().toString().substring(0, 4))
+                .hoTen(request.getFullName())
+                .email(request.getEmail())
+                .tenDangNhap(finalUsername)
+                .loaiNhanVien(request.getRole())
+                .matKhau(encodedPassword)
+                .build();
+        nhanVien = nhanVienRepository.save(nhanVien);
+        UserDTO userDTO = mapToUserDTO(nhanVien);
 
         // Auto login
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(finalUsername, request.getPassword())
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = tokenProvider.generateToken(authentication);
@@ -95,18 +87,15 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserDTO getCurrentUser(String email) {
-        Optional<NhanVien> emp = nhanVienRepository.findByEmail(email);
-        if (emp.isPresent()) {
-            return mapToUserDTO(emp.get());
+    public UserDTO getCurrentUser(String username) {
+        Optional<NhanVien> emp = nhanVienRepository.findByTenDangNhap(username);
+        if (emp.isEmpty()) {
+            emp = nhanVienRepository.findByEmail(username);
         }
-
-        Optional<KhachHang> cus = khachHangRepository.findByEmail(email);
-        if (cus.isPresent()) {
-            return mapToUserDTO(cus.get());
+        if (emp.isEmpty()) {
+            throw new UsernameNotFoundException("User not found");
         }
-
-        throw new UsernameNotFoundException("User not found");
+        return mapToUserDTO(emp.get());
     }
 
     private UserDTO mapToUserDTO(NhanVien nhanVien) {
@@ -115,6 +104,7 @@ public class AuthServiceImpl implements AuthService {
                 .hoTen(nhanVien.getHoTen())
                 .soDienThoai(nhanVien.getSoDienThoai())
                 .email(nhanVien.getEmail())
+                .tenDangNhap(nhanVien.getTenDangNhap())
                 .phai(nhanVien.getPhai())
                 .cccd(nhanVien.getCccd())
                 .loaiNhanVien(nhanVien.getLoaiNhanVien())
@@ -122,16 +112,21 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    private UserDTO mapToUserDTO(KhachHang khachHang) {
-        return UserDTO.builder()
-                .maKhachHang(khachHang.getMaKhachHang())
-                .hoTen(khachHang.getHoTen())
-                .soDienThoai(khachHang.getSoDienThoai())
-                .email(khachHang.getEmail())
-                .phai(khachHang.getPhai())
-                .cccd(khachHang.getCccd())
-                .quocTich(khachHang.getQuocTich())
-                .role("Customer")
-                .build();
+    private String generateUniqueUsername(String email) {
+        String base = "nv";
+        if (email != null && email.contains("@")) {
+            String candidate = email.substring(0, email.indexOf("@")).trim();
+            if (!candidate.isEmpty()) {
+                base = candidate;
+            }
+        }
+
+        String username = base;
+        int suffix = 1;
+        while (nhanVienRepository.existsByTenDangNhap(username)) {
+            username = base + suffix;
+            suffix++;
+        }
+        return username;
     }
 }

@@ -24,6 +24,10 @@ fake = Faker("vi_VN")
 random.seed(42)
 Faker.seed(42)
 
+# Default password for seeded users (development only).
+# With Spring DelegatingPasswordEncoder this is treated as plain text and validated correctly.
+DEFAULT_SEEDED_PASSWORD = "{noop}123456"
+
 
 ROW_PLAN = {
     "CHINHANH": 20,
@@ -198,6 +202,8 @@ def generate_data():
                 fake.name()[:50],
                 unique_phone(base_idx + i),
                 f"nv{nid.lower()}@company.vn"[:30],
+                f"nv{nid.lower()}",
+                DEFAULT_SEEDED_PASSWORD,
                 gender,
                 unique_cccd(base_idx + i),
                 random.choice(loai_nhan_vien),
@@ -447,7 +453,7 @@ def insert_all(connection, data):
         "GIUONG": "INSERT INTO GIUONG (MaGiuong, GiaThue, TrangThai, MaPhongChua) VALUES (%s, %s, %s, %s)",
         "TAISAN": "INSERT INTO TAISAN (MaTaiSan, TenTaiSan, GhiChu, TinhTrang, GiaBoiThuong, MaPhongChua) VALUES (%s, %s, %s, %s, %s, %s)",
         "KHACHHANG": "INSERT INTO KHACHHANG (MaKhachHang, HoTen, SoDienThoai, Email, Phai, CCCD, QuocTich) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        "NHANVIEN": "INSERT INTO NHANVIEN (MaNhanVien, HoTen, SoDienThoai, Email, Phai, CCCD, LoaiNhanVien) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        "NHANVIEN": "INSERT INTO NHANVIEN (MaNhanVien, HoTen, SoDienThoai, Email, TenDangNhap, MatKhau, Phai, CCCD, LoaiNhanVien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "CHUNGTU": "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap, ChiNhanh, NhanVienLap, KhachHangSoHuu) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         "HOPDONGTHUE": "INSERT INTO HOPDONGTHUE (MaHopDongThue, HinhThucThue, KyThanhToan, SoLuongThanhVien) VALUES (%s, %s, %s, %s)",
         "THANHVIENNHOM": "INSERT INTO THANHVIENNHOM (MaThanhVien, HoTen, CCCD, SoDienThoai, Phai, QuocTich, MaHopDongThue, NguoiDaiDien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",

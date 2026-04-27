@@ -26,6 +26,7 @@ function resolveRole(user: AuthUser) {
 export default function Register() {
   const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,6 +48,7 @@ export default function Register() {
     try {
       const result = await register({
         fullName,
+        username: username.trim() || undefined,
         email,
         password,
         role,
@@ -103,6 +105,17 @@ export default function Register() {
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Nguyen Van A"
               required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-600 mb-1.5">Tên đăng nhập (tuỳ chọn)</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Để trống để hệ thống tự tạo"
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
           </div>

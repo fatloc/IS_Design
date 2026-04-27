@@ -25,12 +25,13 @@ export type ApiResponse<T> = {
 };
 
 export type LoginPayload = {
-  email: string;
+  username: string;
   password: string;
 };
 
 export type RegisterPayload = {
   fullName: string;
+  username?: string;
   email: string;
   password: string;
   role: "Sale" | "Manager" | "Accountant";

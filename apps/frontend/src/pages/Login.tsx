@@ -24,7 +24,7 @@ function resolveRole(user: AuthUser) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { isLoading, setLoading, setAuth } = useAuthStore();
@@ -35,7 +35,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const result = await login({ email, password });
+      const result = await login({ username, password });
       const user = result.user as AuthUser;
 
       setAuth(user, result.token);
@@ -58,7 +58,7 @@ export default function Login() {
 
       setError("Không xác định được vai trò tài khoản để điều hướng.");
     } catch {
-      setError("Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.");
+      setError("Đăng nhập thất bại. Vui lòng kiểm tra lại tên đăng nhập/email và mật khẩu.");
     } finally {
       setLoading(false);
     }
@@ -79,12 +79,12 @@ export default function Login() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="block text-sm text-slate-600 mb-1.5">Email</label>
+            <label className="block text-sm text-slate-600 mb-1.5">Tên đăng nhập hoặc email</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="nv0001 hoặc nv0001@company.vn"
               required
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />

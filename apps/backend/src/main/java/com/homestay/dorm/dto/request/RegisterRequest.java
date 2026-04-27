@@ -9,6 +9,9 @@ public class RegisterRequest {
     @NotBlank(message = "Họ tên không được để trống")
     private String fullName;
 
+    // Optional: nhân viên có thể tự tạo hoặc được hệ thống cấp.
+    private String username;
+
     @NotBlank(message = "Email không được để trống")
     @Email(message = "Email không đúng định dạng")
     private String email;

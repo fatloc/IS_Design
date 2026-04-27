@@ -32,7 +32,4 @@ public class KhachHang {
 
     @Column(name = "QuocTich", length = 30)
     private String quocTich;
-
-    @Column(name = "MatKhau", length = 255)
-    private String matKhau;
 }

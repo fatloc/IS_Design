@@ -14,6 +14,7 @@ public class UserDTO {
     private String maNhanVien; // Mapped dynamically if Employee
     private String maKhachHang; // Mapped dynamically if Customer
     private String hoTen;
+    private String tenDangNhap;
     private String email;
     private String phai;
     private String soDienThoai;

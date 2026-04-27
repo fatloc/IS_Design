@@ -48,6 +48,7 @@ export interface Customer {
 export interface Employee {
   maNhanVien: string;
   hoTen: string | null;
+  tenDangNhap?: string | null;
   soDienThoai: string | null;
   email: string | null;
   phai: Gender | null;

@@ -28,6 +28,9 @@ public class NhanVien {
     @Column(name = "Email", length = 30)
     private String email;
 
+    @Column(name = "TenDangNhap", length = 50)
+    private String tenDangNhap;
+
     @Column(name = "Phai", length = 3)
     private String phai;
 
