@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="vi">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Rental Ops UI Blueprint</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+	<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+	<div class="noise"></div>
+	<div class="layout">
+		<aside class="sidebar">
+			<div>
+				<p class="tag">Service Apartment OS</p>
+				<h1>UI Blueprint for 4-Stage Workflow</h1>
+				<p class="muted">Sale - Manager - Accountant, full tenant lifecycle.</p>
+			</div>
+
+			<div class="role-switch">
+				<p class="small-title">Role simulation</p>
+				<div class="role-buttons">
+					<button class="role-btn active" data-role="sale">Nhan vien Sale</button>
+					<button class="role-btn" data-role="manager">Quan ly</button>
+					<button class="role-btn" data-role="accountant">Ke toan</button>
+				</div>
+			</div>
+
+			<nav class="menu">
+				<button class="menu-btn active" data-screen="overview">Tong quan</button>
+				<button class="menu-btn" data-screen="sitemap">Sitemap</button>
+				<button class="menu-btn" data-screen="dashboards">Dashboard phan quyen</button>
+				<button class="menu-btn" data-screen="roommap">Quan ly trang thai phong</button>
+				<button class="menu-btn" data-screen="tasks">Task - Ticket workflow</button>
+				<button class="menu-btn" data-screen="flows">User flow 4 giai doan</button>
+			</nav>
+
+			<div class="hint-box">
+				<p class="small-title">Core data entities</p>
+				<p>KHACHHANG, YEUCAUDANGKY, LICHXEMPHONG, HOSODATCOC, HOPDONGTHUE, PHIEUTHANHTOAN, PHONG, GIUONG, TAISAN.</p>
+			</div>
+		</aside>
+
+		<main class="content">
+			<header class="topbar">
+				<div>
+					<p class="tag" id="roleTag">Role active: Sale</p>
+					<h2 id="screenTitle">Tong quan san pham</h2>
+				</div>
+				<div class="actions">
+					<button class="cta">+ Tao ticket moi</button>
+					<button class="ghost" id="nextScreen">Xem man tiep</button>
+				</div>
+			</header>
+
+			<section class="screen active" id="overview">
+				<div class="kpis" id="roleKpis"></div>
+
+				<div class="grid two">
+					<article class="panel">
+						<h3>Muc tieu thiet ke UX</h3>
+						<ul class="bullets">
+							<li>Khong miss thong tin khi chuyen tay Sale -> Quan ly -> Ke toan.</li>
+							<li>Moi ticket co timeline, owner, SLA va trang thai ro rang.</li>
+							<li>Room map la nguon su that duy nhat ve tinh trang cho thue.</li>
+							<li>Dong bo giua thao tac tren UI va trang thai nghiep vu 4 giai doan.</li>
+						</ul>
+					</article>
+
+					<article class="panel">
+						<h3>Nhanh nghiep vu (global status)</h3>
+						<div class="status-stack" id="globalStatus"></div>
+					</article>
+				</div>
+			</section>
+
+			<section class="screen" id="sitemap">
+				<article class="panel">
+					<h3>Cau truc menu de xuat</h3>
+					<div class="wireframe mono">
+						<pre>
+01. Dashboard
+	- Dashboard Sale
+	- Dashboard Quan ly
+	- Dashboard Ke toan
+
+02. Leads & Booking
+	- Tiep nhan nhu cau thue
+	- Loc phong/phuong an o ghep
+	- Lich hen xem phong
+
+03. Deposits & Confirmation
+	- Queue chot phong (Manager lock)
+	- Yeu cau thu tien coc (24h SLA)
+	- Ho so khach & bo sung giay to
+
+04. Check-in & Contract
+	- Kiem tra thanh vien hop le
+	- Tao/In hop dong
+	- Thanh toan ky dau
+	- Bien ban ban giao tai san
+
+05. Check-out & Settlement
+	- Yeu cau tra phong
+	- Doi soat chi phi
+	- Thu phat sinh / Hoan coc
+	- Bien ban thanh ly & reset phong
+
+06. Room Control Center
+	- Ban do toa nha (grid)
+	- Lich su phong
+	- Nhat ky khoa/mo khoa phong
+
+07. Task Board
+	- Kanban theo giai doan
+	- List view theo SLA
+	- Audit timeline theo ticket
+
+08. Reports
+	- Ty le lap day
+	- Conversion xem phong -> coc -> checkin
+	- Cong no / hoan coc
+						</pre>
+					</div>
+				</article>
+			</section>
+
+			<section class="screen" id="dashboards">
+				<div class="grid two">
+					<article class="panel">
+						<h3>Wireframe dashboard theo role</h3>
+						<div id="dashboardBlocks"></div>
+					</article>
+					<article class="panel">
+						<h3>Widget detail</h3>
+						<ul class="bullets" id="widgetDetail"></ul>
+					</article>
+				</div>
+			</section>
+
+			<section class="screen" id="roommap">
+				<div class="grid two room-layout">
+					<article class="panel">
+						<div class="panel-title-row">
+							<h3>Room map / Grid</h3>
+							<div class="legend-line">
+								<span class="chip vacant">Trong</span>
+								<span class="chip hold">Dang coc</span>
+								<span class="chip occupied">Dang o</span>
+								<span class="chip maintenance">Bao tri</span>
+							</div>
+						</div>
+						<div class="building-grid" id="buildingGrid"></div>
+					</article>
+
+					<article class="panel">
+						<h3>Room quick action panel</h3>
+						<div class="room-detail" id="roomDetail">
+							<p>Chon 1 phong tren grid de xem thong tin va thao tac phu hop theo role.</p>
+						</div>
+					</article>
+				</div>
+			</section>
+
+			<section class="screen" id="tasks">
+				<article class="panel">
+					<div class="panel-title-row">
+						<h3>Task/Ticket board</h3>
+						<div>
+							<button class="ghost small active" id="viewKanban">Kanban</button>
+							<button class="ghost small" id="viewList">List</button>
+						</div>
+					</div>
+
+					<div id="kanbanView" class="kanban"></div>
+
+					<div id="listView" class="hidden">
+						<table>
+							<thead>
+								<tr>
+									<th>Ticket</th>
+									<th>Khach</th>
+									<th>Giai doan</th>
+									<th>Owner</th>
+									<th>SLA</th>
+									<th>Trang thai</th>
+								</tr>
+							</thead>
+							<tbody id="taskTable"></tbody>
+						</table>
+					</div>
+				</article>
+			</section>
+
+			<section class="screen" id="flows">
+				<article class="panel">
+					<h3>User flow tren UI</h3>
+					<div class="flow-steps" id="flowSteps"></div>
+				</article>
+
+				<article class="panel">
+					<h3>Hand-off checkpoints</h3>
+					<ul class="bullets">
+						<li>Giai doan 1 -> 2: Sale tao ticket dat coc, Manager lock phong, Accountant phat hanh yeu cau thanh toan 24h.</li>
+						<li>Giai doan 2 -> 3: Coc thanh cong + ho so day du moi cho phep check-in.</li>
+						<li>Giai doan 3 -> 4: Co bien ban ban giao va cong no hien hanh de tinh thanh ly.</li>
+						<li>Dong ticket chi khi room status da reset ve Trong va hoan tat doi soat tai chinh.</li>
+					</ul>
+				</article>
+			</section>
+		</main>
+	</div>
+
+	<script src="./app.js"></script>
+</body>
+</html>

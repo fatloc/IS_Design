@@ -1,0 +1,19 @@
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    "git.ignoreLimitWarning": true,
+    "java.jdt.ls.java.home": "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.18.8-hotspot",
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-17",
+            "path": "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.18.8-hotspot",
+            "default": true
+        }
+    ],
+    "java.import.maven.enabled": true,
+    "java.import.maven.java.home": "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.18.8-hotspot",
+    "java.project.importOnFirstTimeStartup": "automatic",
+    "java.project.sourcePaths": [
+        "apps/backend/src/main/java",
+        "apps/backend/src/test/java"
+    ]
+}
