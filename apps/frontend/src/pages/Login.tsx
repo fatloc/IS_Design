@@ -1,100 +1,78 @@
-import { useState, type FormEvent, useRef } from "react";
-import { Link, useNavigate } from "react-router";
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router";
 import {
-  Eye, EyeOff, Building2, ShieldCheck, ArrowRight, Check, User, Lock,
+  Eye, EyeOff, Building2, ChevronRight, Check,
+  User, Lock, ShieldCheck, ArrowRight,
 } from "lucide-react";
 import { login } from "@/services/api";
 import { useAuthStore, type AuthUser } from "@/store/authStore";
 
-// ─── Demo accounts (for testing) ───────────────────────────────────────
-// Manager: nv0001 / 123456
-// Sale: nv0002 / 123456
-// Accountant: nv0003 / 123456
+
 const DORM_IMAGE = "https://images.unsplash.com/photo-1767800766055-1cdbd2e351b9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBzdHVkZW50JTIwZG9ybWl0b3J5JTIwcm9vbSUyMGludGVyaW9yJTIwY296eXxlbnwxfHx8fDE3NzczNjQ3NDd8MA&ixlib=rb-4.1.0&q=80&w=1080";
 
-// ─── ANIMATION keyframes ───────────────────────────────────────────────
+// ─── ANIMATION keyframes injected once ───────────────────────────────────────
 const STYLES = `
   @keyframes fadeUp   { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
   @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+  @keyframes pulse2   { 0%,100% { opacity:.7; transform:scale(1); } 50% { opacity:1; transform:scale(1.04); } }
+  @keyframes shimmer  { from { background-position: -400px 0 } to { background-position: 400px 0 } }
   @keyframes spin     { to { transform: rotate(360deg); } }
   .fade-up-1  { animation: fadeUp .55s .05s cubic-bezier(.21,1.02,.73,1) both; }
   .fade-up-2  { animation: fadeUp .55s .12s cubic-bezier(.21,1.02,.73,1) both; }
   .fade-up-3  { animation: fadeUp .55s .20s cubic-bezier(.21,1.02,.73,1) both; }
+  .fade-up-4  { animation: fadeUp .55s .28s cubic-bezier(.21,1.02,.73,1) both; }
+  .fade-up-5  { animation: fadeUp .55s .36s cubic-bezier(.21,1.02,.73,1) both; }
+  .fade-up-6  { animation: fadeUp .55s .44s cubic-bezier(.21,1.02,.73,1) both; }
 `;
 
-function resolveRole(user: AuthUser) {
-  const rawRole = String(user.role ?? user.loaiNhanVien ?? "").toLowerCase();
+function normalizeRoleLabel(value: string) {
+  const compact = value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 
-  if (rawRole.includes("sale")) {
-    return "Sale";
-  }
-
-  if (rawRole.includes("manager") || rawRole.includes("quan ly")) {
-    return "Manager";
-  }
-
-  if (rawRole.includes("accountant") || rawRole.includes("ke toan")) {
-    return "Accountant";
-  }
-
-  return null;
+  return compact;
 }
 
 export default function Login() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { isLoading, setLoading, setAuth } = useAuthStore();
-  const usernameRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState("");
+  const emailRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
+  const { setAuth } = useAuthStore();
 
-    if (!username.trim()) {
-      setError("Vui lòng nhập tên đăng nhập hoặc email.");
-      return;
-    }
-
-    if (!password.trim()) {
-      setError("Vui lòng nhập mật khẩu.");
-      return;
-    }
+  // Main login handler
+  const handleLogin = async () => {
+    if (!email.trim()) { setError("Vui lòng nhập email hoặc tên đăng nhập."); return; }
+    if (!password.trim()) { setError("Vui lòng nhập mật khẩu."); return; }
+    setError("");
 
     setLoading(true);
 
     try {
-      const result = await login({ username, password });
+      const result = await login({ username: email, password });
       const user = result.user as AuthUser;
-
       setAuth(user, result.token);
 
-      const role = resolveRole(user);
-      if (role === "Sale") {
-        navigate("/sale/dashboard", { replace: true });
-        return;
-      }
+      const rawRole = normalizeRoleLabel(String(user.role ?? user.loaiNhanVien ?? ""));
+      let target = "/sale/dashboard";
+      if (rawRole.includes("manager") || rawRole.includes("quanly")) target = "/manager/dashboard";
+      if (rawRole.includes("accountant") || rawRole.includes("ketoan")) target = "/accountant/dashboard";
 
-      if (role === "Manager") {
-        navigate("/manager/dashboard", { replace: true });
-        return;
-      }
-
-      if (role === "Accountant") {
-        navigate("/accountant/dashboard", { replace: true });
-        return;
-      }
-
-      setError("Không xác định được vai trò tài khoản để điều hướng.");
+      navigate(target, { replace: true });
     } catch {
-      setError("Đăng nhập thất bại. Vui lòng kiểm tra lại tên đăng nhập/email và mật khẩu.");
-    } finally {
+      setError("Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản và mật khẩu.");
       setLoading(false);
     }
-  }
+  };
+
+  const isLoading = loading;
 
   return (
     <>
@@ -112,7 +90,7 @@ export default function Login() {
             draggable={false}
           />
 
-          {/* Gradient overlays */}
+          {/* Gradient overlays — dark base + brand tint */}
           <div className="absolute inset-0"
             style={{ background: "linear-gradient(135deg, rgba(15,23,42,0.82) 0%, rgba(67,56,202,0.70) 50%, rgba(15,23,42,0.88) 100%)" }} />
 
@@ -236,33 +214,33 @@ export default function Login() {
             )}
 
             {/* Form */}
-            <form className="space-y-4 fade-up-2" onSubmit={handleSubmit}>
-              {/* Username */}
+            <div className="space-y-4 fade-up-2">
+              {/* Email */}
               <div>
                 <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  Tên đăng nhập hoặc Email
+                  Email hoặc Tên đăng nhập
                 </label>
                 <div className="relative">
                   <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <User size={15} style={{ color: username ? "#6366F1" : "#94A3B8" }} />
+                    <User size={15} style={{ color: email ? "#6366F1" : "#94A3B8" }} />
                   </div>
                   <input
-                    ref={usernameRef}
-                    type="text"
-                    placeholder="nv0001 hoặc nv0001@company.vn"
-                    value={username}
-                    onChange={e => { setUsername(e.target.value); setError(null); }}
+                    ref={emailRef}
+                    type="email"
+                    placeholder="example@homestay.vn"
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); setError(""); }}
                     className="w-full rounded-xl transition"
                     style={{
                       paddingLeft: "2.6rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                      border: `1.5px solid ${username ? "#C7D2FE" : "#E2E8F0"}`,
-                      background: username ? "#FAFAFE" : "#FAFAFA",
+                      border: `1.5px solid ${email ? "#C7D2FE" : "#E2E8F0"}`,
+                      background: email ? "#FAFAFE" : "#FAFAFA",
                       fontSize: "0.88rem", color: "#1E293B", outline: "none",
-                      boxShadow: username ? "0 0 0 3px rgba(99,102,241,0.08)" : "none",
+                      boxShadow: email ? "0 0 0 3px rgba(99,102,241,0.08)" : "none",
                       transition: "border-color .15s, box-shadow .15s",
                     }}
                     onFocus={e => { e.currentTarget.style.borderColor = "#6366F1"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = username ? "#C7D2FE" : "#E2E8F0"; e.currentTarget.style.boxShadow = username ? "0 0 0 3px rgba(99,102,241,0.08)" : "none"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = email ? "#C7D2FE" : "#E2E8F0"; e.currentTarget.style.boxShadow = email ? "0 0 0 3px rgba(99,102,241,0.08)" : "none"; }}
                   />
                 </div>
               </div>
@@ -280,7 +258,8 @@ export default function Login() {
                     type={showPw ? "text" : "password"}
                     placeholder="Nhập mật khẩu..."
                     value={password}
-                    onChange={e => { setPassword(e.target.value); setError(null); }}
+                    onChange={e => { setPassword(e.target.value); setError(""); }}
+                    onKeyDown={e => e.key === "Enter" && handleLogin()}
                     className="w-full rounded-xl transition"
                     style={{
                       paddingLeft: "2.6rem", paddingRight: "3rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
@@ -318,11 +297,18 @@ export default function Login() {
                   </div>
                   <span style={{ fontSize: "0.82rem", color: "#475569", fontWeight: 500 }}>Ghi nhớ đăng nhập</span>
                 </label>
+                <button type="button"
+                  className="transition"
+                  style={{ fontSize: "0.82rem", fontWeight: 600, color: "#6366F1", outline: "none" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "#4338CA")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#6366F1")}>
+                  Quên mật khẩu?
+                </button>
               </div>
 
-              {/* Login Button */}
+              {/* Primary Login Button */}
               <button
-                type="submit"
+                onClick={() => handleLogin()}
                 disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2.5 rounded-xl transition-all relative overflow-hidden"
                 style={{
@@ -353,10 +339,21 @@ export default function Login() {
                   </>
                 )}
               </button>
-            </form>
+            </div>
 
             {/* Footer */}
-            <div className="mt-8 text-center fade-up-3">
+            <div className="mt-8 text-center fade-up-4">
+              <div className="flex items-center justify-center gap-1.5 mb-3">
+                <span style={{ fontSize: "0.82rem", color: "#94A3B8" }}>Chưa có tài khoản nhân viên?</span>
+                <button
+                  onClick={() => navigate("/register")}
+                  className="flex items-center gap-1 transition"
+                  style={{ fontSize: "0.82rem", fontWeight: 700, color: "#6366F1", outline: "none" }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "#4338CA"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "#6366F1"}>
+                  Đăng ký tài khoản <ChevronRight size={13} />
+                </button>
+              </div>
               <span style={{ fontSize: "0.73rem", color: "#CBD5E1" }}>
                 © 2026 HomeStayDorm · v2.4.1 · Hệ thống quản lý ký túc xá
               </span>

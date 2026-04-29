@@ -23,10 +23,24 @@ public class TransactionServiceImpl implements TransactionService {
     private final PhieuThanhToanRepository repository;
 
     @Override
-    public ApiListResponse<PhieuThanhToan> getTransactions(int page, int size) {
+    public ApiListResponse<PhieuThanhToan> getTransactions(int page, int size, String loaiGiaoDich, String trangThai) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<PhieuThanhToan> pageData = repository.findAll(pageable);
-        return ApiListResponse.ok(pageData.getContent(), pageData.getTotalElements());
+        Page<PhieuThanhToan> pageData;
+        
+        boolean hasLoai = loaiGiaoDich != null && !loaiGiaoDich.isEmpty();
+        boolean hasTrangThai = trangThai != null && !trangThai.isEmpty();
+        
+        if (hasLoai && hasTrangThai) {
+            pageData = repository.findByLoaiGiaoDichAndTrangThai(loaiGiaoDich, trangThai, pageable);
+        } else if (hasLoai) {
+            pageData = repository.findByLoaiGiaoDich(loaiGiaoDich, pageable);
+        } else if (hasTrangThai) {
+            pageData = repository.findByTrangThai(trangThai, pageable);
+        } else {
+            pageData = repository.findAll(pageable);
+        }
+        
+        return ApiListResponse.fromPage(pageData);
     }
 
     @Override

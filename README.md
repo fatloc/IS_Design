@@ -39,7 +39,7 @@ mvn spring-boot:run
 
 ### Frontend
 ```bash
-cd apps/frontend
+mvn spring-boot:run
 npm install
 npm run dev
 ```

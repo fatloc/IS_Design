@@ -17,7 +17,10 @@ const AUTH_TOKEN_KEY = "token";
 
 export type ApiListResponse<T> = {
   data: T[];
-  total?: number;
+  totalElements?: number;
+  totalPages?: number;
+  page?: number;
+  size?: number;
 };
 
 export type ApiResponse<T> = {
@@ -61,6 +64,63 @@ export type UpdateTransactionPayload = Partial<Transaction>;
 export type Deposit = Document & DepositFile;
 export type CreateDepositPayload = Omit<Deposit, "maVanBan" | "maHoSoDatCoc">;
 export type UpdateDepositPayload = Partial<Deposit>;
+
+export type OperationAsset = {
+  asset: string;
+  present: boolean;
+  condition: "Tốt" | "Bình thường" | "Cần sửa chữa";
+  notes: string;
+};
+
+export type OperationCheckinItem = {
+  id: string;
+  room: string;
+  tenant: string;
+  avatar: string;
+  roomType: string;
+  moveIn: string;
+  deposit: number;
+  status: "Chờ bàn giao" | "Đã bàn giao";
+  assets: OperationAsset[];
+};
+
+export type OperationCheckoutItem = {
+  id: string;
+  room: string;
+  tenant: string;
+  avatar: string;
+  roomType: string;
+  moveOut: string;
+  deposit: number;
+  daysLeft: number;
+  status: "Chờ thanh lý" | "Chờ đối soát" | "Đã trả phòng";
+  assets: OperationAsset[];
+};
+
+export type OperationsResponse = {
+  checkins: OperationCheckinItem[];
+  checkouts: OperationCheckoutItem[];
+};
+
+export type DashboardTask = {
+  id: string;
+  title: string;
+  desc: string;
+  source: "approvals" | "operations";
+  priority: "critical" | "high" | "medium";
+  time: string;
+  tag: string;
+};
+
+export type DashboardResponse = {
+  totalRooms: number;
+  roomStatusCounts: Record<string, number>;
+  pendingRequests: number;
+  pendingAppointments: number;
+  pendingTransactions: number;
+  monthlyRevenue: number;
+  urgentTasks: DashboardTask[];
+};
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -141,6 +201,17 @@ export async function getUsers(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Customer | Employee>>("/users", { params });
   return response.data;
 }
+
+export async function getCustomers(params?: Record<string, unknown>) {
+  const response = await api.get<ApiListResponse<Customer>>("/customers", { params });
+  return response.data;
+}
+
+export async function updateCustomer(maKhachHang: string, data: Partial<Customer>) {
+  const response = await api.put<ApiResponse<Customer>>(`/customers/${maKhachHang}`, data);
+  return response.data.data;
+}
+
 
 export async function getRooms(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Room>>("/rooms", { params });
@@ -239,6 +310,16 @@ export async function createDeposit(payload: CreateDepositPayload) {
 
 export async function updateDeposit(maHoSoDatCoc: string, payload: UpdateDepositPayload) {
   const response = await api.put<ApiResponse<Deposit>>(`/deposits/${maHoSoDatCoc}`, payload);
+  return response.data.data;
+}
+
+export async function getOperations() {
+  const response = await api.get<ApiResponse<OperationsResponse>>("/operations");
+  return response.data.data;
+}
+
+export async function getDashboardStats() {
+  const response = await api.get<ApiResponse<DashboardResponse>>("/dashboard/stats");
   return response.data.data;
 }
 

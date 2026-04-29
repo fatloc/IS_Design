@@ -26,7 +26,7 @@ public class ContractServiceImpl implements ContractService {
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<HopDongThue> pageData = repository.findAll(pageable);
-        return ApiListResponse.ok(pageData.getContent(), pageData.getTotalElements());
+        return ApiListResponse.fromPage(pageData);
     }
 
     @Override

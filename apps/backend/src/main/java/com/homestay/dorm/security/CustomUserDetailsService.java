@@ -27,7 +27,28 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         NhanVien emp = employeeOpt.get();
-        String role = (emp.getLoaiNhanVien() != null) ? emp.getLoaiNhanVien() : "SALE";
+        String role = normalizeRole(emp.getLoaiNhanVien());
         return new CustomUserDetails(emp.getMaNhanVien(), emp.getTenDangNhap(), emp.getMatKhau(), role);
+    }
+
+    private String normalizeRole(String loaiNhanVien) {
+        if (loaiNhanVien == null) {
+            return "Sale";
+        }
+
+        String normalized = java.text.Normalizer.normalize(loaiNhanVien, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", "");
+
+        if (normalized.contains("manager") || normalized.contains("quanly")) {
+            return "Manager";
+        }
+
+        if (normalized.contains("accountant") || normalized.contains("ketoan")) {
+            return "Accountant";
+        }
+
+        return "Sale";
     }
 }

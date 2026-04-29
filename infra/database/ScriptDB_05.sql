@@ -143,6 +143,7 @@ CREATE TABLE YEUCAUDANGKY (
     CacTieuChiKhac VARCHAR(255),
     KhachHangYeuCau CHAR(6),
     NhanVienPhuTrach CHAR(4),
+    TrangThaiYeuCau VARCHAR(30),
     FOREIGN KEY (KhachHangYeuCau) REFERENCES KHACHHANG(MaKhachHang),
     FOREIGN KEY (NhanVienPhuTrach) REFERENCES NHANVIEN(MaNhanVien)
 );

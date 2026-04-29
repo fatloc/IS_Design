@@ -103,6 +103,7 @@ export interface Request {
   cacTieuChiKhac: string | null;
   khachHangYeuCau: string | null;
   nhanVienPhuTrach: string | null;
+  trangThaiYeuCau?: string | null;
 }
 
 export interface Appointment {

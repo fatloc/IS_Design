@@ -26,7 +26,7 @@ public class DepositServiceImpl implements DepositService {
     public ApiListResponse<HoSoDatCoc> getDeposits(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<HoSoDatCoc> pageData = repository.findAll(pageable);
-        return ApiListResponse.ok(pageData.getContent(), pageData.getTotalElements());
+        return ApiListResponse.fromPage(pageData);
     }
 
     @Override

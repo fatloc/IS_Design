@@ -19,9 +19,11 @@ public class AppointmentController {
 
     @GetMapping
     public ApiListResponse<LichXemPhong> getAppointments(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-        return appointmentService.getAppointments(page, size);
+            @RequestParam(defaultValue = "0")    int page,
+            @RequestParam(defaultValue = "100")  int size,
+            @RequestParam(required = false)      Integer month,
+            @RequestParam(required = false)      Integer year) {
+        return appointmentService.getAppointments(page, size, month, year);
     }
 
     @GetMapping("/{maLichHen}")

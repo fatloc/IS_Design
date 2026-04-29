@@ -6,7 +6,7 @@ import com.homestay.dorm.dto.response.ApiListResponse;
 import com.homestay.dorm.entity.YeuCauDangKy;
 
 public interface RequestService {
-    ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach);
+    ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau);
     YeuCauDangKy getRequestById(String maYeuCau);
     YeuCauDangKy createRequest(CreateYeuCauRequest request);
     YeuCauDangKy updateRequest(String maYeuCau, UpdateYeuCauRequest request);

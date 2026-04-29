@@ -1,356 +1,333 @@
-import { useState, useEffect } from "react";
-import { X, Phone, Mail, CreditCard, FileText, Calendar, MapPin, Wifi, Loader2, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Building2, Filter, Layers3, Search, SlidersHorizontal } from "lucide-react";
+import { Pagination } from "../components/Pagination";
+import { usePagedList } from "../hooks/usePagedList";
 import { getRooms } from "../services/api";
-import type { Room as ApiRoom } from "../types";
+import type { Room } from "../types";
 
-// Keep existing UI types
-type UIRoom = {
-  id: string;
-  number: string;
-  floor: number;
-  building: string;
-  type: string;
-  status: "Vacant" | "Occupied" | "Reserved" | "Maintenance";
-  capacity: number;
-  price: number;
-  resident: { name: string; phone: string; idNumber: string; email: string; } | null;
-  paymentStatus: "Paid" | "Unpaid" | "Partial" | null;
-  contractId: string | null;
-};
+const STATUS_OPTIONS = [
+  { value: "All", label: "Tất cả" },
+  { value: "Trong", label: "Trống", color: "#059669", bg: "#ECFDF5" },
+  { value: "Da dat", label: "Đã đặt", color: "#D97706", bg: "#FFFBEB" },
+  { value: "Dang thue", label: "Đang thuê", color: "#2563EB", bg: "#EFF6FF" },
+  { value: "Bao tri", label: "Bảo trì", color: "#64748B", bg: "#F8FAFC" },
+] as const;
 
-type StatusColor = {
-  bg: string; border: string; badge: string; dot: string; label: string;
-};
+const BRANCH_OPTIONS = ["All", "0001", "0002", "0003", "0004", "0005"] as const;
 
-const STATUS_CONFIG: Record<string, StatusColor> = {
-  Vacant:      { bg: "bg-emerald-50", border: "border-emerald-200", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500", label: "Trống" },
-  Occupied:    { bg: "bg-blue-50",    border: "border-blue-200",    badge: "bg-blue-100 text-blue-700",       dot: "bg-blue-500",    label: "Đang thuê" },
-  Reserved:    { bg: "bg-amber-50",   border: "border-amber-200",   badge: "bg-amber-100 text-amber-700",     dot: "bg-amber-500",   label: "Đặt trước" },
-  Maintenance: { bg: "bg-slate-100",  border: "border-slate-300",   badge: "bg-slate-200 text-slate-600",     dot: "bg-slate-500",   label: "Bảo trì" },
-};
-
-const PAYMENT_CONFIG: Record<string, string> = {
-  Paid: "bg-emerald-100 text-emerald-700",
-  Unpaid: "bg-red-100 text-red-700",
-  Partial: "bg-amber-100 text-amber-700",
-};
-
-// Helper mapper API -> UI
-function mapApiToUIRoom(apiRoom: ApiRoom): UIRoom {
-  const ma = apiRoom.maPhong || "";
-  const b = ma.charAt(0).toUpperCase(); 
-  const f = parseInt(ma.charAt(1) || "1", 10);
-  
-  let mappedStatus: "Vacant" | "Occupied" | "Reserved" | "Maintenance" = "Vacant";
-  if (apiRoom.trangThai === "Đang thuê" || apiRoom.trangThai === "Occupied") mappedStatus = "Occupied";
-  else if (apiRoom.trangThai === "Bảo trì" || apiRoom.trangThai === "Maintenance") mappedStatus = "Maintenance";
-  else if (apiRoom.trangThai === "Đặt trước" || apiRoom.trangThai === "Reserved") mappedStatus = "Reserved";
-
-  return {
-    id: apiRoom.maPhong,
-    number: apiRoom.maPhong,
-    floor: isNaN(f) ? 1 : f,
-    building: b || "A",
-    type: `Phòng ${apiRoom.sucChuaToiDa || 0}`,
-    status: mappedStatus,
-    capacity: apiRoom.sucChuaToiDa || 0,
-    price: Number(apiRoom.giaThuePhong) || 0,
-    resident: null, // Note: DB PHONG doesn't have resident details inline, requires /contracts API later
-    paymentStatus: null,
-    contractId: null
-  };
+function formatMoney(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = typeof value === "number" ? value : Number(String(value).replace(/[^\d.-]/g, ""));
+  if (Number.isNaN(numeric)) return String(value);
+  return numeric.toLocaleString("vi-VN") + " đ";
 }
 
-function RoomDetailModal({ room, onClose }: { room: UIRoom; onClose: () => void }) {
-  const cfg = STATUS_CONFIG[room.status];
-  const contractInfo = room.contractId
-    ? { id: room.contractId, start: "2024-06-01", end: "2025-05-31" }
-    : null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className={`${cfg.bg} px-6 py-5 rounded-t-2xl border-b ${cfg.border}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xl text-slate-900" style={{ fontWeight: 700 }}>{room.number}</span>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full ${cfg.badge}`} style={{ fontWeight: 600 }}>
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${cfg.dot} mr-1`} />
-                  {cfg.label}
-                </span>
-              </div>
-              <div className="text-sm text-slate-600">Chi nhánh / Tòa {room.building} · Tầng {room.floor} · {room.type}</div>
-            </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/70 hover:bg-white flex items-center justify-center transition">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-5">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-slate-50 rounded-xl p-3 text-center">
-              <div className="text-slate-400 text-xs mb-1">Sức chứa</div>
-              <div className="text-slate-800 text-sm" style={{ fontWeight: 600 }}>{room.capacity} người</div>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-3 text-center">
-              <div className="text-slate-400 text-xs mb-1">Giá thuê</div>
-              <div className="text-indigo-600 text-sm" style={{ fontWeight: 600 }}>{room.price.toLocaleString()}đ</div>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-3 text-center">
-              <div className="text-slate-400 text-xs mb-1">Vị trí</div>
-              <div className="text-slate-800 text-sm" style={{ fontWeight: 600 }}>T{room.floor} · {room.building}</div>
-            </div>
-          </div>
-
-          {room.resident ? (
-            <div>
-              <div className="text-sm text-slate-500 mb-3" style={{ fontWeight: 500 }}>Thông tin khách thuê</div>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl" style={{ fontWeight: 700 }}>
-                  {room.resident.name[0]}
-                </div>
-                <div>
-                  <div className="text-slate-900 text-base" style={{ fontWeight: 600 }}>{room.resident.name}</div>
-                  <div className="text-xs text-slate-500">CCCD: {room.resident.idNumber}</div>
-                </div>
-              </div>
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <Phone size={14} className="text-slate-400 flex-shrink-0" />
-                  {room.resident.phone}
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <Mail size={14} className="text-slate-400 flex-shrink-0" />
-                  {room.resident.email}
-                </div>
-                {room.paymentStatus && (
-                  <div className="flex items-center gap-3 text-sm text-slate-600">
-                    <CreditCard size={14} className="text-slate-400 flex-shrink-0" />
-                    Thanh toán:&nbsp;
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${PAYMENT_CONFIG[room.paymentStatus]}`}>
-                      {room.paymentStatus === "Paid" ? "Đã thanh toán" : room.paymentStatus === "Unpaid" ? "Chưa thanh toán" : "Thanh toán một phần"}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-slate-400 text-sm bg-slate-50 rounded-xl">
-              {room.status === "Maintenance" ? "Phòng đang trong quá trình bảo trì" : "Phòng chưa có khách thuê"}
-            </div>
-          )}
-
-          {contractInfo && (
-            <div>
-              <div className="text-sm text-slate-500 mb-3" style={{ fontWeight: 500 }}>Thông tin hợp đồng</div>
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <FileText size={14} className="text-slate-400 flex-shrink-0" />
-                  Mã hợp đồng: <span className="text-indigo-600">{contractInfo.id}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <Calendar size={14} className="text-slate-400 flex-shrink-0" />
-                  Hiệu lực: {contractInfo.start} → {contractInfo.end}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className="text-sm text-slate-500 mb-3" style={{ fontWeight: 500 }}>Tiện nghi</div>
-            <div className="flex flex-wrap gap-2">
-              {["WiFi miễn phí", "Điều hòa", "Nóng lạnh", "Tủ quần áo", "Bàn học"].map(a => (
-                <span key={a} className="flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">
-                  <Wifi size={10} /> {a}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition">
-              {room.status === "Vacant" ? "Tạo hợp đồng" : "Xem hợp đồng"}
-            </button>
-            <button className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition">
-              Chỉnh sửa phòng
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function statusStyle(status: string | null | undefined) {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized.includes("trong")) return { label: "Trống", bg: "#ECFDF5", color: "#059669" };
+  if (normalized.includes("da dat")) return { label: "Đã đặt", bg: "#FFFBEB", color: "#D97706" };
+  if (normalized.includes("dang thue")) return { label: "Đang thuê", bg: "#EFF6FF", color: "#2563EB" };
+  if (normalized.includes("bao tri")) return { label: "Bảo trì", bg: "#F8FAFC", color: "#64748B" };
+  return { label: status ?? "Không rõ", bg: "#F1F5F9", color: "#334155" };
 }
 
 export default function Rooms() {
-  const [rooms, setRooms] = useState<UIRoom[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]["value"]>("All");
+  const [branchFilter, setBranchFilter] = useState<(typeof BRANCH_OPTIONS)[number]>("All");
+  const [searchText, setSearchText] = useState("");
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  const [building, setBuilding] = useState<"All" | "A" | "B" | "C">("All");
-  const [floor, setFloor] = useState<"All" | string>("All");
-  const [statusFilter, setStatusFilter] = useState<"All" | string>("All");
-  const [selectedRoom, setSelectedRoom] = useState<UIRoom | null>(null);
+  const apiParams = useMemo(() => {
+    const query: Record<string, unknown> = {};
+    if (statusFilter !== "All") {
+      query.search = statusFilter;
+    }
+    return query;
+  }, [statusFilter]);
+
+  const { items, page, size, totalElements, totalPages, loading, error, setPage, setSize, reload } = usePagedList<Room>(
+    getRooms,
+    12,
+    apiParams
+  );
 
   useEffect(() => {
-    setIsLoading(true);
-    getRooms()
-      .then((res) => {
-        const mapped = (res.data || []).map(mapApiToUIRoom);
-        setRooms(mapped);
-        setError(null);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Không thể lấy danh sách phòng từ server.");
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, []);
+    setPage(0);
+    setSelectedRoom(null);
+  }, [statusFilter, branchFilter, setPage]);
 
-  const buildings = ["All", "A", "B", "C"] as const;
-  const floors = ["All", "1", "2", "3", "4"];
-
-  const filtered = rooms.filter(r => {
-    const matchBuilding = building === "All" || r.building === building;
-    const matchFloor = floor === "All" || r.floor === parseInt(floor);
-    const matchStatus = statusFilter === "All" || r.status === statusFilter;
-    return matchBuilding && matchFloor && matchStatus;
+  const visibleRooms = items.filter((room) => {
+    const matchBranch = branchFilter === "All" || String(room.chiNhanh ?? "") === branchFilter;
+    const matchSearch = !searchText.trim() || String(room.maPhong ?? "").toLowerCase().includes(searchText.trim().toLowerCase());
+    return matchBranch && matchSearch;
   });
 
-  const stats = {
-    Vacant: rooms.filter(r => r.status === "Vacant").length,
-    Occupied: rooms.filter(r => r.status === "Occupied").length,
-    Reserved: rooms.filter(r => r.status === "Reserved").length,
-    Maintenance: rooms.filter(r => r.status === "Maintenance").length,
-  };
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    items.forEach((room) => {
+      const normalized = (room.trangThai ?? "").toLowerCase();
+      const key = normalized.includes("trong")
+        ? "Trong"
+        : normalized.includes("da dat")
+          ? "Da dat"
+          : normalized.includes("dang thue")
+            ? "Dang thue"
+            : normalized.includes("bao tri")
+              ? "Bao tri"
+              : room.trangThai ?? "Khac";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return counts;
+  }, [items]);
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl shadow-sm border border-slate-100">
-        <Loader2 className="animate-spin text-indigo-500 mb-4" size={32} />
-        <p className="text-slate-500">Đang tải danh sách phòng...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-xl border border-red-100">
-        <AlertCircle className="text-red-500 mb-4" size={32} />
-        <p className="text-red-700 font-medium mb-2">{error}</p>
-        <button onClick={() => window.location.reload()} className="text-sm bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50">
-          Thử lại
-        </button>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!selectedRoom && visibleRooms.length > 0) {
+      setSelectedRoom(visibleRooms[0]);
+    }
+    if (selectedRoom && !visibleRooms.find((room) => room.maPhong === selectedRoom.maPhong)) {
+      setSelectedRoom(visibleRooms[0] ?? null);
+    }
+  }, [visibleRooms, selectedRoom]);
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex flex-wrap items-center gap-4">
-        {[
-          { status: "Vacant", label: "Phòng trống", count: stats.Vacant },
-          { status: "Occupied", label: "Đang thuê", count: stats.Occupied },
-          { status: "Reserved", label: "Đặt trước", count: stats.Reserved },
-          { status: "Maintenance", label: "Bảo trì", count: stats.Maintenance },
-        ].map((s) => (
-          <button
-            key={s.status}
-            onClick={() => setStatusFilter(statusFilter === s.status ? "All" : s.status)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition ${statusFilter === s.status ? STATUS_CONFIG[s.status].border + " " + STATUS_CONFIG[s.status].bg : "border-slate-200 hover:border-slate-300"}`}
-          >
-            <span className={`w-3 h-3 rounded-full ${STATUS_CONFIG[s.status].dot}`} />
-            <span className="text-sm text-slate-700">{s.label}</span>
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${STATUS_CONFIG[s.status].badge}`} style={{ fontWeight: 600 }}>{s.count}</span>
-          </button>
-        ))}
-        <div className="ml-auto text-xs text-slate-400">{filtered.length} / {rooms.length} phòng</div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <MapPin size={14} className="text-slate-400" />
-          <span className="text-sm text-slate-500">Tòa nhà:</span>
-          <div className="flex gap-1">
-            {buildings.map(b => (
-              <button
-                key={b}
-                onClick={() => setBuilding(b as any)}
-                className={`px-3 py-1.5 rounded-lg text-sm transition ${building === b ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-              >
-                {b === "All" ? "Tất cả" : `Tòa ${b}`}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Tầng:</span>
-          <div className="flex gap-1">
-            {floors.map(f => (
-              <button
-                key={f}
-                onClick={() => setFloor(f)}
-                className={`px-3 py-1.5 rounded-lg text-sm transition ${floor === f ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-              >
-                {f === "All" ? "Tất cả" : `T${f}`}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {(["A", "B", "C"] as const).map(b => {
-        if (building !== "All" && building !== b) return null;
-        const buildingRooms = filtered.filter(r => r.building === b);
-        if (buildingRooms.length === 0) return null;
-
-        return (
-          <div key={b} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center text-sm" style={{ fontWeight: 700 }}>
-                {b}
+      <div className="grid grid-cols-4 gap-4">
+        {STATUS_OPTIONS.filter((option) => option.value !== "All").map((option) => {
+          const count = statusCounts.get(option.value) ?? 0;
+          return (
+            <button
+              key={option.value}
+              onClick={() => setStatusFilter(statusFilter === option.value ? "All" : option.value)}
+              className="rounded-2xl border p-4 text-left bg-white shadow-sm transition hover:-translate-y-0.5"
+              style={{ borderColor: statusFilter === option.value ? option.color ?? "#E2E8F0" : "#E2E8F0" }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-slate-400">{option.label}</div>
+                  <div className="mt-2 text-2xl text-slate-900" style={{ fontWeight: 800 }}>{count}</div>
+                </div>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: option.bg }}>
+                  <Layers3 size={18} style={{ color: option.color }} />
+                </div>
               </div>
-              <span className="text-slate-800">Tòa {b}</span>
-              <span className="text-slate-400 text-xs">{buildingRooms.length} phòng</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[260px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Tìm theo mã phòng..."
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 bg-slate-50">
+              <Filter size={14} className="text-slate-400" />
+              Trạng thái
             </div>
-            <div className="p-4 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
-              {buildingRooms.map((room) => {
-                const cfg = STATUS_CONFIG[room.status];
+            {STATUS_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setStatusFilter(option.value)}
+                className="px-3 py-2.5 rounded-xl text-sm transition border"
+                style={{
+                  background: statusFilter === option.value ? (option.bg ?? "#EEF2FF") : "#fff",
+                  color: statusFilter === option.value ? (option.color ?? "#4F46E5") : "#64748B",
+                  borderColor: statusFilter === option.value ? (option.color ?? "#CBD5E1") : "#E2E8F0",
+                  fontWeight: statusFilter === option.value ? 700 : 500,
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 bg-slate-50">
+              <Building2 size={14} className="text-slate-400" />
+              Chi nhánh
+            </div>
+            {BRANCH_OPTIONS.map((branch) => (
+              <button
+                key={branch}
+                onClick={() => setBranchFilter(branch)}
+                className="px-3 py-2.5 rounded-xl text-sm transition border"
+                style={{
+                  background: branchFilter === branch ? "#EEF2FF" : "#fff",
+                  color: branchFilter === branch ? "#4F46E5" : "#64748B",
+                  borderColor: branchFilter === branch ? "#C7D2FE" : "#E2E8F0",
+                  fontWeight: branchFilter === branch ? 700 : 500,
+                }}
+              >
+                {branch === "All" ? "Tất cả" : branch}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto text-xs text-slate-500 flex items-center gap-2">
+            <SlidersHorizontal size={14} />
+            {loading ? "Đang tải dữ liệu..." : `${totalElements} phòng`}
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Không tải được dữ liệu phòng. Hãy kiểm tra backend đang chạy ở cổng 3000.
+            <button onClick={reload} className="ml-3 font-semibold underline underline-offset-2">
+              Tải lại
+            </button>
+          </div>
+        )}
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">Mã phòng</th>
+                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">Sức chứa</th>
+                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">Giá thuê</th>
+                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">Trạng thái</th>
+                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">Chi nhánh</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {!loading && visibleRooms.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-14 text-center text-sm text-slate-400">
+                    Không có phòng phù hợp với bộ lọc hiện tại.
+                  </td>
+                </tr>
+              )}
+
+              {visibleRooms.map((room) => {
+                const state = statusStyle(room.trangThai);
+                const isSelected = selectedRoom?.maPhong === room.maPhong;
                 return (
-                  <button
-                    key={room.id}
+                  <tr
+                    key={room.maPhong}
                     onClick={() => setSelectedRoom(room)}
-                    className={`${cfg.bg} ${cfg.border} border-2 rounded-xl p-2.5 text-center hover:scale-105 hover:shadow-md transition-all duration-150 group`}
+                    className={`cursor-pointer transition ${isSelected ? "bg-indigo-50/70" : "hover:bg-slate-50"}`}
                   >
-                    <div className={`w-2 h-2 rounded-full ${cfg.dot} mx-auto mb-1.5`} />
-                    <div className="text-xs text-slate-800 leading-tight" style={{ fontWeight: 600 }}>{room.number}</div>
-                    <div className="text-xs text-slate-400 leading-tight mt-0.5">{room.type[0]}</div>
-                    {room.paymentStatus === "Unpaid" && (
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-red-500 mx-auto" title="Chưa thanh toán" />
-                    )}
-                  </button>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center" style={{ fontWeight: 800 }}>
+                          {room.maPhong}
+                        </div>
+                        <div>
+                          <div className="text-sm text-slate-900" style={{ fontWeight: 700 }}>{room.maPhong}</div>
+                          <div className="text-xs text-slate-400">Phòng ký túc xá</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-700">{room.sucChuaToiDa ?? "—"} người</td>
+                    <td className="px-4 py-4 text-sm text-slate-700">{formatMoney(room.giaThuePhong)}</td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs" style={{ background: state.bg, color: state.color, fontWeight: 700 }}>
+                        {state.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-700">{room.chiNhanh ?? "—"}</td>
+                  </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements}
+          pageSize={size}
+          onPageChange={setPage}
+          onPageSizeChange={setSize}
+        />
+      </div>
+
+      <div className="grid grid-cols-[1.6fr_1fr] gap-5">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 size={16} className="text-indigo-500" />
+            <div>
+              <div className="text-sm text-slate-900" style={{ fontWeight: 700 }}>Danh sách đang xem</div>
+              <div className="text-xs text-slate-400">Trang {page + 1} / {totalPages || 1} · hiển thị {visibleRooms.length} phòng</div>
             </div>
           </div>
-        );
-      })}
 
-      {filtered.length === 0 && (
-        <div className="text-center py-12 text-slate-400 bg-white rounded-xl border border-slate-100 shadow-sm flex flex-col items-center">
-          <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-3">
-            <MapPin size={20} />
+          <div className="grid grid-cols-2 gap-3">
+            {visibleRooms.map((room) => {
+              const state = statusStyle(room.trangThai);
+              return (
+                <button
+                  key={room.maPhong}
+                  onClick={() => setSelectedRoom(room)}
+                  className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5"
+                  style={{ borderColor: selectedRoom?.maPhong === room.maPhong ? "#C7D2FE" : "#E2E8F0", background: selectedRoom?.maPhong === room.maPhong ? "#EEF2FF" : "#FFFFFF" }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm text-slate-900" style={{ fontWeight: 800 }}>{room.maPhong}</div>
+                    <span className="px-2 py-0.5 rounded-full text-[11px]" style={{ background: state.bg, color: state.color, fontWeight: 700 }}>
+                      {state.label}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-sm text-slate-600">
+                    <div>Sức chứa: {room.sucChuaToiDa ?? "—"}</div>
+                    <div>Giá: {formatMoney(room.giaThuePhong)}</div>
+                    <div>Chi nhánh: {room.chiNhanh ?? "—"}</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          Hiện chưa có dữ liệu phòng nào ở phần trích lọc này.
         </div>
-      )}
 
-      {selectedRoom && (
-        <RoomDetailModal room={selectedRoom} onClose={() => setSelectedRoom(null)} />
-      )}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="text-sm text-slate-900 mb-4" style={{ fontWeight: 800 }}>Chi tiết phòng</div>
+          {selectedRoom ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg,#EEF2FF,#F8FAFC)", border: "1px solid #E0E7FF" }}>
+                <div className="text-xs uppercase tracking-widest text-indigo-500">Phòng</div>
+                <div className="mt-1 text-2xl text-slate-900" style={{ fontWeight: 900 }}>{selectedRoom.maPhong}</div>
+                <div className="mt-2 text-sm text-slate-600">{selectedRoom.chiNhanh ?? "—"}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-xs text-slate-400">Sức chứa</div>
+                  <div className="mt-1 text-sm text-slate-900" style={{ fontWeight: 800 }}>{selectedRoom.sucChuaToiDa ?? "—"} người</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-xs text-slate-400">Giá thuê</div>
+                  <div className="mt-1 text-sm text-slate-900" style={{ fontWeight: 800 }}>{formatMoney(selectedRoom.giaThuePhong)}</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl px-3 py-2.5" style={{ background: statusStyle(selectedRoom.trangThai).bg, color: statusStyle(selectedRoom.trangThai).color, fontWeight: 700 }}>
+                Trạng thái: {statusStyle(selectedRoom.trangThai).label}
+              </div>
+
+              <button
+                onClick={reload}
+                className="w-full rounded-xl py-2.5 text-sm text-white transition"
+                style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}
+              >
+                Tải lại dữ liệu từ backend
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
+              Chưa có phòng nào được chọn.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -54,4 +54,7 @@ public class YeuCauDangKy {
 
     @Column(name = "NhanVienPhuTrach", length = 4)
     private String nhanVienPhuTrach;
+
+    @Column(name = "TrangThaiYeuCau", length = 30)
+    private String trangThaiYeuCau;
 }

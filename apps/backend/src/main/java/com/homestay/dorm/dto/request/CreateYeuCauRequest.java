@@ -17,4 +17,5 @@ public class CreateYeuCauRequest {
     private String cacTieuChiKhac;
     private String khachHangYeuCau;
     private String nhanVienPhuTrach;
+    private String trangThaiYeuCau;
 }

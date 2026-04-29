@@ -21,8 +21,9 @@ public class RequestController {
     public ApiListResponse<YeuCauDangKy> getRequests(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size,
-            @RequestParam(required = false) String nhanVienPhuTrach) {
-        return requestService.getRequests(page, size, nhanVienPhuTrach);
+            @RequestParam(required = false) String nhanVienPhuTrach,
+            @RequestParam(required = false) String trangThaiYeuCau) {
+        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau);
     }
 
     @GetMapping("/{maYeuCau}")
