@@ -1,0 +1,15 @@
+SELECT COUNT(*) INTO @TrangThaiYeuCauExists
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'YEUCAUDANGKY'
+    AND COLUMN_NAME = 'TrangThaiYeuCau';
+
+SET @sql = IF(
+        @TrangThaiYeuCauExists = 0,
+        'ALTER TABLE YEUCAUDANGKY ADD COLUMN TrangThaiYeuCau VARCHAR(30) NOT NULL DEFAULT ''Yeu cau moi''',
+        'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -5,8 +5,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import java.time.LocalDate;
 
 @Repository
 public interface YeuCauDangKyRepository extends JpaRepository<YeuCauDangKy, String> {
     Page<YeuCauDangKy> findByNhanVienPhuTrach(String nhanVienPhuTrach, Pageable pageable);
+    Page<YeuCauDangKy> findByTrangThaiYeuCau(String trangThaiYeuCau, Pageable pageable);
+    Page<YeuCauDangKy> findByNhanVienPhuTrachAndTrangThaiYeuCau(String nhanVienPhuTrach, String trangThaiYeuCau, Pageable pageable);
+    
+    long countByThoiGianBatDauThueDuKienAfter(LocalDate date);
+    Page<YeuCauDangKy> findByThoiGianBatDauThueDuKienAfter(LocalDate date, Pageable pageable);
 }

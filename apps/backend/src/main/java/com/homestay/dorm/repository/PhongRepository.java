@@ -9,4 +9,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PhongRepository extends JpaRepository<Phong, String> {
     Page<Phong> findByTrangThaiContainingIgnoreCase(String trangThai, Pageable pageable);
+    
+    long countByTrangThai(String trangThai);
 }

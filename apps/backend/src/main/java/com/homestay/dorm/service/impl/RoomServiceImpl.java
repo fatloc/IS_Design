@@ -28,7 +28,7 @@ public class RoomServiceImpl implements RoomService {
             phongPage = phongRepository.findAll(pageable);
         }
 
-        return ApiListResponse.ok(phongPage.getContent(), phongPage.getTotalElements());
+        return ApiListResponse.fromPage(phongPage);
     }
 
     @Override

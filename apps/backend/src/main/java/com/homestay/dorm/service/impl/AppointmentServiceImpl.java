@@ -12,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -21,10 +22,18 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final LichXemPhongRepository lichXemPhongRepository;
 
     @Override
-    public ApiListResponse<LichXemPhong> getAppointments(int page, int size) {
+    public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<LichXemPhong> appointmentPage = lichXemPhongRepository.findAll(pageable);
-        return ApiListResponse.ok(appointmentPage.getContent(), appointmentPage.getTotalElements());
+        Page<LichXemPhong> appointmentPage;
+        if (month != null && year != null) {
+            // month is 1-indexed (January=1)
+            LocalDate startDate = LocalDate.of(year, month, 1);
+            LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
+            appointmentPage = lichXemPhongRepository.findByNgayHenBetween(startDate, endDate, pageable);
+        } else {
+            appointmentPage = lichXemPhongRepository.findAll(pageable);
+        }
+        return ApiListResponse.fromPage(appointmentPage);
     }
 
     @Override

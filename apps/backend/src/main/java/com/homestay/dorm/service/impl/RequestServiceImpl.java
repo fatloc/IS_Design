@@ -17,21 +17,29 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class RequestServiceImpl implements RequestService {
+    private static final String DEFAULT_REQUEST_STATUS = "Yêu cầu mới";
 
     private final YeuCauDangKyRepository yeuCauRepository;
 
     @Override
-    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach) {
+    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau) {
         Pageable pageable = PageRequest.of(page, size);
         Page<YeuCauDangKy> yeuCauPage;
-        
-        if (nhanVienPhuTrach != null && !nhanVienPhuTrach.isEmpty()) {
+
+        boolean hasNhanVien = nhanVienPhuTrach != null && !nhanVienPhuTrach.isEmpty();
+        boolean hasTrangThai = trangThaiYeuCau != null && !trangThaiYeuCau.isEmpty();
+
+        if (hasNhanVien && hasTrangThai) {
+            yeuCauPage = yeuCauRepository.findByNhanVienPhuTrachAndTrangThaiYeuCau(nhanVienPhuTrach, trangThaiYeuCau, pageable);
+        } else if (hasNhanVien) {
             yeuCauPage = yeuCauRepository.findByNhanVienPhuTrach(nhanVienPhuTrach, pageable);
+        } else if (hasTrangThai) {
+            yeuCauPage = yeuCauRepository.findByTrangThaiYeuCau(trangThaiYeuCau, pageable);
         } else {
             yeuCauPage = yeuCauRepository.findAll(pageable);
         }
 
-        return ApiListResponse.ok(yeuCauPage.getContent(), yeuCauPage.getTotalElements());
+        return ApiListResponse.fromPage(yeuCauPage);
     }
 
     @Override
@@ -57,6 +65,7 @@ public class RequestServiceImpl implements RequestService {
                 .cacTieuChiKhac(req.getCacTieuChiKhac())
                 .khachHangYeuCau(req.getKhachHangYeuCau())
                 .nhanVienPhuTrach(req.getNhanVienPhuTrach())
+                .trangThaiYeuCau(req.getTrangThaiYeuCau() != null ? req.getTrangThaiYeuCau() : DEFAULT_REQUEST_STATUS)
                 .build();
                 
         return yeuCauRepository.save(yeuCau);
@@ -76,6 +85,7 @@ public class RequestServiceImpl implements RequestService {
         if (req.getCoBaiGuiXe() != null) yeuCau.setCoBaiGuiXe(req.getCoBaiGuiXe());
         if (req.getCacTieuChiKhac() != null) yeuCau.setCacTieuChiKhac(req.getCacTieuChiKhac());
         if (req.getNhanVienPhuTrach() != null) yeuCau.setNhanVienPhuTrach(req.getNhanVienPhuTrach());
+        if (req.getTrangThaiYeuCau() != null) yeuCau.setTrangThaiYeuCau(req.getTrangThaiYeuCau());
         
         return yeuCauRepository.save(yeuCau);
     }
