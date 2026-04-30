@@ -4,6 +4,8 @@ import com.homestay.dorm.dto.request.CreateContractRequest;
 import com.homestay.dorm.dto.request.UpdateContractRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
 import com.homestay.dorm.entity.HopDongThue;
+import com.homestay.dorm.dto.response.DoiSoatResponse;
+import java.math.BigDecimal;
 
 public interface ContractService {
     ApiListResponse<HopDongThue> getContracts(int page, int size);
@@ -13,4 +15,5 @@ public interface ContractService {
     void deleteContract(String maHopDongThue);
 
     BigDecimal tinhTienThueKyDau(String maHopDongThue);
+    DoiSoatResponse doiSoatChiPhi(String maHopDongThue, BigDecimal tongTienKhauTru, boolean laHetHanHopDong);
 }

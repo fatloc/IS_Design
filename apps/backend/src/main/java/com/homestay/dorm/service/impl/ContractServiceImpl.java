@@ -19,6 +19,15 @@ import java.util.UUID;
 import java.time.temporal.ChronoUnit;
 import com.homestay.dorm.dto.response.DoiSoatResponse;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import org.springframework.transaction.annotation.Transactional;
+
+// Kéo toàn bộ Entity và Repository vào để xài cho gọn, khỏi báo lỗi thiếu
+import com.homestay.dorm.entity.*;
+import com.homestay.dorm.repository.*;
+
 @Service
 @RequiredArgsConstructor
 public class ContractServiceImpl implements ContractService {
@@ -230,5 +239,6 @@ public class ContractServiceImpl implements ContractService {
                 .soTienThucTe(soTienThucTe.abs()) // Dùng abs() để luôn hiện số dương trên màn hình cho đẹp
                 .loaiGiaoDich(loaiGiaoDich)
                 .build();
+    }
 }
 

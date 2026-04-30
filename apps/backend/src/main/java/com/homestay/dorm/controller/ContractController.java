@@ -55,16 +55,18 @@ public class ContractController {
         // Controller nhận mã Hợp đồng từ URL, nhờ Service tính tiền, rồi trả về cho Frontend
         BigDecimal tongTien = contractService.tinhTienThueKyDau(maHopDongThue);
         return ApiResponse.ok(tongTien);
+    }
 
     @GetMapping("/{maHopDongThue}/doi-soat")
     public ApiResponse<DoiSoatResponse> tinhDoiSoatTraPhong(
             @PathVariable String maHopDongThue,
             @RequestParam(defaultValue = "0") BigDecimal tongTienKhauTru,
             @RequestParam(defaultValue = "false") boolean laHetHanHopDong) {
-        
+            
         // Gọi  Service để tính toán
         DoiSoatResponse ketQua = contractService.doiSoatChiPhi(maHopDongThue, tongTienKhauTru, laHetHanHopDong);
         
         // Trả kết quả ra cho Frontend
         return ApiResponse.ok(ketQua);
+    }
 }
