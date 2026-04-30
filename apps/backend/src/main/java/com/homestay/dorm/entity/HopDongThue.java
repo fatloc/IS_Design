@@ -23,4 +23,8 @@ public class HopDongThue extends ChungTu {
 
     @Column(name = "SoLuongThanhVien")
     private Integer soLuongThanhVien;
+
+    @Column(name = "NgayKetThuc")
+    private LocalDate ngayKetThuc;
+
 }

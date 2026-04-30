@@ -11,4 +11,6 @@ public interface ContractService {
     HopDongThue createContract(CreateContractRequest request);
     HopDongThue updateContract(String maHopDongThue, UpdateContractRequest request);
     void deleteContract(String maHopDongThue);
+
+    BigDecimal tinhTienThueKyDau(String maHopDongThue);
 }

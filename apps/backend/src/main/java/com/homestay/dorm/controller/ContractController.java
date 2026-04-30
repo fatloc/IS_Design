@@ -10,6 +10,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import com.homestay.dorm.dto.response.DoiSoatResponse;
+import java.math.BigDecimal;
+
 @RestController
 @RequestMapping("/api/contracts")
 @RequiredArgsConstructor
@@ -46,4 +49,22 @@ public class ContractController {
         contractService.deleteContract(maHopDongThue);
         return ApiResponse.ok(null);
     }
+
+    @GetMapping("/{maHopDongThue}/tien-ky-dau")
+    public ApiResponse<BigDecimal> getTienThueKyDau(@PathVariable String maHopDongThue) {
+        // Controller nhận mã Hợp đồng từ URL, nhờ Service tính tiền, rồi trả về cho Frontend
+        BigDecimal tongTien = contractService.tinhTienThueKyDau(maHopDongThue);
+        return ApiResponse.ok(tongTien);
+
+    @GetMapping("/{maHopDongThue}/doi-soat")
+    public ApiResponse<DoiSoatResponse> tinhDoiSoatTraPhong(
+            @PathVariable String maHopDongThue,
+            @RequestParam(defaultValue = "0") BigDecimal tongTienKhauTru,
+            @RequestParam(defaultValue = "false") boolean laHetHanHopDong) {
+        
+        // Gọi  Service để tính toán
+        DoiSoatResponse ketQua = contractService.doiSoatChiPhi(maHopDongThue, tongTienKhauTru, laHetHanHopDong);
+        
+        // Trả kết quả ra cho Frontend
+        return ApiResponse.ok(ketQua);
 }
