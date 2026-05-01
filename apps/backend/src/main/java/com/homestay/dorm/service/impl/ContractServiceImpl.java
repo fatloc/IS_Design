@@ -137,8 +137,13 @@ public class ContractServiceImpl implements ContractService {
         HopDongThue hopDong = getContractById(maHopDongThue);
         BigDecimal tongTien = BigDecimal.ZERO;
 
-        // 1. Phân tích Kỳ thanh toán là hàng tháng
-        int soThangThuTruoc = 1; 
+        // 1. Phân tích Kỳ thanh toán là hàng tháng hoặc 3 tháng 6 tháng
+        int soThangThuTruoc = 1; // Mặc định là 1 tháng
+        if (hopDong.getKyThanhToan() == "3 tháng") {
+            soThangThuTruoc = 3;
+        } else if (hopDong.getKyThanhToan() == "6 tháng") {
+            soThangThuTruoc = 6;
+        }
         // 2. Tính tiền Phòng / Giường
         if ("Thuê phòng".equalsIgnoreCase(hopDong.getHinhThucThue())) {
             List<ChiTietThuePhong> dsPhong = chiTietThuePhongRepository.findByMaHopDongThue(maHopDongThue);

@@ -5,7 +5,7 @@ import {
   Calculator, Scale, FileX, ChevronLeft, ChevronRight,
   AlertCircle, Users, Bed, Package, CreditCard,
 } from "lucide-react";
-import { getTienKyDau, calculateDoiSoat, thanhLyHopDong, getContracts, createContract, updateContract, deleteContract} from "../../services/api";
+import { getTienKyDau, calculateDoiSoat, thanhLyHopDong, getContracts, createContract, updateContract, deleteContract, getRoomById} from "../../services/api";
 
 const E = "#059669"; // Emerald accent
 
@@ -491,6 +491,21 @@ function ContractFormModal({ contract, onClose, onSave }: {
 
   const [newService, setNewService] = useState({ tenDichVu: "", soLuong: 0 });
 
+  // Hàm tự động check giá phòng để điền tiền cọc
+  const handleAutoFillDeposit = async () => {
+    if (!formData.maPhong || formData.hinhThucThue !== "Toàn phòng") return;
+    
+    try {
+      const roomData = await getRoomById(formData.maPhong);
+      // Giả sử Backend trả về roomData có field giaThuePhong
+      if (roomData && roomData.giaThuePhong) {
+        setFormData(prev => ({ ...prev, mucTienCoc: roomData.giaThuePhong }));
+      }
+    } catch (error) {
+      console.log("Không tìm thấy thông tin phòng để tự điền cọc.");
+    }
+  };
+  
   const handleSubmit = () => {
     // TODO: Call appropriate API here based on create/edit mode
     onSave(formData);
@@ -607,7 +622,15 @@ function ContractFormModal({ contract, onClose, onSave }: {
                 <label className="block mb-1.5" style={{ fontSize: "0.75rem", fontWeight: 700, color: "#374151" }}>Hình thức thuê *</label>
                 <select
                   value={formData.hinhThucThue}
-                  onChange={e => setFormData({ ...formData, hinhThucThue: e.target.value })}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData({ 
+                      ...formData, 
+                      hinhThucThue: val,
+                      // Tự động xóa danh sách giường nếu chọn Toàn phòng
+                      danhSachMaGiuong: val === "Toàn phòng" ? [] : formData.danhSachMaGiuong 
+                    });
+                  }}
                   className="w-full px-3 py-2.5 rounded-xl outline-none"
                   style={{ border: "1.5px solid #E2E8F0", fontSize: "0.85rem" }}
                 >
@@ -643,6 +666,7 @@ function ContractFormModal({ contract, onClose, onSave }: {
                 <input
                   value={formData.maPhong}
                   onChange={e => setFormData({ ...formData, maPhong: e.target.value })}
+                  onBlur={handleAutoFillDeposit}
                   placeholder="VD: B201"
                   className="w-full px-3 py-2.5 rounded-xl outline-none"
                   style={{ border: "1.5px solid #E2E8F0", fontSize: "0.85rem" }}
@@ -653,28 +677,39 @@ function ContractFormModal({ contract, onClose, onSave }: {
                 <input
                   type="number"
                   value={formData.mucTienCoc}
+                  readOnly 
+                  placeholder="Hệ thống tự động tính..."
                   onChange={e => setFormData({ ...formData, mucTienCoc: Number(e.target.value) })}
                   className="w-full px-3 py-2.5 rounded-xl outline-none"
-                  style={{ border: "1.5px solid #E2E8F0", fontSize: "0.85rem" }}
+                  style={{ 
+                    border: "1.5px solid #E2E8F0", 
+                    fontSize: "0.85rem",
+                    background: "#F1F5F9",
+                    color: "#64748B",
+                    cursor: "not-allowed", 
+                    fontWeight: 700
+                  }}
                 />
               </div>
             </div>
           </div>
 
           {/* Beds */}
-          <div>
-            <div className="mb-3" style={{ fontSize: "0.75rem", fontWeight: 800, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Danh sách mã giường
+          {formData.hinhThucThue === "Ghép giường" && (
+            <div>
+              <div className="mb-3" style={{ fontSize: "0.75rem", fontWeight: 800, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Danh sách mã giường *
+              </div>
+              <input
+                value={(formData.danhSachMaGiuong || []).join(", ")}
+                onChange={e => setFormData({ ...formData, danhSachMaGiuong: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
+                placeholder="VD: B201-01, B201-02"
+                className="w-full px-3 py-2.5 rounded-xl outline-none"
+                style={{ border: "1.5px solid #E2E8F0", fontSize: "0.85rem" }}
+              />
+              <div style={{ fontSize: "0.7rem", color: "#94A3B8", marginTop: 4 }}>Nhập các mã giường, phân cách bằng dấu phẩy</div>
             </div>
-            <input
-              value={(formData.danhSachMaGiuong || []).join(", ")}
-              onChange={e => setFormData({ ...formData, danhSachMaGiuong: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-              placeholder="VD: B201-01, B201-02"
-              className="w-full px-3 py-2.5 rounded-xl outline-none"
-              style={{ border: "1.5px solid #E2E8F0", fontSize: "0.85rem" }}
-            />
-            <div style={{ fontSize: "0.7rem", color: "#94A3B8", marginTop: 4 }}>Nhập các mã giường, phân cách bằng dấu phẩy</div>
-          </div>
+          )}
 
           {/* Services */}
           <div>
