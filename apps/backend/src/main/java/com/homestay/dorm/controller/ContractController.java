@@ -69,4 +69,12 @@ public class ContractController {
         // Trả kết quả ra cho Frontend
         return ApiResponse.ok(ketQua);
     }
+
+    @PostMapping("/{maHopDongThue}/thanh-ly")
+    public ApiResponse<String> xacNhanThanhLy(@PathVariable String maHopDongThue) {
+        // Gọi Service dọn phòng, đổi trạng thái phòng/giường thành "Trống"
+        contractService.thanhLyHopDong(maHopDongThue);
+        return ApiResponse.ok("Đã thanh lý hợp đồng và giải phóng mặt bằng thành công!");
+    }
 }
+

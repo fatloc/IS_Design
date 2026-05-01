@@ -40,6 +40,7 @@ public class ContractServiceImpl implements ContractService {
     private final PhongRepository phongRepository;
     private final GiuongRepository giuongRepository;
     private final DichVuRepository dichVuRepository;
+    private final HoSoDatCocRepository hoSoDatCocRepository;
 
     @Override
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
@@ -136,14 +137,8 @@ public class ContractServiceImpl implements ContractService {
         HopDongThue hopDong = getContractById(maHopDongThue);
         BigDecimal tongTien = BigDecimal.ZERO;
 
-        // 1. Phân tích Kỳ thanh toán (Ví dụ chuỗi là "3 Thang" -> lấy số 3)
+        // 1. Phân tích Kỳ thanh toán là hàng tháng
         int soThangThuTruoc = 1; 
-        if (hopDong.getKyThanhToan() != null) {
-            if (hopDong.getKyThanhToan().contains("3")) soThangThuTruoc = 3;
-            else if (hopDong.getKyThanhToan().contains("6")) soThangThuTruoc = 6;
-            // Bạn có thể tùy chỉnh logic cắt chuỗi regex ở đây tùy cách nhóm lưu data
-        }
-
         // 2. Tính tiền Phòng / Giường
         if ("Thuê phòng".equalsIgnoreCase(hopDong.getHinhThucThue())) {
             List<ChiTietThuePhong> dsPhong = chiTietThuePhongRepository.findByMaHopDongThue(maHopDongThue);
@@ -182,9 +177,11 @@ public class ContractServiceImpl implements ContractService {
         // 1. Lấy thông tin Hợp đồng
         HopDongThue hopDong = getContractById(maHopDongThue);
 
-        // 2. Tìm lại số tiền cọc ban đầu (Tạm thời fix cứng 6 triệu để test, 
-        // sau này bạn có thể viết hàm móc qua bảng HoSoDatCoc của khách hàng này để lấy số thật)
-        BigDecimal tienCocBanDau = new BigDecimal("6000000"); 
+        HoSoDatCoc hoSoDatCoc = hoSoDatCocRepository.findByKhachHangSoHuu(hopDong.getKhachHangSoHuu()).orElse(null);
+        BigDecimal tienCocBanDau = BigDecimal.ZERO;
+        if (hoSoDatCoc != null && hoSoDatCoc.getMucTienCoc() != null) {
+            tienCocBanDau = hoSoDatCoc.getMucTienCoc();
+        }
         
         // 3. Tính thời gian khách đã ở (Từ Ngày Lập HĐ đến hôm nay)
         LocalDate ngayVaoO = hopDong.getNgayLap();
