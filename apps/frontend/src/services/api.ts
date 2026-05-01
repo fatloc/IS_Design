@@ -283,6 +283,11 @@ export async function updateContract(maHopDongThue: string, payload: UpdateContr
   return response.data.data;
 }
 
+export async function deleteContract(maHopDongThue: string) {
+  const response = await api.delete(`/contracts/${maHopDongThue}`);
+  return response.data;
+}
+
 export async function getTransactions(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Transaction>>("/transactions", { params });
   return response.data;
@@ -328,3 +333,36 @@ export function hasAuthToken() {
 }
 
 export default api;
+
+// =================================================================
+// CÁC API NGHIỆP VỤ KẾ TOÁN (Hợp đồng, Đối soát, Thanh lý)
+// =================================================================
+
+export type DoiSoatResponse = {
+  maHopDong: string;
+  tienCocBanDau: number;
+  tyLeHoanCoc: string; 
+  tienCocDuocHoanCoBan: number;
+  tongTienKhauTru: number;
+  soTienThucTe: number;
+  loaiGiaoDich: string;
+};
+
+export async function getTienKyDau(maHopDongThue: string) {
+  // Trả về thẳng cục số BigDecimal
+  const response = await api.get<ApiResponse<number>>(`/contracts/${maHopDongThue}/tien-ky-dau`);
+  return response.data.data;
+}
+
+export async function calculateDoiSoat(maHopDongThue: string, tongTienKhauTru: number = 0, laHetHanHopDong: boolean = false) {
+  // Axios tự động gắn params lên URL thành: ?tongTienKhauTru=...&laHetHanHopDong=...
+  const response = await api.get<ApiResponse<DoiSoatResponse>>(`/contracts/${maHopDongThue}/doi-soat`, {
+    params: { tongTienKhauTru, laHetHanHopDong }
+  });
+  return response.data.data;
+}
+
+export async function thanhLyHopDong(maHopDongThue: string) {
+  const response = await api.post<ApiResponse<string>>(`/contracts/${maHopDongThue}/thanh-ly`);
+  return response.data.data;
+}

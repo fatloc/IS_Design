@@ -23,6 +23,7 @@ const NAV_GROUPS = [
       { label: "Phiếu Thu / Chi",      icon: ArrowLeftRight,  path: "/accountant/transactions"    },
       { label: "Hoá đơn định kỳ",      icon: FileText,        path: "/accountant/invoices"        },
       { label: "Đối soát & Thanh lý",  icon: Scale,           path: "/accountant/reconciliation"  },
+      { label: "Quản lý Hợp đồng",     icon: FileText,        path: "/accountant/contracts"       },
     ],
   },
 ];

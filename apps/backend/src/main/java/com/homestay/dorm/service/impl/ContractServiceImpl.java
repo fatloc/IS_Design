@@ -237,5 +237,40 @@ public class ContractServiceImpl implements ContractService {
                 .loaiGiaoDich(loaiGiaoDich)
                 .build();
     }
+
+    @Override
+    @Transactional
+    public void thanhLyHopDong(String maHopDongThue) {
+        // 1. Lấy hợp đồng ra
+        HopDongThue hopDong = getContractById(maHopDongThue);
+
+        // 2. Đổi trạng thái hợp đồng thành Đã thanh lý (Dựa theo logic code cũ của bạn)
+        hopDong.setLoaiVanBan("[STATUS:Terminated]");
+        hopDong.setNgayKetThuc(LocalDate.now()); // Chốt ngày kết thúc là hôm nay
+        repository.save(hopDong);
+
+        // 3. Giải phóng Phòng (Nếu là thuê phòng)
+        if ("Thuê phòng".equalsIgnoreCase(hopDong.getHinhThucThue())) {
+            List<ChiTietThuePhong> dsPhong = chiTietThuePhongRepository.findByMaHopDongThue(maHopDongThue);
+            for (ChiTietThuePhong ctp : dsPhong) {
+                Phong phong = phongRepository.findById(ctp.getMaPhong()).orElse(null);
+                if (phong != null) {
+                    phong.setTrangThai("Trống"); // Đổi trạng thái phòng thành Trống để đón khách mới
+                    phongRepository.save(phong);
+                }
+            }
+        } 
+        // 4. Giải phóng Giường (Nếu là thuê giường ghép)
+        else {
+            List<ChiTietThueGiuong> dsGiuong = chiTietThueGiuongRepository.findByMaHopDongThue(maHopDongThue);
+            for (ChiTietThueGiuong ctg : dsGiuong) {
+                Giuong giuong = giuongRepository.findById(ctg.getMaGiuong()).orElse(null);
+                if (giuong != null) {
+                    giuong.setTrangThai("Trống"); // Đổi trạng thái giường thành Trống
+                    giuongRepository.save(giuong);
+                }
+            }
+        }
+    }
 }
 

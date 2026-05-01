@@ -16,4 +16,5 @@ public interface ContractService {
 
     BigDecimal tinhTienThueKyDau(String maHopDongThue);
     DoiSoatResponse doiSoatChiPhi(String maHopDongThue, BigDecimal tongTienKhauTru, boolean laHetHanHopDong);
+    void thanhLyHopDong(String maHopDongThue);
 }
