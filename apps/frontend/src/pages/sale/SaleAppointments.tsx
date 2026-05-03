@@ -1,339 +1,478 @@
-import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, User, MapPin, Clock, ChevronDown, MessageSquarePlus, X, CalendarDays, Loader2, AlertCircle } from "lucide-react";
-import { updateAppointment, getAppointments } from "../../services/api";
-import type { Appointment as ApiAppointment } from "../../types";
-import { showingAppointments as showingAppointmentsMock } from "../../data/saleMockData";
+import { useState, useRef } from "react";
+import {
+  CalendarDays, Plus, User, ChevronLeft, ChevronRight, Home, X,
+  Check, Phone, ChevronDown, MessageSquare, Save, Clock,
+  Smile, Meh, ThumbsDown, Zap, CalendarCheck, AlertTriangle,
+  RotateCcw,
+} from "lucide-react";
+import { usePagedList } from "../../hooks/usePagedList";
+import { getAppointments, updateAppointment, createAppointment } from "../../services/api";
+import type { Appointment } from "../../types";
 
-type AppointmentStatus = "Pending" | "Shown" | "Cancelled";
-export interface ShowingAppointment {
-  id: string;
-  date: string;
-  time: string;
-  clientName: string;
-  roomId: string;
-  staffName: string;
-  status: AppointmentStatus;
-  notes?: string;
-}
+// ── Theme ──────────────────────────────────────────────────────────────────
+const O  = "#EA580C";
 
-const statusColors: Record<AppointmentStatus, string> = {
-  Pending: "bg-blue-100 text-blue-700",
-  Shown: "bg-emerald-100 text-emerald-700",
-  Cancelled: "bg-slate-100 text-slate-500",
+// ── Status config ──────────────────────────────────────────────────────────
+const STATUS_CFG: Record<string, { bg:string; color:string; dot:string; border:string }> = {
+  "Chờ xem": { bg:"#FFF7ED", color:"#C2410C", dot:O,         border:"#FED7AA" },
+  "Đã xem":  { bg:"#ECFDF5", color:"#065F46", dot:"#10B981", border:"#6EE7B7" },
+  "Đã hủy":  { bg:"#F8FAFC", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" },
 };
-const statusLabels: Record<AppointmentStatus, string> = { Pending: "Chờ xem", Shown: "Đã xem", Cancelled: "Đã huỷ" };
+const DEFAULT_STATUS_CFG = { bg:"#F1F5F9", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" };
 
-function buildCalendar(year: number, month: number) {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const offset = firstDay === 0 ? 6 : firstDay - 1; 
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < offset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  return cells;
+type Reaction = "" | "Quan tâm cao" | "Cân nhắc" | "Không phù hợp" | "Muốn đặt cọc";
+const REACTION_CFG: Record<Exclude<Reaction,"">, { icon:typeof Smile; color:string; bg:string; label:string }> = {
+  "Quan tâm cao":  { icon:Smile,      color:"#059669", bg:"#ECFDF5", label:"Quan tâm cao"   },
+  "Cân nhắc":      { icon:Meh,        color:"#D97706", bg:"#FFFBEB", label:"Đang cân nhắc"  },
+  "Không phù hợp": { icon:ThumbsDown, color:"#64748B", bg:"#F1F5F9", label:"Không phù hợp"  },
+  "Muốn đặt cọc":  { icon:Zap,        color:O,         bg:"#FFF7ED", label:"→ Muốn đặt cọc" },
+};
+
+const MONTH_NAMES = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6",
+                     "Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
+const DAY_LABELS  = ["T2","T3","T4","T5","T6","T7","CN"];
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function mapApiToUiAppointment(apiApt: ApiAppointment): ShowingAppointment {
-  const timeArray = apiApt.thoiGianHen || "00:00"; 
-  const timeStr = typeof timeArray === "string" ? timeArray.slice(0, 5) : String(timeArray);
-  
-  let mappedStatus: AppointmentStatus = "Pending";
-  if (apiApt.trangThaiHen === "Shown" || apiApt.trangThaiHen === "Cancelled") {
-     mappedStatus = apiApt.trangThaiHen;
+function parseSqlDate(value: string | null | undefined) {
+  if (!value) return null;
+
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
   }
 
-  return {
-    id: apiApt.maLichHen,
-    date: apiApt.ngayHen || new Date().toISOString().split("T")[0],
-    time: timeStr,
-    clientName: apiApt.khachHangXem || "Khách ẩn danh",
-    roomId: "(Nhiều phòng)", // Database schema chi tiết lịch hẹn không được fetch chung, tạm ẩn
-    staffName: apiApt.nhanVienPhuTrach || "NV",
-    status: mappedStatus,
-    notes: "" // Schema database thiếu trường ghi chú
-  };
+  const vnMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (vnMatch) {
+    const [, d, m, y] = vnMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function NotesModal({ apt, onClose, onSave }: { apt: ShowingAppointment; onClose: () => void; onSave: (id: string, notes: string) => void }) {
-  const [notes, setNotes] = useState(apt.notes || "");
+function formatDateInputLabel(value: string) {
+  const parsed = parseSqlDate(value);
+  if (!parsed) return "Chọn ngày";
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const year = parsed.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getInitials(name: string | null) {
+  if (!name) return "?";
+  return name.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+}
+
+// ── Status Badge ───────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CFG[status] ?? DEFAULT_STATUS_CFG;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 700 }}>Ghi chú kết quả xem phòng</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{apt.clientName} · {apt.date} {apt.time}</p>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+      style={{ background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.border}`, fontSize:"0.72rem", fontWeight:700 }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background:cfg.dot }}/>
+      {status || "Không rõ"}
+    </span>
+  );
+}
+
+// ── Mini Calendar ──────────────────────────────────────────────────────────
+function MiniCalendar({
+  appointments, viewYear, viewMonth, selDay,
+  onSelect, onPrev, onNext,
+}: {
+  appointments: Appointment[];
+  viewYear: number; viewMonth: number; selDay: number;
+  onSelect:(d:number)=>void; onPrev:()=>void; onNext:()=>void;
+}) {
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const rawFirst    = new Date(viewYear, viewMonth, 1).getDay();
+  const firstDay    = rawFirst === 0 ? 6 : rawFirst - 1;
+
+  const dotMap: Record<number, number> = {};
+  appointments.forEach(a => {
+    if (!a.ngayHen) return;
+    const d = parseSqlDate(a.ngayHen);
+    if (!d) return;
+    if (d.getFullYear()===viewYear && d.getMonth()===viewMonth && a.trangThaiHen!=="Đã hủy")
+      dotMap[d.getDate()] = (dotMap[d.getDate()]??0) + 1;
+  });
+
+  const cells: (number|null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({length:daysInMonth},(_,i)=>i+1),
+  ];
+  while(cells.length%7!==0) cells.push(null);
+
+  const today = new Date();
+  const isToday = (d:number) => d===today.getDate() && viewMonth===today.getMonth() && viewYear===today.getFullYear();
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #F1F5F9", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ background:"white", borderBottom:"1px solid #F8FAFC" }}>
+        <button onClick={onPrev} className="w-7 h-7 rounded-lg flex items-center justify-center transition hover:bg-slate-100">
+          <ChevronLeft size={13} style={{ color:"#64748B" }}/>
+        </button>
+        <div style={{ fontWeight:800, fontSize:"0.88rem", color:"#1E293B" }}>{MONTH_NAMES[viewMonth]} {viewYear}</div>
+        <button onClick={onNext} className="w-7 h-7 rounded-lg flex items-center justify-center transition hover:bg-slate-100">
+          <ChevronRight size={13} style={{ color:"#64748B" }}/>
+        </button>
+      </div>
+      <div className="grid grid-cols-7 px-2.5 pt-2" style={{ background:"white" }}>
+        {DAY_LABELS.map(d=>(
+          <div key={d} className="text-center pb-1.5" style={{ fontSize:"0.62rem", fontWeight:800, color:"#CBD5E1" }}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 px-2.5 pb-3 gap-y-0.5" style={{ background:"white" }}>
+        {cells.map((day,i)=>(
+          <div key={i} className="flex flex-col items-center">
+            {day ? (
+              <button onClick={()=>onSelect(day)}
+                className="relative flex flex-col items-center justify-center w-8 h-8 rounded-xl transition-all"
+                style={{
+                  background: day===selDay ? `linear-gradient(135deg,${O},#DC2626)` : isToday(day) ? `${O}12` : "transparent",
+                  boxShadow: day===selDay ? `0 2px 8px ${O}40` : "none",
+                }}>
+                <span style={{ fontSize:"0.78rem", fontWeight: day===selDay||isToday(day)||(dotMap[day]??0)>0 ? 800:400, color: day===selDay ? "white" : isToday(day) ? O : "#374151" }}>
+                  {day}
+                </span>
+                {(dotMap[day]??0) > 0 && day!==selDay && (
+                  <div className="absolute bottom-0.5 flex gap-0.5">
+                    {Array.from({length:Math.min(dotMap[day],3)}).map((_,di)=>(
+                      <span key={di} className="w-1 h-1 rounded-full" style={{ background:O }}/>
+                    ))}
+                  </div>
+                )}
+                {isToday(day) && day!==selDay && (
+                  <div className="absolute inset-0 rounded-xl pointer-events-none" style={{ border:`1.5px solid ${O}`, opacity:0.4 }}/>
+                )}
+              </button>
+            ) : <div className="w-8 h-8"/>}
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-            <X size={16} className="text-slate-500" />
-          </button>
-        </div>
-        <div className="p-6">
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5}
-            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"
-            placeholder="Ghi chú tạm thời lưu ở Frontend do Database chưa có trường lưu trữ..." />
-        </div>
-        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition" style={{ fontWeight: 500 }}>Huỷ</button>
-          <button onClick={() => { onSave(apt.id, notes); onClose(); }}
-            className="px-4 py-2 rounded-xl text-sm text-white bg-emerald-600 hover:bg-emerald-700 transition" style={{ fontWeight: 500 }}>
-            Lưu ghi chú (Local)
-          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-4 px-4 py-2.5" style={{ borderTop:"1px solid #F8FAFC", background:"#FAFBFD" }}>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full" style={{ background:O }}/>
+          <span style={{ fontSize:"0.65rem", color:"#94A3B8" }}>Có lịch hẹn</span>
         </div>
       </div>
     </div>
   );
 }
 
-export default function SaleAppointments() {
-  const [appointments, setApts] = useState<ShowingAppointment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isUsingMockData, setIsUsingMockData] = useState(false);
+// ── Appointment Row ────────────────────────────────────────────────────────
+function ApptRow({ appt, onUpdate }: {
+  appt: Appointment;
+  onUpdate: (id: string, changes: Partial<Appointment>) => void;
+}) {
+  const [expanded,  setExpanded]  = useState(false);
+  const [localNote, setLocalNote] = useState("");
+  const [localRxn,  setLocalRxn]  = useState<Reaction>("");
+  const [saving,    setSaving]    = useState(false);
 
-  const [selectedDate, setSelectedDate] = useState("2025-04-20");
-  const [openStatusId, setOpenStatusId] = useState<string | null>(null);
-  const [notesApt, setNotesApt] = useState<ShowingAppointment | null>(null);
+  const status = appt.trangThaiHen ?? "Chờ xem";
+  const cfg    = STATUS_CFG[status] ?? DEFAULT_STATUS_CFG;
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = () => {
-    setIsLoading(true);
-    getAppointments().then(res => {
-      setApts(res.data.map(mapApiToUiAppointment));
-      setError(null);
-      setIsUsingMockData(false);
-    }).catch(err => {
-      console.error(err);
-      setApts(
-        showingAppointmentsMock.map((item) => ({
-          id: item.id,
-          date: item.date,
-          time: item.time,
-          clientName: item.clientName,
-          roomId: item.roomId,
-          staffName: item.staffName,
-          status: item.status,
-          notes: item.notes,
-        }))
-      );
-      setError(null);
-      setIsUsingMockData(true);
-    }).finally(() => {
-      setIsLoading(false);
-    });
-  }
-
-  const year = 2025; const month = 3; // April
-  const cells = buildCalendar(year, month);
-  const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-
-  const aptsByDate = (dateStr: string) => appointments.filter(a => a.date === dateStr);
-  const selectedApts = aptsByDate(selectedDate);
-  const hasApt = (d: number) => {
-    const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    return appointments.filter(a => a.date === ds && a.status !== "Cancelled").length;
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateAppointment(appt.maLichHen, { trangThaiHen: status });
+      onUpdate(appt.maLichHen, { trangThaiHen: status });
+      setExpanded(false);
+    } finally { setSaving(false); }
   };
 
-  const handleStatusChange = (id: string, status: AppointmentStatus) => {
-    updateAppointment(id, { trangThaiHen: status })
-     .then(() => {
-        setApts(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-     })
-     .catch(err => {
-        console.error("Update failed", err);
-     })
-     .finally(() => {
-        setOpenStatusId(null);
-     });
+  const handleStatusChange = async (newStatus: string) => {
+    try { await updateAppointment(appt.maLichHen, { trangThaiHen: newStatus }); }
+    catch {}
+    onUpdate(appt.maLichHen, { trangThaiHen: newStatus });
   };
-
-  const handleSaveNotes = (id: string, notes: string) => {
-    // Luu o local frontend thoi
-    setApts(prev => prev.map(a => a.id === id ? { ...a, notes } : a));
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex-1 h-full">
-        <Loader2 className="animate-spin text-emerald-500 mb-4" size={32} />
-        <p className="text-slate-500">Đang tải lịch hẹn mới nhất...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-2xl border border-red-100 h-full">
-        <AlertCircle className="text-red-500 mb-4" size={32} />
-        <p className="text-red-700 font-medium mb-2">{error}</p>
-        <button onClick={fetchData} className="text-sm bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50">
-          Thử lại
-        </button>
-      </div>
-    );
-  }
 
   return (
-    <div className="grid grid-cols-5 gap-5 h-full">
-      {isUsingMockData && (
-        <div className="col-span-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
-          <AlertCircle size={16} className="mt-0.5" />
-          <span>Đang hiển thị dữ liệu mẫu vì API lịch hẹn chưa sẵn sàng.</span>
-        </div>
-      )}
-      {/* Calendar */}
-      <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden self-start">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Tháng 4, 2025</h2>
-          <div className="flex items-center gap-1">
-            <button className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition">
-              <ChevronLeft size={14} className="text-slate-500" />
-            </button>
-            <button className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition">
-              <ChevronRight size={14} className="text-slate-500" />
-            </button>
+    <div className="flex gap-3 mb-3">
+      <div className="flex flex-col items-center flex-shrink-0" style={{ width:56 }}>
+        <span style={{ fontSize:"0.72rem", fontWeight:800, color:O, whiteSpace:"nowrap" }}>{appt.thoiGianHen?.slice(0,5) ?? "--:--"}</span>
+      </div>
+      <div className="flex flex-col items-center flex-shrink-0" style={{ width:16 }}>
+        <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+          style={{ background: status==="Đã hủy"?"#CBD5E1":status==="Đã xem"?"#10B981":O, marginTop:8 }}/>
+      </div>
+      <div className="flex-1 rounded-2xl overflow-hidden" style={{ border:`1.5px solid ${cfg.border}`, boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="flex items-start gap-3 px-4 py-3" style={{ background:status==="Đã hủy"?"#F8FAFC":"white" }}>
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0"
+            style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontWeight:800, fontSize:"0.72rem" }}>
+            {getInitials(appt.khachHangXem)}
           </div>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-7 mb-2">
-            {days.map(d => (
-              <div key={d} className="text-center text-xs text-slate-400 py-1" style={{ fontWeight: 600 }}>{d}</div>
-            ))}
+          <div className="flex-1 min-w-0">
+            <div style={{ fontWeight:800, fontSize:"0.9rem", color:"#1E293B" }}>KH: {appt.khachHangXem ?? "--"}</div>
+            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+              <div className="flex items-center gap-1">
+                <Clock size={10} style={{ color:"#CBD5E1" }}/>
+                <span style={{ fontSize:"0.72rem", color:"#94A3B8" }}>{appt.ngayHen ?? "--"}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <User size={10} style={{ color:"#CBD5E1" }}/>
+                <span style={{ fontSize:"0.72rem", color:"#94A3B8" }}>NV: {appt.nhanVienPhuTrach ?? "--"}</span>
+              </div>
+              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background:`${O}12`, color:O, fontWeight:700, fontSize:"0.68rem" }}>{appt.maLichHen}</span>
+            </div>
           </div>
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((d, i) => {
-              if (!d) return <div key={i} />;
-              const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-              const count = hasApt(d);
-              const isSelected = ds === selectedDate;
-              const isToday = ds === "2025-04-20";
-              return (
-                <button key={i} onClick={() => setSelectedDate(ds)}
-                  className={`relative flex flex-col items-center justify-center aspect-square rounded-xl text-sm transition-all ${
-                    isSelected ? "bg-emerald-600 text-white shadow-md" :
-                    isToday ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                    "text-slate-700 hover:bg-slate-100"
-                  }`} style={{ fontWeight: isSelected || isToday ? 600 : 400 }}>
-                  {d}
-                  {count > 0 && (
-                    <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? "bg-white/70" : "bg-emerald-400"}`} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="px-5 pb-4 flex items-center gap-4">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" /> Có lịch
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-600" /> Hôm nay
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100 p-4">
-          <div className="text-xs text-slate-500 mb-3" style={{ fontWeight: 600 }}>Tuần này</div>
-          {["2025-04-20","2025-04-21","2025-04-22","2025-04-23","2025-04-24"].map(d => {
-            const count = aptsByDate(d).length;
-            const label = new Date(d).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric" });
-            return (
-              <button key={d} onClick={() => setSelectedDate(d)}
-                className={`w-full flex items-center justify-between py-2 px-2 rounded-lg text-xs transition mb-0.5 ${d === selectedDate ? "bg-emerald-50 text-emerald-700" : "hover:bg-slate-50 text-slate-600"}`}>
-                <span style={{ fontWeight: d === selectedDate ? 600 : 400 }}>{label}</span>
-                {count > 0 && <span className={`px-1.5 py-0.5 rounded-full text-xs ${d === selectedDate ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"}`} style={{ fontWeight: 600 }}>{count}</span>}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <div className="relative">
+              <select value={status} onChange={e=>handleStatusChange(e.target.value)}
+                className="appearance-none pl-2.5 pr-6 py-1.5 rounded-xl outline-none cursor-pointer"
+                style={{ background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.border}`, fontSize:"0.72rem", fontWeight:700, minWidth:96 }}>
+                <option>Chờ xem</option>
+                <option>Đã xem</option>
+                <option>Đã hủy</option>
+              </select>
+              <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color:cfg.color }}/>
+            </div>
+            {status !== "Đã hủy" && (
+              <button onClick={()=>setExpanded(p=>!p)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition"
+                style={{ background:expanded?`${O}15`:"#F8FAFC", border:`1px solid ${expanded?O+"40":"#E2E8F0"}`, color:expanded?O:"#64748B", fontSize:"0.72rem", fontWeight:700 }}>
+                <MessageSquare size={10}/>{expanded?"Đóng":"Ghi chú"}
               </button>
-            );
-          })}
+            )}
+          </div>
+        </div>
+        {expanded && (
+          <div className="px-4 pb-4 pt-3 space-y-3" style={{ borderTop:`1px solid ${O}20`, background:`${O}04` }}>
+            <div style={{ fontSize:"0.75rem", fontWeight:800, color:"#374151" }}>Phản hồi khách hàng</div>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(REACTION_CFG) as Exclude<Reaction,"">[] ).map(r=>{
+                const rc = REACTION_CFG[r];
+                const sel = localRxn===r;
+                return (
+                  <button key={r} onClick={()=>setLocalRxn(sel?"":r)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
+                    style={{ background:sel?rc.bg:"#F8FAFC", border:`1.5px solid ${sel?rc.color+"50":"#E2E8F0"}`, color:sel?rc.color:"#64748B", fontSize:"0.72rem", fontWeight:700 }}>
+                    <rc.icon size={11}/> {rc.label}
+                    {sel && <Check size={9} style={{ color:rc.color }}/>}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea value={localNote} onChange={e=>setLocalNote(e.target.value)}
+              rows={2} placeholder="Ghi chú kết quả xem phòng..."
+              className="w-full rounded-xl resize-none outline-none"
+              style={{ padding:"0.6rem 0.8rem", background:"white", border:"1.5px solid #E2E8F0", fontSize:"0.8rem" }}/>
+            <div className="flex items-center gap-2">
+              <button onClick={()=>setExpanded(false)}
+                className="px-3 py-2 rounded-xl transition"
+                style={{ border:"1.5px solid #E2E8F0", fontSize:"0.78rem", color:"#64748B", fontWeight:600 }}>Hủy</button>
+              <button onClick={handleSave}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-white"
+                style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontSize:"0.78rem", fontWeight:800 }}>
+                {saving ? <><Check size={12}/> Đã lưu</> : <><Save size={12}/> Lưu</>}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────
+export default function SaleAppointments() {
+
+
+  const [viewYear,  setViewYear]  = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-indexed
+  const [selDay,    setSelDay]    = useState(() => new Date().getDate());
+  const [search,    setSearch]    = useState("");
+  const jumpRef = useRef<HTMLInputElement>(null);
+  const [jumpDate, setJumpDate]   = useState(() => toDateInputValue(new Date()));
+
+  // Fetch appointments for the currently viewed month from server
+  const {
+    items: appointments, loading, error,
+    totalElements,
+    reload,
+  } = usePagedList<Appointment>(getAppointments, 200, {
+    month: viewMonth + 1, // backend expects 1-indexed
+    year:  viewYear,
+  });
+
+  // Client-side filter by selected day
+  const dayAppts = appointments.filter(a => {
+    if (!a.ngayHen) return false;
+    const d = parseSqlDate(a.ngayHen);
+    if (!d) return false;
+    return d.getDate()===selDay && d.getMonth()===viewMonth && d.getFullYear()===viewYear;
+  });
+
+  const searchFiltered = search
+    ? appointments.filter(a =>
+        (a.maLichHen??'').toLowerCase().includes(search.toLowerCase()) ||
+        (a.khachHangXem??'').toLowerCase().includes(search.toLowerCase()) ||
+        (a.nhanVienPhuTrach??'').toLowerCase().includes(search.toLowerCase())
+      )
+    : dayAppts;
+
+  const handleUpdate = (id: string, changes: Partial<Appointment>) => {
+    // Optimistic update — will auto-reload on next page change
+    reload();
+  };
+
+  const prevMonth = () => {
+    if(viewMonth===0){ setViewMonth(11); setViewYear(y=>y-1); } else setViewMonth(m=>m-1);
+  };
+  const nextMonth = () => {
+    if(viewMonth===11){ setViewMonth(0); setViewYear(y=>y+1); } else setViewMonth(m=>m+1);
+  };
+
+  const handleJumpDate = (val:string) => {
+    setJumpDate(val);
+    if(!val) return;
+    const [y,m,d] = val.split("-").map(Number);
+    setViewYear(y); setViewMonth(m-1); setSelDay(d);
+  };
+
+  const formattedSelDay = `${String(selDay).padStart(2,"0")} ${MONTH_NAMES[viewMonth]}, ${viewYear}`;
+  const dayChorxem = dayAppts.filter(a=>a.trangThaiHen==="Chờ xem").length;
+  const dayDaxem  = dayAppts.filter(a=>a.trangThaiHen==="Đã xem").length;
+  const dayHuy    = dayAppts.filter(a=>a.trangThaiHen==="Đã hủy").length;
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5 mb-0.5">
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background:`${O}15` }}>
+              <CalendarCheck size={14} style={{ color:O }}/>
+            </div>
+            <h2 style={{ fontWeight:900, fontSize:"1.3rem", color:"#1E293B", letterSpacing:"-0.02em" }}>
+              Lịch xem phòng
+            </h2>
+          </div>
+          <p style={{ fontSize:"0.82rem", color:"#64748B", paddingLeft:"2.25rem" }}>
+            {totalElements.toLocaleString()} lịch hẹn · ngày {formattedSelDay}: {dayAppts.length} cuộc hẹn
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Tìm mã, khách hàng, NV..."
+              className="pl-9 pr-3 rounded-xl outline-none"
+              style={{ paddingTop:"0.55rem", paddingBottom:"0.55rem", background:"white", border:"1.5px solid #E2E8F0", fontSize:"0.82rem", width:230 }}/>
+            <Home size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer"
+            style={{ background:"white", border:"1.5px solid #E2E8F0" }}
+            onClick={()=>jumpRef.current?.showPicker?.()}>
+            <CalendarDays size={14} style={{ color:O }}/>
+            <span style={{ fontSize:"0.82rem", fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>
+              {jumpDate ? formatDateInputLabel(jumpDate) : "Chọn ngày"}
+            </span>
+            <input ref={jumpRef} type="date" value={jumpDate} onChange={e=>handleJumpDate(e.target.value)}
+              className="w-0 h-0 opacity-0 absolute pointer-events-none" style={{ position:"absolute" }}/>
+          </div>
+          <button onClick={reload}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
+            style={{ background:`${O}10`, border:`1px solid ${O}20`, color:O, fontSize:"0.78rem", fontWeight:700 }}>
+            <RotateCcw size={13}/> Làm mới
+          </button>
         </div>
       </div>
 
-      <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden self-start">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>
-              Lịch ngày {new Date(selectedDate).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit" })}
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">{selectedApts.length} cuộc hẹn</p>
-          </div>
-          <CalendarDays size={16} className="text-emerald-500" />
+      {/* Layout */}
+      <div className="grid gap-5" style={{ gridTemplateColumns:"280px 1fr" }}>
+        {/* Left: Calendar */}
+        <div>
+          <MiniCalendar appointments={appointments}
+            viewYear={viewYear} viewMonth={viewMonth} selDay={selDay}
+            onSelect={setSelDay} onPrev={prevMonth} onNext={nextMonth}/>
         </div>
 
-        <div className="p-5 space-y-3 min-h-[400px]">
-          {selectedApts.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <CalendarDays size={32} className="mx-auto mb-2 text-slate-200" />
-              <p className="text-sm">Không có lịch xem phòng ngày này</p>
-            </div>
-          ) : (
-            selectedApts.sort((a, b) => a.time.localeCompare(b.time)).map(apt => (
-              <div key={apt.id} className={`rounded-xl border p-4 transition-all ${
-                apt.status === "Shown" ? "border-emerald-200 bg-emerald-50/30" :
-                apt.status === "Cancelled" ? "border-slate-200 bg-slate-50 opacity-70" :
-                "border-slate-200 hover:border-blue-200 hover:bg-blue-50/20"
-              }`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 text-xs flex-shrink-0 uppercase" style={{ fontWeight: 600 }}>
-                      {apt.clientName?.charAt(0) || "K"}
-                    </div>
-                    <div>
-                      <div className="text-sm text-slate-800" style={{ fontWeight: 600 }}>{apt.clientName}</div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="flex items-center gap-1 text-xs text-slate-500"><Clock size={11} /> {apt.time}</span>
-                        <span className="flex items-center gap-1 text-xs text-slate-500"><MapPin size={11} /> {apt.roomId}</span>
-                        <span className="flex items-center gap-1 text-xs text-slate-500"><User size={11} /> {apt.staffName}</span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Status dropdown */}
-                  <div className="relative flex-shrink-0">
-                    <button onClick={() => setOpenStatusId(openStatusId === apt.id ? null : apt.id)}
-                      className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border ${statusColors[apt.status]}`}
-                      style={{ fontWeight: 500 }}>
-                      {statusLabels[apt.status]} <ChevronDown size={10} />
-                    </button>
-                    {openStatusId === apt.id && (
-                      <div className="absolute top-full right-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-32">
-                        {(["Pending","Shown","Cancelled"] as AppointmentStatus[]).map(s => (
-                          <button key={s} onClick={() => handleStatusChange(apt.id, s)}
-                            className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition"
-                            style={{ fontWeight: apt.status === s ? 600 : 400 }}>
-                            {statusLabels[s]}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+        {/* Right: Timeline */}
+        <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 6px rgba(0,0,0,0.05)" }}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4"
+            style={{ background:"white", borderBottom:"1px solid #F1F5F9" }}>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background:`linear-gradient(135deg,${O},#DC2626)` }}>
+                <CalendarCheck size={16} className="text-white"/>
+              </div>
+              <div>
+                <div style={{ fontWeight:900, fontSize:"0.95rem", color:"#1E293B" }}>
+                  {search ? `Kết quả tìm kiếm` : `Lịch trình: ${formattedSelDay}`}
                 </div>
-
-                {apt.notes && (
-                  <div className="mt-3 ml-13 pl-13 text-xs text-slate-500 bg-white/60 rounded-lg p-2.5 border border-slate-100 italic" style={{ marginLeft: "3.25rem" }}>
-                    "{apt.notes}"
-                  </div>
-                )}
-
-                <div className="mt-3 flex items-center justify-between" style={{ marginLeft: "3.25rem" }}>
-                  <button onClick={() => setNotesApt(apt)}
-                    className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 transition"
-                    style={{ fontWeight: 500 }}>
-                    <MessageSquarePlus size={13} />
-                    {apt.notes ? "Sửa ghi chú" : "Thêm kết quả (Khách nhắc)"}
-                  </button>
-                  <span className="text-xs text-slate-300">{apt.id}</span>
+                <div className="flex items-center gap-3 mt-0.5">
+                  {[
+                    { label:`${search ? searchFiltered.length : dayAppts.length} cuộc hẹn`, color:"#1E293B" },
+                    { label:`${dayChorxem} chờ xem`, color:O },
+                    { label:`${dayDaxem} đã xem`, color:"#059669" },
+                    { label:`${dayHuy} hủy`, color:"#94A3B8" },
+                  ].map((s,i)=>(
+                    <span key={i} className="flex items-center gap-1.5" style={{ fontSize:"0.72rem" }}>
+                      {i>0&&<span style={{ color:"#E2E8F0" }}>·</span>}
+                      <span style={{ fontWeight:i===0?700:600, color:s.color }}>{s.label}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
-            ))
-          )}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-5 bg-white">
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({length:5}).map((_,i)=>(
+                  <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background:"#F1F5F9" }}/>
+                ))}
+              </div>
+            ) : error ? (
+              <div className="text-center py-10">
+                <AlertTriangle size={28} style={{ color:"#DC2626", margin:"0 auto" }}/>
+                <div className="mt-2 font-bold text-slate-700">Không tải được lịch hẹn</div>
+                <div className="text-xs text-slate-500 mt-1">{error.message}</div>
+                <button onClick={reload} className="mt-4 px-4 py-2 rounded-xl text-white text-sm font-bold"
+                  style={{ background:`linear-gradient(135deg,${O},#DC2626)` }}>Thử lại</button>
+              </div>
+            ) : searchFiltered.length === 0 ? (
+              <div className="flex flex-col items-center py-14">
+                <CalendarDays size={36} style={{ color:"#CBD5E1" }} className="mb-3"/>
+                <div style={{ fontWeight:700, fontSize:"0.95rem", color:"#94A3B8" }}>
+                  {search ? "Không tìm thấy lịch hẹn nào" : "Chưa có lịch hẹn trong ngày này"}
+                </div>
+                <div style={{ fontSize:"0.82rem", color:"#CBD5E1", marginTop:4 }}>
+                  {search ? "Thử từ khoá khác" : "Chọn ngày khác trên lịch hoặc tạo lịch hẹn mới"}
+                </div>
+              </div>
+            ) : (
+              <div>
+                {searchFiltered.map(appt => (
+                  <ApptRow key={appt.maLichHen} appt={appt} onUpdate={handleUpdate}/>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Month summary footer */}
+          <div className="px-5 py-3 flex items-center gap-2" style={{ borderTop:"1px solid #F1F5F9", background:"#FAFBFD" }}>
+            <span style={{ fontSize:"0.75rem", color:"#94A3B8" }}>
+              Tháng {viewMonth + 1}/{viewYear}:
+            </span>
+            <strong style={{ fontSize:"0.75rem", color:"#475569" }}>{totalElements.toLocaleString()} lịch hẹn</strong>
+            <span style={{ fontSize:"0.75rem", color:"#CBD5E1" }}>·</span>
+            <span style={{ fontSize:"0.75rem", color:"#94A3B8" }}>Chọn ngày trên lịch để lọc</span>
+          </div>
         </div>
       </div>
-
-      {notesApt && <NotesModal apt={notesApt} onClose={() => setNotesApt(null)} onSave={handleSaveNotes} />}
     </div>
   );
 }

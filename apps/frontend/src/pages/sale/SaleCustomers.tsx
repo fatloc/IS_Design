@@ -1,282 +1,283 @@
-import { useState, useRef } from "react";
-import { Search, X, Upload, Phone, Mail, CreditCard, MapPin, Calendar, MessageSquare, Home, DollarSign, Clock, Users, ChevronRight } from "lucide-react";
-import { customers as initialCustomers, Customer, Interaction } from "../../data/saleMockData";
+import { useState } from "react";
+import {
+  Users, Search, Phone, Mail, AlertTriangle, CheckCircle,
+  Shield, X, Save, Clock, RotateCcw,
+} from "lucide-react";
+import { usePagedList } from "../../hooks/usePagedList";
+import { getCustomers } from "../../services/api";
+import { Pagination } from "../../components/Pagination";
+import type { Customer } from "../../types";
 
-const statusColors: Record<string, string> = {
-  Pending: "bg-amber-100 text-amber-700", Scheduled: "bg-blue-100 text-blue-700",
-  Shown: "bg-purple-100 text-purple-700", Deposited: "bg-emerald-100 text-emerald-700", Cancelled: "bg-slate-100 text-slate-500",
-};
-const statusLabels: Record<string, string> = {
-  Pending: "Chờ xử lý", Scheduled: "Đã hẹn", Shown: "Đã xem", Deposited: "Đã cọc", Cancelled: "Huỷ",
-};
+const O = "#EA580C";
 
-const interactionIcons: Record<Interaction["type"], React.ReactNode> = {
-  Call: <Phone size={12} className="text-blue-500" />,
-  Email: <Mail size={12} className="text-purple-500" />,
-  Showing: <Home size={12} className="text-emerald-500" />,
-  Note: <MessageSquare size={12} className="text-amber-500" />,
-  Deposit: <DollarSign size={12} className="text-emerald-600" />,
-};
-const interactionBg: Record<Interaction["type"], string> = {
-  Call: "bg-blue-50 border-blue-100",
-  Email: "bg-purple-50 border-purple-100",
-  Showing: "bg-emerald-50 border-emerald-100",
-  Note: "bg-amber-50 border-amber-100",
-  Deposit: "bg-emerald-100 border-emerald-200",
+type ProfileStatus = "complete" | "missing_cccd" | "missing_address" | "incomplete";
+
+const STATUS_CFG: Record<ProfileStatus, { label:string; icon:typeof CheckCircle; color:string; bg:string }> = {
+  complete:        { label:"Đầy đủ hồ sơ",  icon:CheckCircle,   color:"#059669", bg:"#ECFDF5" },
+  missing_cccd:    { label:"Thiếu CCCD",     icon:AlertTriangle, color:"#DC2626", bg:"#FEF2F2" },
+  missing_address: { label:"Thiếu địa chỉ",  icon:AlertTriangle, color:"#D97706", bg:"#FFFBEB" },
+  incomplete:      { label:"Hồ sơ chưa đủ",  icon:Clock,         color:"#6366F1", bg:"#EEF2FF" },
 };
 
-function CustomerPanel({ customer, onClose }: { customer: Customer; onClose: () => void }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [docs, setDocs] = useState(customer.documents);
-  const fileRef = useRef<HTMLInputElement>(null);
+function calcStatus(c: Customer): ProfileStatus {
+  if (!c.cccd) return "missing_cccd";
+  return "complete";
+}
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    setDocs(prev => [...prev, ...files.map(f => f.name)]);
-  };
+function getInitials(name: string | null) {
+  if (!name) return "?";
+  return name.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+}
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setDocs(prev => [...prev, ...files.map(f => f.name)]);
-  };
+// ── Profile Panel ──────────────────────────────────────────────────────────
+function ProfilePanel({ customer }: { customer: Customer }) {
+  const status = calcStatus(customer);
+  const cfg    = STATUS_CFG[status];
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-[480px] bg-white shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-white">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 text-sm" style={{ fontWeight: 700 }}>
-              {customer.avatar}
-            </div>
-            <div>
-              <h2 className="text-slate-900" style={{ fontWeight: 700 }}>{customer.name}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[customer.status]}`} style={{ fontWeight: 500 }}>
-                  {statusLabels[customer.status]}
-                </span>
-                <span className="text-xs text-slate-400">{customer.source}</span>
-              </div>
-            </div>
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="px-5 py-4 flex-shrink-0" style={{ background:"linear-gradient(135deg,#FFF7ED,#FFFBEB)", borderBottom:"1px solid #FED7AA" }}>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center text-white flex-shrink-0"
+            style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontWeight:800, fontSize:"0.95rem" }}>
+            {getInitials(customer.hoTen)}
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center mt-1">
-            <X size={16} className="text-slate-500" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {/* Personal Info */}
-          <div className="px-6 py-5 border-b border-slate-100">
-            <h3 className="text-xs text-slate-500 uppercase tracking-wider mb-4" style={{ fontWeight: 600 }}>Thông tin cá nhân</h3>
-            <div className="space-y-3">
-              {[
-                { icon: Phone, label: "Điện thoại", value: customer.phone, color: "text-blue-500" },
-                { icon: Mail, label: "Email", value: customer.email, color: "text-purple-500" },
-                { icon: CreditCard, label: "CMND/CCCD", value: customer.idNumber, color: "text-amber-500" },
-                { icon: Calendar, label: "Ngày sinh", value: customer.dob, color: "text-emerald-500" },
-                { icon: MapPin, label: "Địa chỉ", value: customer.address, color: "text-rose-500" },
-              ].map(item => (
-                <div key={item.label} className="flex items-start gap-3">
-                  <div className={`w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0`}>
-                    <item.icon size={13} className={item.color} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">{item.label}</div>
-                    <div className="text-sm text-slate-700 mt-0.5" style={{ fontWeight: 500 }}>{item.value}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="flex-1">
+            <div style={{ fontWeight:900, fontSize:"1rem", color:"#1E293B" }}>{customer.hoTen ?? "--"}</div>
+            <div style={{ fontSize:"0.72rem", color:"#92400E", marginTop:2 }}>Mã KH: {customer.maKhachHang} · {customer.phai ?? "?"}</div>
           </div>
-
-          {/* Documents Upload */}
-          <div className="px-6 py-5 border-b border-slate-100">
-            <h3 className="text-xs text-slate-500 uppercase tracking-wider mb-4" style={{ fontWeight: 600 }}>Giấy tờ tùy thân</h3>
-            <div
-              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-                isDragging ? "border-emerald-400 bg-emerald-50" : "border-slate-200 hover:border-emerald-300 hover:bg-slate-50"
-              }`}
-            >
-              <Upload size={20} className={`mx-auto mb-2 ${isDragging ? "text-emerald-500" : "text-slate-300"}`} />
-              <div className="text-sm text-slate-500" style={{ fontWeight: 500 }}>Kéo thả hoặc nhấn để tải lên</div>
-              <div className="text-xs text-slate-400 mt-1">CMND, CCCD, Hộ khẩu, Passport</div>
-              <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFile} />
-            </div>
-            {docs.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {docs.map((doc, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                    <CreditCard size={13} className="text-slate-400" />
-                    <span className="text-xs text-slate-600 flex-1 truncate">{doc}</span>
-                    <button onClick={() => setDocs(d => d.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 transition">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Interaction Timeline */}
-          <div className="px-6 py-5">
-            <h3 className="text-xs text-slate-500 uppercase tracking-wider mb-4" style={{ fontWeight: 600 }}>Lịch sử tương tác</h3>
-            <div className="relative">
-              <div className="absolute left-[13px] top-2 bottom-2 w-px bg-slate-100" />
-              <div className="space-y-4">
-                {customer.interactions.map((interaction, i) => (
-                  <div key={interaction.id} className="flex gap-3 items-start">
-                    <div className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border ${interactionBg[interaction.type]}`}>
-                      {interactionIcons[interaction.type]}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${interactionBg[interaction.type]}`} style={{ fontWeight: 500 }}>
-                          {interaction.type}
-                        </span>
-                        <span className="text-xs text-slate-400">{interaction.date}</span>
-                      </div>
-                      <div className={`rounded-xl p-3 border text-xs text-slate-600 leading-relaxed ${interactionBg[interaction.type]}`}>
-                        {interaction.content}
-                      </div>
-                      <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                        <Clock size={10} /> {interaction.staff}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer actions */}
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
-          <button className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm hover:bg-slate-200 transition" style={{ fontWeight: 500 }}>
-            Thêm tương tác
-          </button>
-          <button className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition" style={{ fontWeight: 500 }}>
-            Đặt lịch xem phòng
-          </button>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl"
+            style={{ background:cfg.bg, color:cfg.color, fontSize:"0.72rem", fontWeight:700 }}>
+            <cfg.icon size={11}/> {cfg.label}
+          </span>
         </div>
       </div>
-    </>
+
+      {/* Info */}
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+        {/* Basic info */}
+        <div className="grid grid-cols-2 gap-3.5">
+          <div>
+            <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#374151" }}>Họ và tên</label>
+            <div className="w-full px-3 py-2.5 rounded-xl" style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem", color:"#1E293B" }}>
+              {customer.hoTen ?? "--"}
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#374151" }}>Số điện thoại</label>
+            <div className="relative">
+              <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color:"#CBD5E1" }}/>
+              <div className="w-full pl-8 pr-3 py-2.5 rounded-xl" style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem", color:"#1E293B" }}>
+                {customer.soDienThoai ?? "--"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#374151" }}>Email</label>
+          <div className="relative">
+            <Mail size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color:"#CBD5E1" }}/>
+            <div className="w-full pl-8 pr-3 py-2.5 rounded-xl" style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem", color:"#1E293B" }}>
+              {customer.email ?? "--"}
+            </div>
+          </div>
+        </div>
+
+        {/* CCCD */}
+        <div className="rounded-xl overflow-hidden" style={{ border:`1.5px solid ${!customer.cccd?"#FCA5A5":"#E2E8F0"}` }}>
+          <div className="flex items-center gap-2 px-4 py-2.5"
+            style={{ background:!customer.cccd?"#FEF2F2":"#F8FAFC", borderBottom:`1px solid ${!customer.cccd?"#FCA5A5":"#E2E8F0"}` }}>
+            <Shield size={13} style={{ color:!customer.cccd?"#EF4444":O }}/>
+            <span style={{ fontWeight:800, fontSize:"0.82rem", color:!customer.cccd?"#DC2626":"#1E293B" }}>
+              Căn cước công dân (CCCD)
+            </span>
+            {!customer.cccd && (
+              <span className="ml-auto flex items-center gap-1.5" style={{ fontSize:"0.72rem", color:"#DC2626", fontWeight:700 }}>
+                <AlertTriangle size={11}/> Chưa có thông tin
+              </span>
+            )}
+          </div>
+          <div className="px-4 py-3.5" style={{ background:"white" }}>
+            <div className="w-full px-3 py-2.5 rounded-xl" style={{ background:!customer.cccd?"#FFF5F5":"#F8FAFC", border:`1.5px solid ${!customer.cccd?"#EF4444":"#E2E8F0"}`, fontSize:"0.85rem", color:"#1E293B", fontFamily:"monospace" }}>
+              {customer.cccd ?? "Chưa cập nhật"}
+            </div>
+          </div>
+        </div>
+
+        {/* Quoc tich */}
+        <div>
+          <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#374151" }}>Quốc tịch</label>
+          <div className="w-full px-3 py-2.5 rounded-xl" style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem", color:"#1E293B" }}>
+            {customer.quocTich ?? "--"}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-shrink-0 px-5 py-3 text-center" style={{ borderTop:"1px solid #F1F5F9", background:"#FAFBFD" }}>
+        <span style={{ fontSize:"0.72rem", color:"#94A3B8" }}>Dữ liệu thực từ database · Cập nhật thông qua quy trình nội bộ</span>
+      </div>
+    </div>
   );
 }
 
+// ── Main Page ──────────────────────────────────────────────────────────────
 export default function SaleCustomers() {
-  const [customers] = useState(initialCustomers);
+  const {
+    items: customers, loading, error,
+    totalElements, totalPages,
+    page, size, setPage, setSize,
+    reload,
+  } = usePagedList<Customer>(getCustomers, 10);
+
+  const [selectedId, setSelectedId] = useState<string|null>(null);
   const [search, setSearch] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const filtered = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone.includes(search) ||
-    c.email.toLowerCase().includes(search.toLowerCase())
+    (c.hoTen ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (c.soDienThoai ?? "").includes(search) ||
+    (c.cccd ?? "").includes(search) ||
+    (c.maKhachHang ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
+  const selected = customers.find(c=>c.maKhachHang===selectedId);
+  const completePct = customers.length
+    ? Math.round(customers.filter(c=>c.cccd).length/customers.length*100)
+    : 0;
+
   return (
-    <div className="space-y-5">
+    <div>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Tên, SĐT, email..."
-            className="pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 w-72" />
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 rounded-xl px-3 py-2">
-          <Users size={13} className="text-emerald-500" />
-          <span style={{ fontWeight: 500 }}>{customers.length} khách hàng</span>
-        </div>
-      </div>
-
-      {/* Stats bar */}
-      <div className="grid grid-cols-5 gap-3">
-        {(["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(s => {
-          const count = customers.filter(c => c.status === s).length;
-          return (
-            <div key={s} className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center shadow-sm">
-              <div className="text-xl text-slate-900 mb-1" style={{ fontWeight: 700 }}>{count}</div>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[s]}`} style={{ fontWeight: 500 }}>{statusLabels[s]}</span>
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background:`${O}15` }}>
+              <Users size={14} style={{ color:O }}/>
             </div>
-          );
-        })}
+            <h2 style={{ fontWeight:900, fontSize:"1.35rem", color:"#1E293B", letterSpacing:"-0.02em" }}>
+              Hồ sơ Khách hàng
+            </h2>
+          </div>
+          <p style={{ fontSize:"0.85rem", color:"#64748B", paddingLeft:"2.25rem" }}>
+            {totalElements.toLocaleString()} khách hàng trong hệ thống
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl"
+            style={{ background:"white", border:"1px solid #E2E8F0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+            <div>
+              <div style={{ fontSize:"1.3rem", fontWeight:900, color:"#1E293B", lineHeight:1 }}>{completePct}%</div>
+              <div style={{ fontSize:"0.68rem", color:"#94A3B8" }}>Có CCCD</div>
+            </div>
+            <div className="w-12 h-12 relative flex-shrink-0">
+              <svg viewBox="0 0 44 44" className="w-12 h-12 -rotate-90">
+                <circle cx="22" cy="22" r="18" fill="none" stroke="#F1F5F9" strokeWidth="5"/>
+                <circle cx="22" cy="22" r="18" fill="none" stroke={O} strokeWidth="5"
+                  strokeDasharray={`${completePct/100*113} 113`} strokeLinecap="round"/>
+              </svg>
+            </div>
+          </div>
+          <button onClick={reload}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
+            style={{ background:`${O}10`, border:`1px solid ${O}20`, color:O, fontSize:"0.78rem", fontWeight:700 }}>
+            <RotateCcw size={13}/> Làm mới
+          </button>
+        </div>
       </div>
 
-      {/* Customer Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="text-left px-5 py-3.5 text-xs text-slate-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>Khách hàng</th>
-              <th className="text-left px-5 py-3.5 text-xs text-slate-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>Liên hệ</th>
-              <th className="text-left px-5 py-3.5 text-xs text-slate-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>Nguồn</th>
-              <th className="text-left px-5 py-3.5 text-xs text-slate-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>Tương tác</th>
-              <th className="text-left px-5 py-3.5 text-xs text-slate-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>Trạng thái</th>
-              <th className="text-right px-5 py-3.5 text-xs text-slate-500 uppercase tracking-wider" style={{ fontWeight: 600 }}></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtered.map(c => (
-              <tr key={c.id} onClick={() => setSelectedCustomer(c)}
-                className="hover:bg-emerald-50/30 transition cursor-pointer group">
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 text-sm flex-shrink-0" style={{ fontWeight: 600 }}>
-                      {c.avatar}
-                    </div>
-                    <div>
-                      <div className="text-sm text-slate-800" style={{ fontWeight: 600 }}>{c.name}</div>
-                      <div className="text-xs text-slate-400">{c.id}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="text-sm text-slate-600">{c.phone}</div>
-                  <div className="text-xs text-slate-400">{c.email}</div>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg" style={{ fontWeight: 500 }}>{c.source}</span>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-1">
-                    {c.interactions.slice(0, 3).map(i => (
-                      <div key={i.id} className={`w-6 h-6 rounded-lg flex items-center justify-center border ${interactionBg[i.type]}`}>
-                        {interactionIcons[i.type]}
-                      </div>
-                    ))}
-                    {c.interactions.length > 3 && (
-                      <span className="text-xs text-slate-400 ml-1">+{c.interactions.length - 3}</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-5 py-4">
-                  <span className={`text-xs px-2.5 py-1 rounded-full ${statusColors[c.status]}`} style={{ fontWeight: 500 }}>
-                    {statusLabels[c.status]}
-                  </span>
-                </td>
-                <td className="px-5 py-4 text-right">
-                  <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-500 transition ml-auto" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div className="text-center py-12 text-slate-400 text-sm">Không tìm thấy khách hàng</div>
-        )}
+      {/* Pagination – outside the panels to avoid layout issues */}
+      <div className="flex items-center justify-between px-1 mb-3">
+        <span style={{ fontSize:"0.75rem", color:"#94A3B8" }}>
+          Trang <strong style={{ color:"#475569" }}>{page + 1}</strong> / {totalPages || 1} &nbsp;·&nbsp; {totalElements.toLocaleString()} khách hàng
+        </span>
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements}
+          pageSize={size}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setSize(s); setPage(0); }}
+        />
       </div>
 
-      {selectedCustomer && (
-        <CustomerPanel customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
-      )}
+      <div className="grid gap-5" style={{ gridTemplateColumns:"320px 1fr" }}>
+        {/* Left – Customer list */}
+        <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
+          {/* Search */}
+          <div className="px-3 py-3" style={{ borderBottom:"1px solid #F1F5F9" }}>
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+              <input value={search} onChange={e=>setSearch(e.target.value)}
+                placeholder="Tìm theo tên, SĐT, CCCD..."
+                className="w-full pl-9 pr-3 rounded-xl outline-none"
+                style={{ paddingTop:"0.55rem", paddingBottom:"0.55rem", background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.8rem" }}/>
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="overflow-y-auto no-scrollbar" style={{ maxHeight:"calc(100vh - 320px)" }}>
+            {loading ? (
+              <div className="p-4 space-y-2">
+                {Array.from({length:8}).map((_,i)=>(
+                  <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background:"#F1F5F9" }}/>
+                ))}
+              </div>
+            ) : error ? (
+              <div className="p-6 text-center">
+                <AlertTriangle size={24} style={{ color:"#DC2626", margin:"0 auto" }}/>
+                <div className="text-sm text-slate-600 mt-2">Lỗi tải dữ liệu</div>
+                <button onClick={reload} className="mt-2 text-xs font-bold" style={{ color:O }}>Thử lại</button>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center py-8">
+                <Users size={28} style={{ color:"#CBD5E1" }} className="mb-2"/>
+                <div style={{ fontSize:"0.82rem", color:"#94A3B8" }}>Không tìm thấy khách hàng</div>
+              </div>
+            ) : (
+              filtered.map(c => {
+                const status = calcStatus(c);
+                const cfg    = STATUS_CFG[status];
+                const isSelected = c.maKhachHang === selectedId;
+                return (
+                  <button key={c.maKhachHang} onClick={()=>setSelectedId(c.maKhachHang)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left"
+                    style={{
+                      background: isSelected ? "#FFF7ED" : "white",
+                      borderBottom:"1px solid #F8FAFC",
+                      borderLeft: isSelected ? `3px solid ${O}` : "3px solid transparent",
+                    }}>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                      style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontWeight:800, fontSize:"0.72rem" }}>
+                      {getInitials(c.hoTen)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div style={{ fontWeight:700, fontSize:"0.85rem", color:"#1E293B" }}>{c.hoTen ?? "--"}</div>
+                      <div style={{ fontSize:"0.68rem", color:"#94A3B8" }}>{c.soDienThoai ?? "Chưa có SĐT"}</div>
+                    </div>
+                    <cfg.icon size={13} style={{ color:cfg.color, flexShrink:0 }}/>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right – Profile */}
+        <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)", minHeight:500 }}>
+          {selected ? (
+            <ProfilePanel customer={selected}/>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full py-20">
+              <Users size={32} style={{ color:"#CBD5E1" }} className="mb-3"/>
+              <div style={{ fontSize:"0.9rem", color:"#64748B" }}>Chọn khách hàng để xem hồ sơ</div>
+              <div style={{ fontSize:"0.78rem", color:"#94A3B8", marginTop:4 }}>
+                Hiển thị {filtered.length} / {totalElements.toLocaleString()} khách hàng
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

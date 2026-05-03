@@ -17,7 +17,10 @@ const AUTH_TOKEN_KEY = "token";
 
 export type ApiListResponse<T> = {
   data: T[];
-  total?: number;
+  totalElements?: number;
+  totalPages?: number;
+  page?: number;
+  size?: number;
 };
 
 export type ApiResponse<T> = {
@@ -61,6 +64,63 @@ export type UpdateTransactionPayload = Partial<Transaction>;
 export type Deposit = Document & DepositFile;
 export type CreateDepositPayload = Omit<Deposit, "maVanBan" | "maHoSoDatCoc">;
 export type UpdateDepositPayload = Partial<Deposit>;
+
+export type OperationAsset = {
+  asset: string;
+  present: boolean;
+  condition: "Tốt" | "Bình thường" | "Cần sửa chữa";
+  notes: string;
+};
+
+export type OperationCheckinItem = {
+  id: string;
+  room: string;
+  tenant: string;
+  avatar: string;
+  roomType: string;
+  moveIn: string;
+  deposit: number;
+  status: "Chờ bàn giao" | "Đã bàn giao";
+  assets: OperationAsset[];
+};
+
+export type OperationCheckoutItem = {
+  id: string;
+  room: string;
+  tenant: string;
+  avatar: string;
+  roomType: string;
+  moveOut: string;
+  deposit: number;
+  daysLeft: number;
+  status: "Chờ thanh lý" | "Chờ đối soát" | "Đã trả phòng";
+  assets: OperationAsset[];
+};
+
+export type OperationsResponse = {
+  checkins: OperationCheckinItem[];
+  checkouts: OperationCheckoutItem[];
+};
+
+export type DashboardTask = {
+  id: string;
+  title: string;
+  desc: string;
+  source: "approvals" | "operations";
+  priority: "critical" | "high" | "medium";
+  time: string;
+  tag: string;
+};
+
+export type DashboardResponse = {
+  totalRooms: number;
+  roomStatusCounts: Record<string, number>;
+  pendingRequests: number;
+  pendingAppointments: number;
+  pendingTransactions: number;
+  monthlyRevenue: number;
+  urgentTasks: DashboardTask[];
+};
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -142,6 +202,17 @@ export async function getUsers(params?: Record<string, unknown>) {
   return response.data;
 }
 
+export async function getCustomers(params?: Record<string, unknown>) {
+  const response = await api.get<ApiListResponse<Customer>>("/customers", { params });
+  return response.data;
+}
+
+export async function updateCustomer(maKhachHang: string, data: Partial<Customer>) {
+  const response = await api.put<ApiResponse<Customer>>(`/customers/${maKhachHang}`, data);
+  return response.data.data;
+}
+
+
 export async function getRooms(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Room>>("/rooms", { params });
   return response.data;
@@ -212,6 +283,11 @@ export async function updateContract(maHopDongThue: string, payload: UpdateContr
   return response.data.data;
 }
 
+export async function deleteContract(maHopDongThue: string) {
+  const response = await api.delete(`/contracts/${maHopDongThue}`);
+  return response.data;
+}
+
 export async function getTransactions(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Transaction>>("/transactions", { params });
   return response.data;
@@ -242,8 +318,51 @@ export async function updateDeposit(maHoSoDatCoc: string, payload: UpdateDeposit
   return response.data.data;
 }
 
+export async function getOperations() {
+  const response = await api.get<ApiResponse<OperationsResponse>>("/operations");
+  return response.data.data;
+}
+
+export async function getDashboardStats() {
+  const response = await api.get<ApiResponse<DashboardResponse>>("/dashboard/stats");
+  return response.data.data;
+}
+
 export function hasAuthToken() {
   return Boolean(getAuthToken());
 }
 
 export default api;
+
+// =================================================================
+// CÁC API NGHIỆP VỤ KẾ TOÁN (Hợp đồng, Đối soát, Thanh lý)
+// =================================================================
+
+export type DoiSoatResponse = {
+  maHopDong: string;
+  tienCocBanDau: number;
+  tyLeHoanCoc: string; 
+  tienCocDuocHoanCoBan: number;
+  tongTienKhauTru: number;
+  soTienThucTe: number;
+  loaiGiaoDich: string;
+};
+
+export async function getTienKyDau(maHopDongThue: string) {
+  // Trả về thẳng cục số BigDecimal
+  const response = await api.get<ApiResponse<number>>(`/contracts/${maHopDongThue}/tien-ky-dau`);
+  return response.data.data;
+}
+
+export async function calculateDoiSoat(maHopDongThue: string, tongTienKhauTru: number = 0, laHetHanHopDong: boolean = false) {
+  // Axios tự động gắn params lên URL thành: ?tongTienKhauTru=...&laHetHanHopDong=...
+  const response = await api.get<ApiResponse<DoiSoatResponse>>(`/contracts/${maHopDongThue}/doi-soat`, {
+    params: { tongTienKhauTru, laHetHanHopDong }
+  });
+  return response.data.data;
+}
+
+export async function thanhLyHopDong(maHopDongThue: string) {
+  const response = await api.post<ApiResponse<string>>(`/contracts/${maHopDongThue}/thanh-ly`);
+  return response.data.data;
+}

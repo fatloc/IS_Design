@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.Table;
 import lombok.*;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "HOPDONGTHUE")
@@ -23,4 +24,8 @@ public class HopDongThue extends ChungTu {
 
     @Column(name = "SoLuongThanhVien")
     private Integer soLuongThanhVien;
+
+    @Column(name = "NgayKetThuc")
+    private LocalDate ngayKetThuc;
+
 }

@@ -26,7 +26,7 @@ public class UserServiceImpl implements UserService {
     public ApiListResponse<NhanVien> getUsers(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<NhanVien> pageData = repository.findAll(pageable);
-        return ApiListResponse.ok(pageData.getContent(), pageData.getTotalElements());
+        return ApiListResponse.fromPage(pageData);
     }
 
     @Override

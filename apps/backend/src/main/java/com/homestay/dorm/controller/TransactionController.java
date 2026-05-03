@@ -20,8 +20,10 @@ public class TransactionController {
     @GetMapping
     public ApiListResponse<PhieuThanhToan> getTransactions(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-        return transactionService.getTransactions(page, size);
+            @RequestParam(defaultValue = "100") int size,
+            @RequestParam(required = false) String loaiGiaoDich,
+            @RequestParam(required = false) String trangThai) {
+        return transactionService.getTransactions(page, size, loaiGiaoDich, trangThai);
     }
 
     @GetMapping("/{maPhieuThanhToan}")

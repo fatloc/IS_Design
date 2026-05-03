@@ -17,4 +17,5 @@ public class UpdateYeuCauRequest {
     private String cacTieuChiKhac;
     private String khachHangYeuCau;
     private String nhanVienPhuTrach;
+    private String trangThaiYeuCau;
 }

@@ -108,8 +108,32 @@ public class AuthServiceImpl implements AuthService {
                 .phai(nhanVien.getPhai())
                 .cccd(nhanVien.getCccd())
                 .loaiNhanVien(nhanVien.getLoaiNhanVien())
-                .role(nhanVien.getLoaiNhanVien())
+                .role(normalizeRole(nhanVien.getLoaiNhanVien()))
                 .build();
+    }
+
+    private String normalizeRole(String loaiNhanVien) {
+        if (loaiNhanVien == null) {
+            return "Sale";
+        }
+
+        String normalized = java.text.Normalizer.normalize(loaiNhanVien, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", "");
+        if (normalized.contains("manager") || normalized.contains("quanly")) {
+            return "Manager";
+        }
+
+        if (normalized.contains("accountant") || normalized.contains("ketoan")) {
+            return "Accountant";
+        }
+
+        if (normalized.contains("sale") || normalized.contains("tuvan") || normalized.contains("letan")) {
+            return "Sale";
+        }
+
+        return "Sale";
     }
 
     private String generateUniqueUsername(String email) {

@@ -16,17 +16,37 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
+import java.time.temporal.ChronoUnit;
+import com.homestay.dorm.dto.response.DoiSoatResponse;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import org.springframework.transaction.annotation.Transactional;
+
+// Kéo toàn bộ Entity và Repository vào để xài cho gọn, khỏi báo lỗi thiếu
+import com.homestay.dorm.entity.*;
+import com.homestay.dorm.repository.*;
+
 @Service
 @RequiredArgsConstructor
 public class ContractServiceImpl implements ContractService {
 
     private final HopDongThueRepository repository;
 
+    private final ChiTietThuePhongRepository chiTietThuePhongRepository;
+    private final ChiTietThueGiuongRepository chiTietThueGiuongRepository;
+    private final DichVuHopDongRepository dichVuHopDongRepository;
+    private final PhongRepository phongRepository;
+    private final GiuongRepository giuongRepository;
+    private final DichVuRepository dichVuRepository;
+    private final HoSoDatCocRepository hoSoDatCocRepository;
+
     @Override
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<HopDongThue> pageData = repository.findAll(pageable);
-        return ApiListResponse.ok(pageData.getContent(), pageData.getTotalElements());
+        return ApiListResponse.fromPage(pageData);
     }
 
     @Override
@@ -36,7 +56,9 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional
     public HopDongThue createContract(CreateContractRequest req) {
+        // 1. TẠO HỢP ĐỒNG CHÍNH
         String newId = "HD" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
         
         HopDongThue hk = new HopDongThue();
@@ -51,8 +73,40 @@ public class ContractServiceImpl implements ContractService {
         hk.setHinhThucThue(req.getHinhThucThue());
         hk.setKyThanhToan(req.getKyThanhToan());
         hk.setSoLuongThanhVien(req.getSoLuongThanhVien() != null ? req.getSoLuongThanhVien() : 1);
-        
-        return repository.save(hk);
+        hk.setNgayKetThuc(req.getNgayKetThuc());
+
+        HopDongThue savedContract = repository.save(hk);
+
+        // 2. LƯU CHI TIẾT PHÒNG HOẶC GIƯỜNG KHÁCH THUÊ
+        if (req.getMaPhong() != null && !req.getMaPhong().isEmpty()) {
+            ChiTietThuePhong ctp = new ChiTietThuePhong();
+            ctp.setMaPhong(req.getMaPhong());
+            ctp.setMaHopDongThue(newId);
+            chiTietThuePhongRepository.save(ctp);
+        } else if (req.getDanhSachMaGiuong() != null && !req.getDanhSachMaGiuong().isEmpty()) {
+            for (String maGiuong : req.getDanhSachMaGiuong()) {
+                ChiTietThueGiuong ctg = new ChiTietThueGiuong();
+                ctg.setMaGiuong(maGiuong);
+                ctg.setMaHopDongThue(newId);
+                chiTietThueGiuongRepository.save(ctg);
+            }
+        } else {
+            throw new RuntimeException("Hợp đồng phải có ít nhất 1 phòng hoặc 1 giường!");
+        }
+
+        // 3. LƯU DỊCH VỤ KHÁCH ĐĂNG KÝ (Điện, Nước, Xe máy...)
+        // Giả sử Frontend gửi lên một Map<Mã dịch vụ, Số lượng>
+        if (req.getDanhSachDichVu() != null && !req.getDanhSachDichVu().isEmpty()) {
+            for (Map.Entry<String, Integer> entry : req.getDanhSachDichVu().entrySet()) {
+                DichVu_HopDongThue dv = new DichVu_HopDongThue();
+                dv.setMaHopDongThue(newId);
+                dv.setMaDichVu(entry.getKey());
+                dv.setSoLuongDichVu(entry.getValue());
+                dichVuHopDongRepository.save(dv);
+            }
+        }
+
+        return savedContract;
     }
 
     @Override
@@ -78,4 +132,150 @@ public class ContractServiceImpl implements ContractService {
         HopDongThue hk = getContractById(maHopDongThue);
         repository.delete(hk);
     }
+
+    public BigDecimal tinhTienThueKyDau(String maHopDongThue) {
+        HopDongThue hopDong = getContractById(maHopDongThue);
+        BigDecimal tongTien = BigDecimal.ZERO;
+
+        // 1. Phân tích Kỳ thanh toán là hàng tháng hoặc 3 tháng 6 tháng
+        int soThangThuTruoc = 1; // Mặc định là 1 tháng
+        if (hopDong.getKyThanhToan() == "3 tháng") {
+            soThangThuTruoc = 3;
+        } else if (hopDong.getKyThanhToan() == "6 tháng") {
+            soThangThuTruoc = 6;
+        }
+        // 2. Tính tiền Phòng / Giường
+        if ("Thuê phòng".equalsIgnoreCase(hopDong.getHinhThucThue())) {
+            List<ChiTietThuePhong> dsPhong = chiTietThuePhongRepository.findByMaHopDongThue(maHopDongThue);
+            for (ChiTietThuePhong ctp : dsPhong) {
+                Phong phong = phongRepository.findById(ctp.getMaPhong()).orElse(null);
+                if (phong != null && phong.getGiaThuePhong() != null) {
+                    tongTien = tongTien.add(phong.getGiaThuePhong().multiply(new BigDecimal(soThangThuTruoc)));
+                }
+            }
+        } else {
+            List<ChiTietThueGiuong> dsGiuong = chiTietThueGiuongRepository.findByMaHopDongThue(maHopDongThue);
+            for (ChiTietThueGiuong ctg : dsGiuong) {
+                Giuong giuong = giuongRepository.findById(ctg.getMaGiuong()).orElse(null);
+                if (giuong != null && giuong.getGiaThue() != null) {
+                    tongTien = tongTien.add(giuong.getGiaThue().multiply(new BigDecimal(soThangThuTruoc)));
+                }
+            }
+        }
+
+        // 3. Tính tiền Dịch vụ phát sinh (Gửi xe, Wifi...)
+        List<DichVu_HopDongThue> dsDichVu = dichVuHopDongRepository.findByMaHopDongThue(maHopDongThue);
+        for(DichVu_HopDongThue dvDangKy : dsDichVu) {
+            DichVu thongTinDichVu = dichVuRepository.findById(dvDangKy.getMaDichVu()).orElse(null);
+            if(thongTinDichVu != null && thongTinDichVu.getDonGia() != null) {
+                BigDecimal donGia = thongTinDichVu.getDonGia();
+                BigDecimal soLuong = new BigDecimal(dvDangKy.getSoLuongDichVu());
+                // Cộng dồn: Đơn giá * Số lượng * Số tháng
+                tongTien = tongTien.add(donGia.multiply(soLuong).multiply(new BigDecimal(soThangThuTruoc)));
+            }
+        }
+        
+        return tongTien;
+    }
+
+    public DoiSoatResponse doiSoatChiPhi(String maHopDongThue, BigDecimal tongTienKhauTru, boolean laHetHanHopDong) {
+        // 1. Lấy thông tin Hợp đồng
+        HopDongThue hopDong = getContractById(maHopDongThue);
+
+        HoSoDatCoc hoSoDatCoc = hoSoDatCocRepository.findByKhachHangSoHuu(hopDong.getKhachHangSoHuu()).orElse(null);
+        BigDecimal tienCocBanDau = BigDecimal.ZERO;
+        if (hoSoDatCoc != null && hoSoDatCoc.getMucTienCoc() != null) {
+            tienCocBanDau = hoSoDatCoc.getMucTienCoc();
+        }
+        
+        // 3. Tính thời gian khách đã ở (Từ Ngày Lập HĐ đến hôm nay)
+        LocalDate ngayVaoO = hopDong.getNgayLap();
+        LocalDate ngayTraPhong = LocalDate.now();
+        
+        // Dùng ChronoUnit để đếm xem khách ở được mấy tháng rồi
+        long soThangDaO = ChronoUnit.MONTHS.between(ngayVaoO, ngayTraPhong);
+
+        // 4. Xác định tỷ lệ hoàn cọc cơ bản theo luật của Ký túc xá
+        BigDecimal tyLeHoan = BigDecimal.ZERO;
+        String chuoiTyLe = "0%";
+
+        if (laHetHanHopDong) {
+            // Nếu quản lý tick chọn là "Đã ở hết hạn hợp đồng" -> Trả đủ 100% cọc
+            tyLeHoan = new BigDecimal("1.0"); 
+            chuoiTyLe = "100%";
+        } else {
+            // Nếu trả phòng trước hạn, xét xem ở được lâu chưa
+            if (soThangDaO < 6) {
+                tyLeHoan = new BigDecimal("0.5"); // Ở dưới 6 tháng -> Hoàn 50%
+                chuoiTyLe = "50%";
+            } else {
+                tyLeHoan = new BigDecimal("0.7"); // Ở trên 6 tháng -> Hoàn 70%
+                chuoiTyLe = "70%";
+            }
+        }
+
+        // 5. Tính tiền cọc được hoàn lại (Tiền cọc x Tỷ lệ hoàn)
+        BigDecimal tienCocDuocHoanCoBan = tienCocBanDau.multiply(tyLeHoan);
+
+        // 6. Chốt con số cuối cùng: Lấy tiền hoàn trừ đi các khoản nợ, phạt (Quản lý nhập vào)
+        if (tongTienKhauTru == null) {
+            tongTienKhauTru = BigDecimal.ZERO;
+        }
+        BigDecimal soTienThucTe = tienCocDuocHoanCoBan.subtract(tongTienKhauTru);
+
+        // 7. Xác định xem Kế toán phải CHI tiền (trả khách) hay THU thêm tiền (khách nợ lố cả tiền cọc)
+        String loaiGiaoDich;
+        if (soTienThucTe.compareTo(BigDecimal.ZERO) >= 0) {
+            loaiGiaoDich = "Chi trả khách (Hoàn cọc)";
+        } else {
+            loaiGiaoDich = "Thu thêm của khách (Bù lỗ)";
+        }
+
+        // 8. Trình bày ra "cái đĩa" DTO để trả về cho Frontend
+        return DoiSoatResponse.builder()
+                .maHopDong(maHopDongThue)
+                .tienCocBanDau(tienCocBanDau)
+                .tyLeHoanCoc(chuoiTyLe)
+                .tienCocDuocHoanCoBan(tienCocDuocHoanCoBan)
+                .tongTienKhauTru(tongTienKhauTru)
+                .soTienThucTe(soTienThucTe.abs()) // Dùng abs() để luôn hiện số dương trên màn hình cho đẹp
+                .loaiGiaoDich(loaiGiaoDich)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void thanhLyHopDong(String maHopDongThue) {
+        // 1. Lấy hợp đồng ra
+        HopDongThue hopDong = getContractById(maHopDongThue);
+
+        // 2. Đổi trạng thái hợp đồng thành Đã thanh lý (Dựa theo logic code cũ của bạn)
+        hopDong.setLoaiVanBan("[STATUS:Terminated]");
+        hopDong.setNgayKetThuc(LocalDate.now()); // Chốt ngày kết thúc là hôm nay
+        repository.save(hopDong);
+
+        // 3. Giải phóng Phòng (Nếu là thuê phòng)
+        if ("Thuê phòng".equalsIgnoreCase(hopDong.getHinhThucThue())) {
+            List<ChiTietThuePhong> dsPhong = chiTietThuePhongRepository.findByMaHopDongThue(maHopDongThue);
+            for (ChiTietThuePhong ctp : dsPhong) {
+                Phong phong = phongRepository.findById(ctp.getMaPhong()).orElse(null);
+                if (phong != null) {
+                    phong.setTrangThai("Trống"); // Đổi trạng thái phòng thành Trống để đón khách mới
+                    phongRepository.save(phong);
+                }
+            }
+        } 
+        // 4. Giải phóng Giường (Nếu là thuê giường ghép)
+        else {
+            List<ChiTietThueGiuong> dsGiuong = chiTietThueGiuongRepository.findByMaHopDongThue(maHopDongThue);
+            for (ChiTietThueGiuong ctg : dsGiuong) {
+                Giuong giuong = giuongRepository.findById(ctg.getMaGiuong()).orElse(null);
+                if (giuong != null) {
+                    giuong.setTrangThai("Trống"); // Đổi trạng thái giường thành Trống
+                    giuongRepository.save(giuong);
+                }
+            }
+        }
+    }
 }
+

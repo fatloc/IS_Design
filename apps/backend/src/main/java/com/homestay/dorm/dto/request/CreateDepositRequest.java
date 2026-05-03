@@ -5,6 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 @Data
 public class CreateDepositRequest {
@@ -15,4 +16,6 @@ public class CreateDepositRequest {
     private String nhanVienLap;
     private String khachHangSoHuu;
     private BigDecimal mucTienCoc;
+    private String maPhong;
+    private List<String> danhSachMaGiuong;
 }
