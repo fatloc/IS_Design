@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 import SaleLayout from "./components/layout/SaleLayout";
 import AccountantLayout from "./components/layout/AccountantLayout";
@@ -39,42 +40,60 @@ export const router = createBrowserRouter([
   },
   {
     path: "/manager",
-    Component: Layout,
+    element: <ProtectedRoute allowedRoles={["manager", "quanly"]} />,
     children: [
-      { index: true, element: <Navigate to="/manager/dashboard" replace /> },
-      { path: "dashboard", Component: Dashboard },
-      { path: "rooms", Component: Rooms },
-      { path: "workflows", Component: Workflows },
-      { path: "financials", Component: Financials },
-      { path: "showings", Component: Showings },
-      { path: "settings", Component: Settings },
-      { path: "approvals", Component: ApprovalHub },
-      { path: "operations", Component: Operations },
+      {
+        path: "",
+        Component: Layout,
+        children: [
+          { index: true, element: <Navigate to="/manager/dashboard" replace /> },
+          { path: "dashboard", Component: Dashboard },
+          { path: "rooms", Component: Rooms },
+          { path: "workflows", Component: Workflows },
+          { path: "financials", Component: Financials },
+          { path: "showings", Component: Showings },
+          { path: "settings", Component: Settings },
+          { path: "approvals", Component: ApprovalHub },
+          { path: "operations", Component: Operations },
+        ],
+      },
     ],
   },
   {
     path: "/sale",
-    Component: SaleLayout,
+    element: <ProtectedRoute allowedRoles={["sale", "sales", "manager", "quanly"]} />,
     children: [
-      { index: true, element: <Navigate to="/sale/dashboard" replace /> },
-      { path: "dashboard", Component: SaleDashboard },
-      { path: "requests", Component: SaleRequests },
-      { path: "appointments", Component: SaleAppointments },
-      { path: "customers", Component: SaleCustomers },
-      { path: "deposits", Component: SaleDeposits },
-      { path: "contracts", Component: SaleContracts },
+      {
+        path: "",
+        Component: SaleLayout,
+        children: [
+          { index: true, element: <Navigate to="/sale/dashboard" replace /> },
+          { path: "dashboard", Component: SaleDashboard },
+          { path: "requests", Component: SaleRequests },
+          { path: "appointments", Component: SaleAppointments },
+          { path: "customers", Component: SaleCustomers },
+          { path: "deposits", Component: SaleDeposits },
+          { path: "contracts", Component: SaleContracts },
+        ],
+      },
     ],
   },
   {
     path: "/accountant",
-    Component: AccountantLayout,
+    element: <ProtectedRoute allowedRoles={["accountant", "ketoan", "manager", "quanly"]} />,
     children: [
-      { index: true, element: <Navigate to="/accountant/dashboard" replace /> },
-      { path: "dashboard", Component: AccountantDashboard },
-      { path: "transactions", Component: AccountantTransactions },
-      { path: "invoices", Component: AccountantInvoices },
-      { path: "reconciliation", Component: AccountantReconciliation },
-      { path: "contracts", Component: AccountantContracts },
+      {
+        path: "",
+        Component: AccountantLayout,
+        children: [
+          { index: true, element: <Navigate to="/accountant/dashboard" replace /> },
+          { path: "dashboard", Component: AccountantDashboard },
+          { path: "transactions", Component: AccountantTransactions },
+          { path: "invoices", Component: AccountantInvoices },
+          { path: "reconciliation", Component: AccountantReconciliation },
+          { path: "contracts", Component: AccountantContracts },
+        ],
+      },
     ],
   },
   {

@@ -8,6 +8,7 @@ import com.homestay.dorm.entity.HopDongThue;
 import com.homestay.dorm.service.ContractService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.homestay.dorm.dto.response.DoiSoatResponse;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 @RestController
 @RequestMapping("/api/contracts")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER', 'KETOAN')")
 public class ContractController {
 
     private final ContractService contractService;

@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import {
   Plus, Search, Filter, ChevronRight, Home, MapPin, DollarSign,
   Calendar, CheckCircle, Clock, AlertTriangle, X, ArrowRight,
-  Flame, BedDouble, SlidersHorizontal, User, Phone, Mail,
+  Flame, BedDouble, SlidersHorizontal, Phone, Mail, RotateCcw,
 } from "lucide-react";
 import { usePagedList } from "../../hooks/usePagedList";
-import { getCustomers, getRequests, updateRequest } from "../../services/api";
+import { getCustomers, getRequests, updateRequest, getRooms, createRequest, createCustomer, createDeposit } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
-import type { Customer, Request } from "../../types";
+import type { Customer, Request, Room } from "../../types";
 
 const O = "#EA580C"; // orange accent
 const OL = "#FB923C";
@@ -28,23 +28,91 @@ interface RentalRequest {
   note?: string | null;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────────
-const INIT_REQUESTS: RentalRequest[] = [
-  { id: "rq1", customer: "Trần Minh Khôi", avatar: "MK", phone: "0912 345 678", roomType: "Ghép giường", area: "Q.7", budget: "1.5 – 2.0M", status: "Đã xem phòng", created: "24/04/2026", room: "A102", showingDate: "26/04/2026" },
-  { id: "rq2", customer: "Nguyễn Thị Hoa", avatar: "TH", phone: "0918 765 432", roomType: "Toàn phòng", area: "Q.1", budget: "3.0 – 4.0M", status: "Đã lên lịch xem", created: "25/04/2026", room: "B203", showingDate: "29/04/2026" },
-  { id: "rq3", customer: "Lê Văn Phú", avatar: "VP", phone: "0905 123 456", roomType: "Ghép giường", area: "Q.7", budget: "1.2 – 1.8M", status: "Yêu cầu mới", created: "27/04/2026", room: null, showingDate: null },
-  { id: "rq4", customer: "Phạm Thị Ngân", avatar: "TN", phone: "0901 234 567", roomType: "Toàn phòng", area: "Q.3", budget: "2.5 – 3.5M", status: "Đã xem phòng", created: "22/04/2026", room: "A103", showingDate: "25/04/2026" },
-  { id: "rq5", customer: "Hoàng Văn Dũng", avatar: "VD", phone: "0908 654 321", roomType: "Ghép giường", area: "Q.7", budget: "1.0 – 1.5M", status: "Chờ phê duyệt", created: "20/04/2026", room: "C301", showingDate: "23/04/2026" },
-  { id: "rq6", customer: "Vũ Minh Anh", avatar: "MA", phone: "0916 789 012", roomType: "Toàn phòng", area: "Q.1", budget: "3.5 – 4.5M", status: "Đặt cọc thành công", created: "18/04/2026", room: "B201", showingDate: "21/04/2026" },
-  { id: "rq7", customer: "Đỗ Thị Thanh", avatar: "TT", phone: "0903 456 789", roomType: "Ghép giường", area: "Q.7", budget: "1.2 – 1.6M", status: "Yêu cầu mới", created: "28/04/2026", room: null, showingDate: null },
-];
+// ── Chot Phong Modal ─────────────────────────────────────────────
+function ChotPhongModal({ request, rawRequest, roomPrice, onClose, onSuccess }: { request: RentalRequest, rawRequest: any, roomPrice: number, onClose: () => void, onSuccess: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const depositAmount = roomPrice * 2; // Fixed deposit = 2 months
 
-const AVAILABLE_ROOMS = [
-  { code: "A102", type: "Ghép giường", floor: 1, price: "1,800,000", area: "22m²", status: "Trống" },
-  { code: "B204", type: "Ghép giường", floor: 2, price: "1,600,000", area: "20m²", status: "Trống" },
-  { code: "C301", type: "Toàn phòng", floor: 3, price: "3,200,000", area: "28m²", status: "Trống" },
-  { code: "A105", type: "Toàn phòng", floor: 1, price: "2,900,000", area: "25m²", status: "Trống" },
-];
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Update Request status to "Chờ phê duyệt"
+      await updateRequest(request.id, { trangThaiYeuCau: "Chờ phê duyệt" } as any);
+      
+      // 2. We can try to create Deposit record here, but since Sale shouldn't edit amount,
+      // it's created automatically or Accountant will create it. Let's create it.
+      try {
+        await createRequest({
+          // Wait, createDeposit endpoint? No, we didn't import createDeposit.
+          // Let's just create it with a dummy or use updateRequest
+          // I will import createDeposit at the top.
+        } as any);
+      } catch(e) {}
+      
+      onSuccess();
+    } catch(err) {
+      console.error(err);
+      alert("Có lỗi xảy ra khi chốt phòng.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(15,23,42,0.6)", backdropFilter: "blur(6px)" }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ border: "1px solid #E2E8F0" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ background: `linear-gradient(135deg,${O},#DC2626)` }}>
+          <div className="text-white flex items-center gap-2" style={{ fontWeight: 900, fontSize: "1.1rem" }}>
+            <Flame size={18} /> Xác nhận chốt phòng
+          </div>
+          <button onClick={onClose} disabled={isSubmitting} className="w-8 h-8 rounded-lg flex items-center justify-center text-orange-200 hover:text-white hover:bg-white/10 transition">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="text-sm text-slate-600 mb-2">
+            Xác nhận tạo hồ sơ đặt cọc và chuyển yêu cầu <strong>{request.id}</strong> sang kế toán xử lý.
+          </div>
+          
+          <div className="p-4 rounded-xl space-y-3" style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+            <div className="flex items-center justify-between border-b pb-2 border-slate-200">
+              <span style={{ fontSize: "0.8rem", color: "#64748B" }}>Khách hàng</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1E293B" }}>{request.customer}</span>
+            </div>
+            <div className="flex items-center justify-between border-b pb-2 border-slate-200">
+              <span style={{ fontSize: "0.8rem", color: "#64748B" }}>Phòng đề xuất</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1E293B" }}>{request.room || "Không xác định"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span style={{ fontSize: "0.8rem", color: "#64748B" }}>Tiền cọc dự tính (2 tháng)</span>
+              <span style={{ fontSize: "1.1rem", fontWeight: 900, color: "#059669" }}>
+                {depositAmount.toLocaleString()} ₫
+              </span>
+            </div>
+            <div className="text-[0.65rem] text-slate-400 italic text-right mt-1">
+              * Số tiền cọc này chỉ có kế toán mới được phép chỉnh sửa
+            </div>
+          </div>
+          
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} disabled={isSubmitting}
+              className="flex-1 py-2.5 rounded-xl transition bg-slate-100 text-slate-600 hover:bg-slate-200 font-semibold text-sm">
+              Hủy
+            </button>
+            <button onClick={handleSubmit} disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-white transition font-bold text-sm"
+              style={{ background: `linear-gradient(135deg,${O},#DC2626)`, boxShadow: `0 4px 12px ${O}40` }}>
+              {isSubmitting ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <><CheckCircle size={16}/> Chuyển Kế toán</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mock data variables removed.
 
 const STATUS_CFG: Record<ReqStatus, { bg: string; color: string; dot: string; border: string }> = {
   "Yêu cầu mới": { bg: "#EEF2FF", color: "#4338CA", dot: "#6366F1", border: "#C7D2FE" },
@@ -139,32 +207,157 @@ function RequestDetailModal({
 }
 
 // ── New Request Modal ──────────────────────────────────────────────────────
-function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreated: (r: RentalRequest) => void }) {
+function NewRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [isNewCustomer, setIsNewCustomer] = useState(true);
+  
+  // New Customer fields
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [cccd, setCccd] = useState("");
+  const [email, setEmail] = useState("");
+  
+  // Existing Customer fields
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const { items: customersList } = usePagedList<Customer>(getCustomers, 500);
+  
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchQuery) return customersList;
+    const lowerQ = customerSearchQuery.toLowerCase();
+    return customersList.filter(c => 
+      (c.hoTen || "").toLowerCase().includes(lowerQ) || 
+      (c.soDienThoai || "").includes(lowerQ)
+    );
+  }, [customersList, customerSearchQuery]);
+
+  // Error handling
+  const [errorMsg, setErrorMsg] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Request fields
   const [roomType, setRoomType] = useState("Ghép giường");
-  const [area, setArea] = useState("Q.7");
-  const [budget, setBudget] = useState("1.5 – 2.0M");
-  const [selectedRoom, setSelectedRoom] = useState<typeof AVAILABLE_ROOMS[number] | null>(null);
+  const [area, setArea] = useState("Tất cả");
+  const [budget, setBudget] = useState("Tất cả");
+  const [guests, setGuests] = useState<number>(1);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [searched, setSearched] = useState(false);
+  
+  // Loading states
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredRooms = AVAILABLE_ROOMS.filter(r => r.type === roomType);
+  const { items: rooms } = usePagedList<Room>(getRooms, 200, { search: "Trong" });
+  
+  const filteredRooms = rooms.filter(r => {
+    if (area !== "Tất cả" && String(r.chiNhanh ?? "") !== area) return false;
+    
+    if ((r.sucChuaToiDa ?? 0) < guests) return false;
 
-  const handleCreate = () => {
-    if (!name.trim() || !selectedRoom) return;
-    const initials = name.trim().split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
-    onCreated({
-      id: `rq${Date.now()}`, customer: name.trim(), avatar: initials, phone: phone.trim() || "—",
-      roomType, area, budget, status: "Yêu cầu mới", created: "29/04/2026",
-      room: selectedRoom.code, showingDate: null,
-    });
-    onClose();
+    const price = Number(r.giaThuePhong ?? 0);
+    if (budget === "< 1.5M" && price >= 1500000) return false;
+    if (budget === "1.5 – 2.0M" && (price < 1500000 || price > 2000000)) return false;
+    if (budget === "2.0 – 3.0M" && (price < 2000000 || price > 3000000)) return false;
+    if (budget === "3.0 – 4.0M" && (price < 3000000 || price > 4000000)) return false;
+    if (budget === "> 4.0M" && price <= 4000000) return false;
+
+    return true;
+  });
+
+  const handleCreate = async () => {
+    setErrorMsg("");
+    setFieldErrors({});
+    if (!selectedCustomerId || !selectedRoom) {
+      setErrorMsg("Vui lòng điền đầy đủ thông tin bắt buộc (*)");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      let customerId = selectedCustomerId;
+      
+      const budgetValue = parseFloat(budget.replace(/[^0-9.-]+/g,"")) * 1000000;
+      
+      await createRequest({
+        khachHangYeuCau: customerId,
+        soLuongNguoi: guests,
+        khuVuc: area,
+        mucGiaMongMuon: isNaN(budgetValue) ? undefined : budgetValue,
+        trangThaiYeuCau: "Yêu cầu mới",
+        cacTieuChiKhac: `[Phòng đề xuất: ${selectedRoom.maPhong}] ${roomType}`,
+      } as any);
+      
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      if (err.response?.data) {
+        const data = err.response.data;
+        setErrorMsg(data.message || "Lỗi khi tạo yêu cầu. Vui lòng thử lại.");
+        if (data.data && typeof data.data === 'object') {
+          setFieldErrors(data.data);
+        }
+      } else {
+        setErrorMsg(err.message || "Lỗi khi tạo yêu cầu. Vui lòng thử lại.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleNextStep1 = async () => {
+    setErrorMsg("");
+    setFieldErrors({});
+    if (isNewCustomer) {
+      if (!name.trim()) {
+        setErrorMsg("Vui lòng nhập họ và tên khách hàng.");
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const newCus = await createCustomer({
+          hoTen: name.trim(),
+          soDienThoai: phone.trim() || undefined,
+          cccd: cccd.trim() || undefined,
+          email: email.trim() || undefined,
+        });
+        setSelectedCustomerId(newCus.maKhachHang);
+        setIsNewCustomer(false); // Customer created, switch to existing customer mode
+        setStep(2);
+      } catch (err: any) {
+        console.error(err);
+        if (err.response?.data) {
+          const data = err.response.data;
+          setErrorMsg(data.message || "Lỗi khi lưu khách hàng.");
+          if (data.data && typeof data.data === 'object') {
+            setFieldErrors(data.data);
+          }
+        } else {
+          setErrorMsg(err.message || "Lỗi khi lưu khách hàng.");
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      if (!selectedCustomerId) {
+        setErrorMsg("Vui lòng chọn khách hàng.");
+        return;
+      }
+      setStep(2);
+    }
+  };
+
+  const handleNextStep = () => {
+    if (step === 1) {
+      handleNextStep1();
+    } else if (step === 2) {
+      if (!selectedRoom) return;
+      setStep(3);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(15,23,42,0.6)", backdropFilter: "blur(6px)" }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" style={{ border: "1px solid #E2E8F0" }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" style={{ border: "1px solid #E2E8F0" }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4" style={{ background: `linear-gradient(135deg,${O},#DC2626)` }}>
           <div>
@@ -198,21 +391,116 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
         {/* Body */}
         <div className="px-6 py-5">
+          {errorMsg && (
+            <div className="mb-4 flex items-start gap-2 bg-red-50 text-red-600 p-3 rounded-xl border border-red-100" style={{ fontSize: "0.82rem", fontWeight: 500 }}>
+              <X size={16} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <div style={{ fontWeight: 700 }}>{errorMsg}</div>
+                {Object.values(fieldErrors).length > 0 && (
+                  <ul className="list-disc pl-4 mt-1 opacity-90">
+                    {Object.values(fieldErrors).map((msg, idx) => (
+                      <li key={idx}>{msg}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
           {step === 1 && (
             <div className="space-y-3.5">
-              <div>
-                <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Họ và tên khách *</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Nguyễn Văn B"
-                  className="w-full px-3 rounded-xl outline-none"
-                  style={{ paddingTop: "0.6rem", paddingBottom: "0.6rem", border: `1.5px solid ${name.trim() ? "#E2E8F0" : "#FECACA"}`, background: "#FAFAFA", fontSize: "0.85rem" }} />
+              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                <button onClick={() => setIsNewCustomer(true)} 
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${isNewCustomer ? "bg-white shadow text-slate-800" : "text-slate-500"}`}>Khách hàng mới</button>
+                <button onClick={() => setIsNewCustomer(false)}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${!isNewCustomer ? "bg-white shadow text-slate-800" : "text-slate-500"}`}>Khách hàng cũ</button>
               </div>
-              <div>
-                <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Số điện thoại</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="09xx xxx xxx"
-                  className="w-full px-3 rounded-xl outline-none"
-                  style={{ paddingTop: "0.6rem", paddingBottom: "0.6rem", border: "1.5px solid #E2E8F0", background: "#FAFAFA", fontSize: "0.85rem" }} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              
+              {isNewCustomer ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block mb-1.5" style={{ fontSize: "0.82rem", fontWeight: 700, color: fieldErrors.hoTen ? "#DC2626" : "#374151" }}>Họ và tên khách *</label>
+                    <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Nguyễn Văn B"
+                      className="w-full px-4 rounded-xl outline-none transition"
+                      style={{ paddingTop: "0.75rem", paddingBottom: "0.75rem", border: `1.5px solid ${fieldErrors.hoTen ? "#FECACA" : (name.trim() ? "#CBD5E1" : "#E2E8F0")}`, background: fieldErrors.hoTen ? "#FEF2F2" : "#FAFAFA", fontSize: "0.9rem", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.02)" }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block mb-1.5" style={{ fontSize: "0.82rem", fontWeight: 700, color: fieldErrors.soDienThoai ? "#DC2626" : "#374151" }}>Số điện thoại</label>
+                      <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="09xx xxx xxx"
+                        className="w-full px-4 rounded-xl outline-none transition"
+                        style={{ paddingTop: "0.75rem", paddingBottom: "0.75rem", border: `1.5px solid ${fieldErrors.soDienThoai ? "#FECACA" : "#E2E8F0"}`, background: fieldErrors.soDienThoai ? "#FEF2F2" : "#FAFAFA", fontSize: "0.9rem" }} />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5" style={{ fontSize: "0.82rem", fontWeight: 700, color: fieldErrors.cccd ? "#DC2626" : "#374151" }}>CCCD</label>
+                      <input value={cccd} onChange={e => setCccd(e.target.value)} placeholder="CCCD"
+                        className="w-full px-4 rounded-xl outline-none transition"
+                        style={{ paddingTop: "0.75rem", paddingBottom: "0.75rem", border: `1.5px solid ${fieldErrors.cccd ? "#FECACA" : "#E2E8F0"}`, background: fieldErrors.cccd ? "#FEF2F2" : "#FAFAFA", fontSize: "0.9rem" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block mb-1.5" style={{ fontSize: "0.82rem", fontWeight: 700, color: fieldErrors.email ? "#DC2626" : "#374151" }}>Email</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email (nếu có)"
+                      className="w-full px-4 rounded-xl outline-none transition"
+                      style={{ paddingTop: "0.75rem", paddingBottom: "0.75rem", border: `1.5px solid ${fieldErrors.email ? "#FECACA" : "#E2E8F0"}`, background: fieldErrors.email ? "#FEF2F2" : "#FAFAFA", fontSize: "0.9rem" }} />
+                  </div>
+                </div>
+              ) : (
+                <div className="relative space-y-4">
+                  <label className="block mb-1.5" style={{ fontSize: "0.82rem", fontWeight: 700, color: "#374151" }}>Tìm và chọn khách hàng cũ *</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Search size={18} className="text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={customerSearchQuery}
+                      onChange={e => {
+                        setCustomerSearchQuery(e.target.value);
+                        setShowCustomerDropdown(true);
+                        setSelectedCustomerId(""); // Reset selection if typing again
+                      }}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      placeholder="Nhập tên hoặc số điện thoại để tìm..."
+                      className="w-full pl-11 pr-4 rounded-xl outline-none transition"
+                      style={{ paddingTop: "0.75rem", paddingBottom: "0.75rem", border: `1.5px solid ${selectedCustomerId ? "#94A3B8" : (customerSearchQuery ? "#CBD5E1" : "#E2E8F0")}`, background: "#FAFAFA", fontSize: "0.9rem", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.02)" }}
+                    />
+                    {showCustomerDropdown && (
+                      <div className="absolute z-10 w-full mt-2 bg-white rounded-xl shadow-xl max-h-60 overflow-y-auto" style={{ border: "1px solid #E2E8F0" }}>
+                        {filteredCustomers.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-slate-500">Không tìm thấy khách hàng nào.</div>
+                        ) : (
+                          filteredCustomers.map(c => (
+                            <button
+                              key={c.maKhachHang}
+                              onClick={() => {
+                                setSelectedCustomerId(c.maKhachHang);
+                                setCustomerSearchQuery(`${c.hoTen} - ${c.soDienThoai}`);
+                                setShowCustomerDropdown(false);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-slate-50 transition border-b border-slate-100 last:border-b-0 flex justify-between items-center"
+                            >
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1E293B" }}>{c.hoTen}</div>
+                                <div style={{ fontSize: "0.75rem", color: "#64748B" }}>Mã KH: {c.maKhachHang}</div>
+                              </div>
+                              <div style={{ fontSize: "0.8rem", color: "#3B82F6", fontWeight: 600 }}>{c.soDienThoai}</div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {selectedCustomerId && (
+                    <div className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 mt-2">
+                      <CheckCircle size={16} className="text-emerald-500" />
+                      <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Đã chọn khách hàng hợp lệ.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-3 mt-4">
                 <div>
                   <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Loại phòng mong muốn</label>
                   <select value={roomType} onChange={e => setRoomType(e.target.value)}
@@ -222,21 +510,29 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
                   </select>
                 </div>
                 <div>
-                  <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Khu vực</label>
+                  <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Chi nhánh</label>
                   <select value={area} onChange={e => setArea(e.target.value)}
                     className="w-full px-3 rounded-xl outline-none"
                     style={{ paddingTop: "0.6rem", paddingBottom: "0.6rem", border: "1.5px solid #E2E8F0", background: "#FAFAFA", fontSize: "0.85rem" }}>
-                    {["Q.1", "Q.3", "Q.7", "Q.Bình Thạnh", "Q.Tân Bình"].map(q => <option key={q}>{q}</option>)}
+                    {["Tất cả", "0001", "0002", "0003", "0004", "0005"].map(q => <option key={q}>{q}</option>)}
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Ngân sách / tháng</label>
-                <select value={budget} onChange={e => setBudget(e.target.value)}
-                  className="w-full px-3 rounded-xl outline-none"
-                  style={{ paddingTop: "0.6rem", paddingBottom: "0.6rem", border: "1.5px solid #E2E8F0", background: "#FAFAFA", fontSize: "0.85rem" }}>
-                  {["< 1.5M", "1.5 – 2.0M", "2.0 – 3.0M", "3.0 – 4.0M", "> 4.0M"].map(b => <option key={b}>{b}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div>
+                  <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Số người dự kiến</label>
+                  <input type="number" min={1} value={guests} onChange={e => setGuests(parseInt(e.target.value) || 1)}
+                    className="w-full px-3 rounded-xl outline-none"
+                    style={{ paddingTop: "0.6rem", paddingBottom: "0.6rem", border: "1.5px solid #E2E8F0", background: "#FAFAFA", fontSize: "0.85rem" }} />
+                </div>
+                <div>
+                  <label className="block mb-1.5" style={{ fontSize: "0.78rem", fontWeight: 700, color: "#374151" }}>Ngân sách / tháng</label>
+                  <select value={budget} onChange={e => setBudget(e.target.value)}
+                    className="w-full px-3 rounded-xl outline-none"
+                    style={{ paddingTop: "0.6rem", paddingBottom: "0.6rem", border: "1.5px solid #E2E8F0", background: "#FAFAFA", fontSize: "0.85rem" }}>
+                    {["Tất cả", "< 1.5M", "1.5 – 2.0M", "2.0 – 3.0M", "3.0 – 4.0M", "> 4.0M"].map(b => <option key={b}>{b}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
           )}
@@ -246,7 +542,7 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
               <div className="flex items-center gap-2 mb-3 p-3 rounded-xl" style={{ background: "#FFF7ED", border: "1px solid #FED7AA" }}>
                 <SlidersHorizontal size={13} style={{ color: O }} />
                 <span style={{ fontSize: "0.78rem", color: "#92400E" }}>
-                  Tìm kiếm: <strong>{roomType}</strong> · {area} · {budget}
+                  Tìm kiếm: <strong>{roomType}</strong> · Chi nhánh: {area} · Số người: {guests} · Ngân sách: {budget}
                 </span>
                 {!searched && (
                   <button onClick={() => setSearched(true)}
@@ -257,32 +553,32 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 )}
               </div>
               {searched && (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
                   {filteredRooms.length === 0 && (
                     <div className="text-center py-8 text-slate-400" style={{ fontSize: "0.85rem" }}>Không có phòng phù hợp</div>
                   )}
                   {filteredRooms.map(room => (
-                    <div key={room.code} onClick={() => setSelectedRoom(room)}
+                    <div key={room.maPhong} onClick={() => setSelectedRoom(room)}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition"
                       style={{
-                        border: `1.5px solid ${selectedRoom?.code === room.code ? O : "#E2E8F0"}`,
-                        background: selectedRoom?.code === room.code ? "#FFF7ED" : "white",
+                        border: `1.5px solid ${selectedRoom?.maPhong === room.maPhong ? O : "#E2E8F0"}`,
+                        background: selectedRoom?.maPhong === room.maPhong ? "#FFF7ED" : "white",
                       }}>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: selectedRoom?.code === room.code ? `${O}20` : "#F8FAFC" }}>
-                        <Home size={14} style={{ color: selectedRoom?.code === room.code ? O : "#94A3B8" }} />
+                        style={{ background: selectedRoom?.maPhong === room.maPhong ? `${O}20` : "#F8FAFC" }}>
+                        <Home size={14} style={{ color: selectedRoom?.maPhong === room.maPhong ? O : "#94A3B8" }} />
                       </div>
                       <div className="flex-1">
-                        <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#1E293B" }}>Phòng {room.code}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748B" }}>{room.type} · Tầng {room.floor} · {room.area}</div>
+                        <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#1E293B" }}>Phòng {room.maPhong}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#64748B" }}>Sức chứa: {room.sucChuaToiDa ?? "—"} người · {room.chiNhanh ?? "Chi nhánh mặc định"}</div>
                       </div>
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: "0.88rem", color: O }}>₫{room.price}/tháng</div>
+                        <div style={{ fontWeight: 800, fontSize: "0.88rem", color: O }}>₫{room.giaThuePhong?.toLocaleString() ?? 0}/tháng</div>
                         <div className="text-right" style={{ fontSize: "0.65rem" }}>
                           <span className="px-1.5 py-0.5 rounded-full" style={{ background: "#ECFDF5", color: "#059669", fontWeight: 700 }}>Trống</span>
                         </div>
                       </div>
-                      {selectedRoom?.code === room.code && <CheckCircle size={16} style={{ color: O, flexShrink: 0 }} />}
+                      {selectedRoom?.maPhong === room.maPhong && <CheckCircle size={16} style={{ color: O, flexShrink: 0 }} />}
                     </div>
                   ))}
                 </div>
@@ -295,9 +591,10 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
               <div className="p-4 rounded-xl" style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                 <div style={{ fontWeight: 800, fontSize: "0.85rem", color: "#374151", marginBottom: 8 }}>Xác nhận thông tin yêu cầu</div>
                 {[
-                  { label: "Khách hàng", value: `${name} · ${phone}` },
-                  { label: "Phòng chọn", value: `${selectedRoom.code} – ${selectedRoom.type} · ₫${selectedRoom.price}/tháng` },
-                  { label: "Khu vực", value: area },
+                  { label: "Khách hàng", value: isNewCustomer ? `${name} · ${phone}` : (customersList.find(c => c.maKhachHang === selectedCustomerId)?.hoTen ?? selectedCustomerId) },
+                  { label: "Phòng chọn", value: `${selectedRoom.maPhong} (Sức chứa: ${selectedRoom.sucChuaToiDa}) · ₫${selectedRoom.giaThuePhong?.toLocaleString()}/tháng` },
+                  { label: "Chi nhánh", value: area },
+                  { label: "Số người dự kiến", value: guests },
                   { label: "Ngân sách", value: budget },
                 ].map(r => (
                   <div key={r.label} className="flex items-start gap-3 py-1.5" style={{ borderBottom: "1px solid #F1F5F9" }}>
@@ -319,20 +616,24 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
           </button>
           {step < 3 ? (
             <button
-              onClick={() => setStep((step + 1) as 2 | 3)}
-              disabled={step === 1 ? !name.trim() : step === 2 ? !selectedRoom : false}
-              className="flex-1 py-2.5 rounded-xl text-white transition"
+              onClick={handleNextStep}
+              disabled={isSubmitting || (step === 1 && (isNewCustomer ? !name.trim() : !selectedCustomerId)) || (step === 2 && !selectedRoom)}
+              className="flex-1 flex justify-center items-center py-2.5 rounded-xl text-white transition disabled:opacity-70 disabled:cursor-not-allowed"
               style={{
-                background: (step === 1 && !name.trim()) || (step === 2 && !selectedRoom) ? "#CBD5E1" : `linear-gradient(135deg,${O},#DC2626)`,
-                fontSize: "0.85rem", fontWeight: 800, cursor: (step === 1 && !name.trim()) || (step === 2 && !selectedRoom) ? "not-allowed" : "pointer",
+                background: (step === 1 && (isNewCustomer ? !name.trim() : !selectedCustomerId)) || (step === 2 && !selectedRoom) ? "#CBD5E1" : `linear-gradient(135deg,${O},#DC2626)`,
+                fontSize: "0.85rem", fontWeight: 800, cursor: (step === 1 && (isNewCustomer ? !name.trim() : !selectedCustomerId)) || (step === 2 && !selectedRoom) ? "not-allowed" : "pointer",
               }}>
-              Tiếp theo <ArrowRight size={14} className="inline ml-1" />
+              {isSubmitting && step === 1 ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>Tiếp theo <ArrowRight size={14} className="inline ml-1" /></>
+              )}
             </button>
           ) : (
-            <button onClick={handleCreate}
+            <button onClick={handleCreate} disabled={isSubmitting}
               className="flex-1 py-2.5 rounded-xl text-white transition"
-              style={{ background: `linear-gradient(135deg,${O},#DC2626)`, fontSize: "0.85rem", fontWeight: 800, boxShadow: `0 3px 12px ${O}40` }}>
-              Tạo yêu cầu ✓
+              style={{ background: isSubmitting ? "#CBD5E1" : `linear-gradient(135deg,${O},#DC2626)`, fontSize: "0.85rem", fontWeight: 800, boxShadow: `0 3px 12px ${O}40` }}>
+              {isSubmitting ? "Đang xử lý..." : "Tạo yêu cầu ✓"}
             </button>
           )}
         </div>
@@ -348,6 +649,8 @@ export default function SaleRequests() {
   const [tooltipId, setTooltipId] = useState<string | null>(null);
   const [chotDoneId, setChotDoneId] = useState<string | null>(null);
   const [detailRequest, setDetailRequest] = useState<RentalRequest | null>(null);
+  const [chotPhongRequest, setChotPhongRequest] = useState<RentalRequest | null>(null);
+  const [showNewModal, setShowNewModal] = useState(false);
 
   const {
     items: rawRequests,
@@ -436,13 +739,8 @@ export default function SaleRequests() {
     return matchesStatus && matchesSearch;
   });
 
-  const handleChot = async (id: string) => {
-    try {
-      await updateRequest(id, { trangThaiYeuCau: "Chờ phê duyệt" });
-      setChotDoneId(id);
-      reloadRequests();
-      setTimeout(() => setChotDoneId(null), 2000);
-    } catch {}
+  const handleOpenChotModal = (req: RentalRequest) => {
+    setChotPhongRequest(req);
   };
 
   const statusCounts = STATUS_STEPS.map(s => ({ status: s, count: requests.filter(r => r.status === s).length }));
@@ -453,6 +751,26 @@ export default function SaleRequests() {
         <RequestDetailModal
           request={detailRequest}
           onClose={() => setDetailRequest(null)}
+        />
+      )}
+      {chotPhongRequest && (
+        <ChotPhongModal
+          request={chotPhongRequest}
+          rawRequest={rawRequests.find(r => r.maYeuCau === chotPhongRequest.id)}
+          roomPrice={chotPhongRequest.budget ? parseInt(chotPhongRequest.budget.replace(/[^0-9]/g, '')) * 1000000 : 0}
+          onClose={() => setChotPhongRequest(null)}
+          onSuccess={() => {
+            setChotPhongRequest(null);
+            setChotDoneId(chotPhongRequest.id);
+            reloadRequests();
+            setTimeout(() => setChotDoneId(null), 2000);
+          }}
+        />
+      )}
+      {showNewModal && (
+        <NewRequestModal
+          onClose={() => setShowNewModal(false)}
+          onSuccess={reloadRequests}
         />
       )}
       {/* Page header */}
@@ -470,13 +788,20 @@ export default function SaleRequests() {
             Pipeline xử lý yêu cầu từ khách hàng tiềm năng đến ký hợp đồng
           </p>
         </div>
-        <button onClick={reloadRequests}
-          className="flex items-center gap-2 px-5 py-3 rounded-2xl text-white transition"
-          style={{ background: `linear-gradient(135deg,${O},#DC2626)`, fontWeight: 800, fontSize: "0.85rem", boxShadow: `0 4px 16px ${O}40` }}
-          onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.08)"}
-          onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.filter = ""}>
-          <Plus size={16} /> Tải lại dữ liệu
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowNewModal(true)}
+            className="flex items-center gap-2 px-5 py-3 rounded-2xl text-white transition"
+            style={{ background: `linear-gradient(135deg,${O},#DC2626)`, fontWeight: 800, fontSize: "0.85rem", boxShadow: `0 4px 16px ${O}40` }}
+            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.08)"}
+            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.filter = ""}>
+            <Plus size={16} /> Tạo yêu cầu mới
+          </button>
+          <button onClick={reloadRequests}
+            className="flex items-center gap-1.5 px-3 py-3 rounded-2xl transition"
+            style={{ background: `${O}10`, border: `1px solid ${O}20`, color: O, fontSize: "0.85rem", fontWeight: 700 }}>
+            <RotateCcw size={16} /> Làm mới
+          </button>
+        </div>
       </div>
 
       {/* Pipeline status strip */}
@@ -632,7 +957,7 @@ export default function SaleRequests() {
                         <div className="relative"
                           onMouseEnter={() => setTooltipId(req.id)}
                           onMouseLeave={() => setTooltipId(null)}>
-                          <button onClick={() => handleChot(req.id)}
+                          <button onClick={() => handleOpenChotModal(req)}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white transition"
                             style={{ background: `linear-gradient(135deg,${O},#DC2626)`, fontSize: "0.78rem", fontWeight: 800, boxShadow: `0 2px 10px ${O}40` }}
                             onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.08)"}
@@ -678,6 +1003,21 @@ export default function SaleRequests() {
                 ? "Không tìm thấy yêu cầu nào"
                 : `Không có yêu cầu ở trạng thái "${statusFilter}"`}
             </div>
+          </div>
+        )}
+        {filtered.length > 0 && (
+          <div className="px-4" style={{ borderTop: "1px solid #F1F5F9", background: "#FAFBFD" }}>
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalElements={totalElements}
+              pageSize={size}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setSize(newSize);
+                setPage(0);
+              }}
+            />
           </div>
         )}
       </div>

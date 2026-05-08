@@ -20,7 +20,7 @@ const CONTRACT_STATUS_CFG: Record<string, { bg:string; color:string; dot:string;
 const DEFAULT_CS = { bg:"#F1F5F9", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" };
 
 function getContractStatus(c: ApiContract): string {
-  return (c as any).trangThaiHopDong ?? "Chưa soạn";
+  return c.loaiVanBan ?? "Chưa soạn";
 }
 
 function fmtDate(d: string | null) {
@@ -49,7 +49,7 @@ function ContractDraft({ contract, onBack, onSubmit }: {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await updateContract(contract.maHopDongThue, { ...contract, trangThaiHopDong:"Đã trình ký" } as any);
+      await updateContract(contract.maHopDongThue, { ...contract, loaiVanBan: "Đã trình ký" });
       setDone(true);
       setTimeout(onSubmit, 1200);
     } finally { setSubmitting(false); }

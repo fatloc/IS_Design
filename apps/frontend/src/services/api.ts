@@ -207,6 +207,11 @@ export async function getCustomers(params?: Record<string, unknown>) {
   return response.data;
 }
 
+export async function createCustomer(data: Partial<Customer>) {
+  const response = await api.post<ApiResponse<Customer>>("/customers", data);
+  return response.data.data;
+}
+
 export async function updateCustomer(maKhachHang: string, data: Partial<Customer>) {
   const response = await api.put<ApiResponse<Customer>>(`/customers/${maKhachHang}`, data);
   return response.data.data;

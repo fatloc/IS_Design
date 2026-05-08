@@ -59,7 +59,16 @@ function DepositCard({
             {isWhole ? <Home size={15} className="text-violet-700" /> : <BedDouble size={15} className="text-teal-700" />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-slate-900" style={{ fontWeight: 700 }}>{record.clientName}</div>
+            <div className="text-sm text-slate-900 flex items-center gap-2" style={{ fontWeight: 700 }}>
+              {record.clientName}
+              {record.status === "Awaiting Payment" && record.approvedAt && (
+                new Date().getTime() - new Date(record.approvedAt).getTime() > 24 * 60 * 60 * 1000
+              ) && (
+                <span className="px-2 py-0.5 rounded text-[0.65rem] bg-red-100 text-red-600 border border-red-200" style={{ fontWeight: 800 }}>
+                  Quá hạn 24h
+                </span>
+              )}
+            </div>
             <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
               <Phone size={9} /> {record.phone}
             </div>
