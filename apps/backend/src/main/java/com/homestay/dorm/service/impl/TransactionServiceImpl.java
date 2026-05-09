@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
@@ -24,6 +26,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public ApiListResponse<PhieuThanhToan> getTransactions(int page, int size, String loaiGiaoDich, String trangThai) {
+        long startTime = System.currentTimeMillis();
         Pageable pageable = PageRequest.of(page, size);
         Page<PhieuThanhToan> pageData;
         
@@ -40,7 +43,10 @@ public class TransactionServiceImpl implements TransactionService {
             pageData = repository.findAll(pageable);
         }
         
-        return ApiListResponse.fromPage(pageData);
+        ApiListResponse<PhieuThanhToan> response = ApiListResponse.fromPage(pageData);
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Transactions loaded in {} ms", (endTime - startTime));
+        return response;
     }
 
     @Override

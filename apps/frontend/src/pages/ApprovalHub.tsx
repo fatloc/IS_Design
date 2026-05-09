@@ -3,7 +3,7 @@ import {
   ClipboardCheck, DollarSign, Users, Check, X, AlertTriangle,
   ChevronRight, Clock, Calendar, Home, CheckCircle, XCircle,
   FileText, ShieldCheck, Send, MessageSquare, BadgeCheck,
-  Building2, Info, BedDouble, MapPin, Fingerprint,
+  Building2, Info, BedDouble, MapPin, Fingerprint, Loader2,
 } from "lucide-react";
 import { usePagedList } from "../hooks/usePagedList";
 import { 
@@ -11,12 +11,10 @@ import {
   updateRequest, 
   getCustomers, 
   getTransactions, 
-  updateTransaction,
-  createTransaction,
+  updateTransaction 
 } from "../services/api";
 import type { Request, Customer, Transaction } from "../types";
 import { Pagination } from "../components/Pagination";
-import { useToast } from "../components/ToastProvider";
 
 const A = "#4F46E5";
 const AL = "#818CF8";
@@ -63,6 +61,7 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
   const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectText, setRejectText] = useState("");
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const {
     items: rawItems,
@@ -83,58 +82,49 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
   };
 
   const approve = async (id: string) => {
+    setProcessingId(id);
     try {
-      await updateRequest(id, { trangThaiYeuCau: "Đã phê duyệt" });
+      await updateRequest(id, { trangThaiYeuCau: "Đặt cọc thành công" });
       showToast("Đã duyệt yêu cầu thuê phòng");
       reload();
-    } catch {
+    } catch (err) {
       showToast("Lỗi khi duyệt yêu cầu", "err");
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const confirmReject = async (id: string) => {
     if (!rejectText.trim()) return;
+    setProcessingId(id);
     try {
       await updateRequest(id, { trangThaiYeuCau: "Từ chối" });
       showToast("Đã từ chối yêu cầu", "err");
       setRejectingId(null);
       setRejectText("");
       reload();
-    } catch {
+    } catch (err) {
       showToast("Lỗi khi từ chối", "err");
+    } finally {
+      setProcessingId(null);
     }
   };
-
-  function fmt(n: number | string | null | undefined) {
-    if (!n) return "—";
-    return Number(n).toLocaleString("vi-VN") + " đ";
-  }
 
   const items = useMemo<RentalReq[]>(() => {
     return rawItems.map(r => {
       const customer = r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null;
-      const tenantName = customer?.hoTen ?? r.khachHangYeuCau ?? "Khách chưa rõ";
-      // Xây dựng mô tả yêu cầu từ dữ liệu thực
-      const roomType = r.soLuongNguoi && r.soLuongNguoi > 1 ? "Toàn phòng" : "Ghép giường";
-      const extras: string[] = [];
-      if (r.coDieuHoa) extras.push("Điều hòa");
-      if (r.coBaiGuiXe) extras.push("Bãi xe");
+      const tenantName = customer?.hoTen ?? "Khách chưa rõ";
       return {
         id: r.maYeuCau,
         tenant: tenantName,
         avatar: tenantName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase(),
-        room: r.khuVuc ? `Khu vực: ${r.khuVuc}` : "Chưa xác định khu vực",
-        roomType,
-        period: r.soLuongNguoi ? `${r.soLuongNguoi} người` : "—",
+        room: "Phòng chờ",
+        roomType: r.soLuongNguoi && r.soLuongNguoi > 1 ? "Toàn phòng" : "Ghép giường",
+        period: "6 tháng",
         fromDate: r.thoiGianBatDauThueDuKien ?? "—",
         submitted: r.thoiGianBanGiaoPhongDuKien ?? "—",
-        note: [
-          r.cacTieuChiKhac ?? "",
-          r.mucGiaMongMuon ? `Mức giá: ${fmt(r.mucGiaMongMuon)}` : "",
-          extras.length > 0 ? `Yêu cầu: ${extras.join(", ")}` : "",
-          r.gioiTinhYeuCau ? `Giới tính: ${r.gioiTinhYeuCau}` : "",
-        ].filter(Boolean).join(" · "),
-        source: r.khuVuc ?? "Chưa rõ",
+        note: r.cacTieuChiKhac ?? "",
+        source: r.khuVuc ?? "Website",
         status: "pending",
       };
     });
@@ -232,14 +222,17 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
                 {!isRejecting && (
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button onClick={() => setRejectingId(req.id)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition"
+                      disabled={processingId === req.id}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl cursor-pointer hover:opacity-80 transition disabled:opacity-50"
                       style={{ background: "#FFF1F2", border: "1.5px solid #FECDD3", color: "#DC2626", fontSize: "0.78rem", fontWeight: 700 }}>
                       <X size={13} /> Từ chối
                     </button>
                     <button onClick={() => approve(req.id)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition text-white"
+                      disabled={processingId === req.id}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl cursor-pointer hover:opacity-90 transition text-white disabled:opacity-50"
                       style={{ background: `linear-gradient(135deg,${A},#7C3AED)`, fontSize: "0.78rem", fontWeight: 700, boxShadow: `0 2px 10px ${A}40` }}>
-                      <Check size={13} /> Đồng ý cho thuê
+                      {processingId === req.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      Đồng ý cho thuê
                     </button>
                   </div>
                 )}
@@ -262,10 +255,14 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
                       />
                       <div className="flex items-center justify-end gap-2 mt-2">
                         <button onClick={() => setRejectingId(null)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">Hủy</button>
+                          disabled={processingId === req.id}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm cursor-pointer hover:bg-slate-50 transition disabled:opacity-50">Hủy</button>
                         <button onClick={() => confirmReject(req.id)}
-                          disabled={!rejectText.trim()}
-                          className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm">Xác nhận</button>
+                          disabled={!rejectText.trim() || processingId === req.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm cursor-pointer hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                          {processingId === req.id ? <Loader2 size={13} className="animate-spin" /> : null}
+                          Xác nhận
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -292,7 +289,7 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
     size,
     setSize,
   } = usePagedList<Transaction>(getTransactions, 10, {
-    loaiGiaoDich: "Thu tien coc",
+    loaiGiaoDich: "Thu tiền coc",
     trangThai: "Cho xu ly",
   });
 
@@ -306,28 +303,19 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
   };
 
   const items = useMemo<DepositReq[]>(() => {
-    return rawItems.map(t => {
-      // maChungTu là mã yêu cầu hoặc mã hợp đồng — dùng để tìm khách hàng
-      const maChungTu = t.maChungTu ?? "";
-      // Tìm khách hàng qua keToanLapPhieu hoặc quanLyDoiChung nếu có
-      // Hiển thị thông tin thực từ transaction
-      const tenantName = t.keToanLapPhieu
-        ? `Phiếu bởi: ${t.keToanLapPhieu}`
-        : `Mã CT: ${maChungTu || t.maPhieuThanhToan}`;
-      return {
-        id: t.maPhieuThanhToan,
-        tenant: maChungTu || t.maPhieuThanhToan,
-        avatar: (maChungTu || "P").slice(0, 2).toUpperCase(),
-        room: t.ghiChu ? t.ghiChu.slice(0, 40) : "—",
-        amount: t.soTienGiaoDich ?? 0,
-        accountant: t.keToanLapPhieu ?? "—",
-        date: t.ngayGiaoDich ?? "—",
-        method: t.hinhThucThanhToan ?? "—",
-        ref: t.maPhieuThanhToan,
-        status: "pending",
-      };
-    });
-  }, [rawItems, customers]);
+    return rawItems.map(t => ({
+      id: t.maPhieuThanhToan,
+      tenant: "Khách hàng",
+      avatar: "KH",
+      room: "A101",
+      amount: 0,
+      accountant: t.keToanLapPhieu ?? "Kế toán",
+      date: t.ngayGiaoDich ?? "—",
+      method: t.hinhThucThanhToan ?? "Chuyển khoản",
+      ref: t.maPhieuThanhToan,
+      status: "pending",
+    }));
+  }, [rawItems]);
 
   return (
     <div>
@@ -348,25 +336,22 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
         <table className="w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              {["Mã phiếu", "Mã chứng từ", "Số tiền cọc", "Kế toán lập", "Hình thức", "Ngày GD", "Ghi chú", "Hành động"].map(h => (
+              {["Khách hàng", "Phòng", "Số tiền cọc", "Kế toán", "Hình thức", "Ngày", "Hành động"].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-[0.7rem] font-extrabold text-slate-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {items.map((dep) => (
+            {items.map((dep, i) => (
               <tr key={dep.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{dep.id}</td>
-                <td className="px-4 py-3 font-semibold text-sm text-slate-800">{dep.tenant}</td>
-                <td className="px-4 py-3 font-bold text-emerald-700">
-                  {dep.amount > 0 ? dep.amount.toLocaleString("vi-VN") + " đ" : "—"}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-600">{dep.accountant}</td>
-                <td className="px-4 py-3 text-[0.7rem] font-bold uppercase text-slate-600">{dep.method}</td>
-                <td className="px-4 py-3 text-[0.7rem] text-slate-500">{dep.date}</td>
-                <td className="px-4 py-3 text-xs text-slate-500 max-w-[180px] truncate" title={dep.room}>{dep.room}</td>
+                <td className="px-4 py-3 font-semibold text-sm">{dep.tenant}</td>
+                <td className="px-4 py-3 text-sm">{dep.room}</td>
+                <td className="px-4 py-3 font-bold">₫{dep.amount.toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm">{dep.accountant}</td>
+                <td className="px-4 py-3 text-[0.7rem] font-bold uppercase">{dep.method}</td>
+                <td className="px-4 py-3 text-[0.7rem]">{dep.date}</td>
                 <td className="px-4 py-3">
-                  <button onClick={() => confirm(dep.id)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[0.75rem] font-bold hover:bg-emerald-700 transition">
+                  <button onClick={() => confirm(dep.id)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[0.75rem] font-bold cursor-pointer hover:bg-emerald-700 transition">
                     Xác nhận
                   </button>
                 </td>
@@ -402,28 +387,10 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
   const [checkingId, setCheckingId] = useState<string | null>(null);
 
   const getRules = (c: ConditionReq) => [
-    {
-      label: "Giới tính phù hợp",
-      ok: c.gender === c.roomGender || c.roomGender === "—" || c.gender === "—",
-      detail: c.gender !== "—" && c.roomGender !== "—"
-        ? `Khách: ${c.gender} · Yêu cầu: ${c.roomGender}`
-        : c.gender !== "—" ? `Khách: ${c.gender}` : "Chưa có thông tin giới tính",
-    },
-    {
-      label: "Khu vực được duyệt",
-      ok: c.areaOk,
-      detail: c.areaOk ? c.room : "Chưa có khu vực",
-    },
-    {
-      label: "Số lượng người hợp lệ",
-      ok: c.groupOk,
-      detail: c.groupOk ? "Đã khai báo số người" : "Chưa khai báo số người",
-    },
-    {
-      label: "Xác minh CMND/CCCD",
-      ok: c.idVerified,
-      detail: c.idVerified ? "Đã có CCCD trong hệ thống" : "Chưa có CCCD",
-    },
+    { label: "Giới tính phù hợp", ok: c.gender === c.roomGender || c.roomGender === "—", detail: `${c.gender} ↔ Phòng ${c.roomGender}` },
+    { label: "Khu vực được duyệt", ok: c.areaOk, detail: "Khu vực hợp lệ" },
+    { label: "Quy tắc nhóm ở", ok: c.groupOk, detail: "Tuân thủ quy định" },
+    { label: "Xác minh CMND/CCCD", ok: c.idVerified, detail: c.idVerified ? "Đã xác minh" : "Chưa xác minh" },
   ];
 
   const allPass = (c: ConditionReq) => (c.gender === c.roomGender || c.roomGender === "—") && c.areaOk && c.groupOk && c.idVerified;
@@ -431,28 +398,17 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
   const items = useMemo<ConditionReq[]>(() => {
     return rawItems.map(r => {
       const customer = r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null;
-      const tenantName = customer?.hoTen ?? r.khachHangYeuCau ?? "Khách chưa rõ";
-      // Kiểm tra điều kiện thực từ DB
-      const gioiTinhYC = r.gioiTinhYeuCau ?? "";
-      const gioiTinhKH = customer?.phai ?? "";
-      // Giới tính phù hợp: nếu yêu cầu có giới tính thì phải khớp với khách
-      const genderOk = !gioiTinhYC || !gioiTinhKH || gioiTinhYC === gioiTinhKH;
-      // Khu vực: có khu vực là hợp lệ
-      const areaOk = !!(r.khuVuc && r.khuVuc.trim());
-      // Số lượng người: hợp lệ nếu > 0
-      const groupOk = !!(r.soLuongNguoi && r.soLuongNguoi > 0);
-      // CCCD đã xác minh
-      const idVerified = !!(customer?.cccd && customer.cccd.trim());
+      const tenantName = customer?.hoTen ?? "Khách chưa rõ";
       return {
         id: r.maYeuCau,
         tenant: tenantName,
         avatar: tenantName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase(),
-        room: r.khuVuc ? `Khu vực: ${r.khuVuc}` : "Chưa xác định",
-        gender: gioiTinhKH || "—",
-        roomGender: gioiTinhYC || "—",
-        areaOk,
-        groupOk,
-        idVerified,
+        room: "Chưa phân",
+        gender: customer?.phai ?? "—",
+        roomGender: "—",
+        areaOk: true,
+        groupOk: true,
+        idVerified: !!customer?.cccd,
         status: "pending",
       };
     });
@@ -499,7 +455,7 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
                 <div className="text-center">
                   <div className="text-lg font-black" style={{ color: passes === 4 ? "#059669" : "#D97706" }}>{passes}/4</div>
                 </div>
-                <button onClick={() => setCheckingId(isOpen ? null : c.id)} className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl font-bold text-xs">
+                <button onClick={() => setCheckingId(isOpen ? null : c.id)} className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer hover:bg-slate-200 transition">
                   {isOpen ? "Đóng" : "Kiểm tra"}
                 </button>
               </div>
@@ -515,7 +471,7 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
                     ))}
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => submitCheck(c.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
+                    <button onClick={() => submitCheck(c.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg cursor-pointer hover:opacity-90 transition">
                       {passAll ? "Xác nhận & Chuyển bước" : "Ghi chú & Tiếp tục"}
                     </button>
                   </div>
@@ -537,9 +493,9 @@ export default function ApprovalHub() {
   const customerMap = useMemo(() => new Map(customersList.map(c => [c.maKhachHang, c])), [customersList]);
 
   const tabs = [
-    { id: "rentals",    label: "Duyệt thuê",  icon: FileText,    color: A },
-    { id: "deposits",   label: "Xác nhận cọc", icon: DollarSign,  color: "#059669" },
-    { id: "conditions", label: "Kiểm tra",     icon: ShieldCheck, color: "#D97706" },
+    { id: "rentals", label: "Duyệt thuê", icon: FileText, color: A },
+    { id: "deposits", label: "Xác nhận cọc", icon: DollarSign, color: "#059669" },
+    { id: "conditions", label: "Kiểm tra", icon: ShieldCheck, color: "#D97706" },
   ] as const;
 
   return (

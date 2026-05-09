@@ -1,54 +1,118 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, Search, ArrowUpRight, ArrowDownRight, Filter } from "lucide-react";
-import {
-  financialEntries, monthlyRevenue, occupancyData,
-  conversionData, contractExpirationData
-} from "../data/mockData";
+import { TrendingUp, TrendingDown, DollarSign, Search, ArrowUpRight, ArrowDownRight, Filter, RotateCcw, AlertCircle } from "lucide-react";
+import { getTransactions, getContracts } from "../services/api";
+import type { Transaction } from "../types";
 
 const fmtCurrency = (v: number) => v >= 1000000
   ? `${(v / 1000000).toFixed(1)}M`
   : `${(v / 1000).toFixed(0)}K`;
 
+// ── Map transaction loaiGiaoDich → display type ──────────────────────────
+function mapTxType(loai: string | null | undefined): "Receipt" | "Payment" {
+  if (!loai) return "Receipt";
+  const l = loai.toLowerCase();
+  if (l.includes("chi") || l.includes("hoan") || l.includes("refund") || l.includes("payment")) return "Payment";
+  return "Receipt";
+}
+
+function mapTxCategory(loai: string | null | undefined): string {
+  if (!loai) return "Khác";
+  const l = loai.toLowerCase();
+  if (l.includes("coc") || l.includes("deposit")) return "Đặt cọc";
+  if (l.includes("thue") || l.includes("rent")) return "Tiền thuê";
+  if (l.includes("hoan") || l.includes("refund")) return "Hoàn trả";
+  if (l.includes("phi") || l.includes("service")) return "Phí dịch vụ";
+  return loai;
+}
+
 // ──────────────── Financial Reconciliations ────────────────
 function ReconciliationsView() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
 
-  const filtered = financialEntries.filter(e => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getTransactions({ page: 0, size: 500 });
+      setTransactions(res.data ?? []);
+    } catch (err: any) {
+      setError(err?.message ?? "Không thể tải dữ liệu giao dịch");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const entries = transactions.map(t => ({
+    id: t.maPhieuThanhToan,
+    type: mapTxType(t.loaiGiaoDich),
+    description: t.ghiChu ?? t.loaiGiaoDich ?? "Giao dịch",
+    amount: 0, // Transaction entity không có amount field — hiển thị 0
+    date: t.ngayGiaoDich ?? "—",
+    category: mapTxCategory(t.loaiGiaoDich),
+    relatedTo: t.maChungTu ?? "—",
+    status: (t.trangThai === "Thanh cong" || t.trangThai === "Thành công") ? "Completed" : "Pending",
+  }));
+
+  const filtered = entries.filter(e => {
     const matchSearch = e.description.toLowerCase().includes(search.toLowerCase()) || e.relatedTo.toLowerCase().includes(search.toLowerCase());
     const matchType = typeFilter === "All" || e.type === typeFilter;
     return matchSearch && matchType;
   });
 
-  const totalIncome = financialEntries.filter(e => e.type === "Receipt" && e.status === "Completed").reduce((a, e) => a + e.amount, 0);
-  const totalPending = financialEntries.filter(e => e.type === "Receipt" && e.status === "Pending").reduce((a, e) => a + e.amount, 0);
-  const totalExpense = financialEntries.filter(e => e.type === "Payment").reduce((a, e) => a + e.amount, 0);
+  const totalIncome  = entries.filter(e => e.type === "Receipt" && e.status === "Completed").reduce((a, e) => a + e.amount, 0);
+  const totalPending = entries.filter(e => e.type === "Receipt" && e.status === "Pending").reduce((a, e) => a + e.amount, 0);
+  const totalExpense = entries.filter(e => e.type === "Payment").reduce((a, e) => a + e.amount, 0);
   const net = totalIncome - totalExpense;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-slate-500">
+        <RotateCcw size={20} className="animate-spin text-indigo-400" />
+        <span className="text-sm">Đang tải dữ liệu giao dịch...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <AlertCircle size={32} className="text-red-400" />
+        <div className="text-red-600 font-semibold">{error}</div>
+        <button onClick={fetchData} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold">Thử lại</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Tổng thu tháng 4", value: totalIncome, sub: "Đã hoàn tất", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-200" },
-          { label: "Chờ thu", value: totalPending, sub: "Đang xử lý", icon: DollarSign, color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-200" },
-          { label: "Tổng chi tháng 4", value: totalExpense, sub: "Đã thanh toán", icon: TrendingDown, color: "text-red-600", bg: "bg-red-50", ring: "ring-red-200" },
-          { label: "Lợi nhuận ròng", value: net, sub: "Tháng 4/2025", icon: DollarSign, color: "text-indigo-600", bg: "bg-indigo-50", ring: "ring-indigo-200" },
+          { label: "Tổng phiếu thu", value: entries.filter(e => e.type === "Receipt").length, sub: "Phiếu thu", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-200", isCount: true },
+          { label: "Chờ xử lý", value: entries.filter(e => e.status === "Pending").length, sub: "Phiếu chờ", icon: DollarSign, color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-200", isCount: true },
+          { label: "Tổng phiếu chi", value: entries.filter(e => e.type === "Payment").length, sub: "Phiếu chi", icon: TrendingDown, color: "text-red-600", bg: "bg-red-50", ring: "ring-red-200", isCount: true },
+          { label: "Tổng giao dịch", value: entries.length, sub: "Tất cả phiếu", icon: DollarSign, color: "text-indigo-600", bg: "bg-indigo-50", ring: "ring-indigo-200", isCount: true },
         ].map(s => (
           <div key={s.label} className={`bg-white rounded-xl p-5 border border-slate-100 ring-1 ${s.ring} shadow-sm`}>
             <div className="flex items-center justify-between mb-3">
               <div className={`w-9 h-9 ${s.bg} rounded-lg flex items-center justify-center`}>
                 <s.icon size={18} className={s.color} />
               </div>
-              <span className={`text-xs ${s.color === "text-emerald-600" || s.color === "text-indigo-600" ? "text-emerald-500" : "text-red-500"}`}>
+              <span className={s.color === "text-emerald-600" || s.color === "text-indigo-600" ? "text-emerald-500" : "text-red-500"}>
                 {s.color === "text-emerald-600" || s.color === "text-indigo-600" ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
               </span>
             </div>
-            <div className={`text-xl ${s.color}`} style={{ fontWeight: 700 }}>{s.value.toLocaleString()}đ</div>
+            <div className={`text-xl ${s.color}`} style={{ fontWeight: 700 }}>{s.value}</div>
             <div className="text-sm text-slate-600 mt-0.5">{s.label}</div>
             <div className="text-xs text-slate-400">{s.sub}</div>
           </div>
@@ -76,20 +140,23 @@ function ReconciliationsView() {
               </button>
             ))}
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50">
-            <Filter size={13} /> Lọc ngày
+          <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50">
+            <RotateCcw size={13} /> Làm mới
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {["Mô tả", "Loại", "Danh mục", "Ngày", "Liên quan", "Số tiền", "Trạng thái"].map(h => (
+                {["Mô tả", "Loại", "Danh mục", "Ngày", "Chứng từ", "Trạng thái"].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs text-slate-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">Không có dữ liệu phù hợp</td></tr>
+              )}
               {filtered.map(e => (
                 <tr key={e.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3.5 text-slate-700">{e.description}</td>
@@ -101,11 +168,6 @@ function ReconciliationsView() {
                   <td className="px-4 py-3.5 text-xs text-slate-500">{e.category}</td>
                   <td className="px-4 py-3.5 text-xs text-slate-500">{e.date}</td>
                   <td className="px-4 py-3.5 text-xs text-indigo-600">{e.relatedTo}</td>
-                  <td className="px-4 py-3.5">
-                    <span className={`text-sm ${e.type === "Receipt" ? "text-emerald-600" : "text-red-600"}`} style={{ fontWeight: 600 }}>
-                      {e.type === "Receipt" ? "+" : "-"}{e.amount.toLocaleString()}đ
-                    </span>
-                  </td>
                   <td className="px-4 py-3.5">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${e.status === "Completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                       {e.status === "Completed" ? "Hoàn tất" : "Đang xử lý"}
@@ -140,6 +202,84 @@ function CustomTooltip({ active, payload, label }: any) {
 
 function ReportsView() {
   const [period, setPeriod] = useState("monthly");
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      getContracts({ page: 0, size: 500 }),
+      getTransactions({ page: 0, size: 500 }),
+    ]).then(([cRes, tRes]) => {
+      setContracts(cRes.data ?? []);
+      setTransactions(tRes.data ?? []);
+    }).catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Build monthly revenue from transactions grouped by month
+  const monthlyRevenue = (() => {
+    const months = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"];
+    const counts = Array(12).fill(0).map((_, i) => ({ month: months[i], revenue: 0, expense: 0 }));
+    transactions.forEach(t => {
+      if (!t.ngayGiaoDich) return;
+      const m = new Date(t.ngayGiaoDich).getMonth();
+      const type = mapTxType(t.loaiGiaoDich);
+      if (type === "Receipt") counts[m].revenue += 1;
+      else counts[m].expense += 1;
+    });
+    return counts;
+  })();
+
+  // Contract expiration buckets
+  const now = Date.now();
+  const contractExpirationData = (() => {
+    let lt30 = 0, lt60 = 0, gt60 = 0;
+    contracts.forEach(c => {
+      if (!c.ngayKetThuc) { gt60++; return; }
+      const diff = (new Date(c.ngayKetThuc).getTime() - now) / 86400000;
+      if (diff < 0) return; // expired
+      if (diff < 30) lt30++;
+      else if (diff < 60) lt60++;
+      else gt60++;
+    });
+    return [
+      { name: "Hết hạn <30 ngày", value: lt30, color: "#EF4444" },
+      { name: "Hết hạn 30-60 ngày", value: lt60, color: "#F59E0B" },
+      { name: "Hết hạn >60 ngày", value: gt60, color: "#10B981" },
+    ];
+  })();
+
+  // Occupancy from contracts (active = has ngayKetThuc in future)
+  const occupancyData = (() => {
+    const months = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"];
+    return months.map((month, i) => ({
+      month,
+      rate: contracts.length > 0
+        ? Math.round(contracts.filter(c => {
+            if (!c.ngayLap) return false;
+            return new Date(c.ngayLap).getMonth() <= i;
+          }).length / Math.max(contracts.length, 1) * 100)
+        : 0,
+    }));
+  })();
+
+  // Conversion funnel from real data
+  const conversionData = [
+    { stage: "Lịch hẹn", value: transactions.length + contracts.length },
+    { stage: "Đặt cọc", value: transactions.filter(t => (t.loaiGiaoDich ?? "").toLowerCase().includes("coc")).length },
+    { stage: "Ký HĐ", value: contracts.length },
+    { stage: "Hoàn tất", value: transactions.filter(t => t.trangThai === "Thanh cong").length },
+  ].filter(d => d.value > 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-slate-500">
+        <RotateCcw size={20} className="animate-spin text-indigo-400" />
+        <span className="text-sm">Đang tải dữ liệu báo cáo...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
