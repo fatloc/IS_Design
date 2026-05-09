@@ -42,12 +42,22 @@ interface ContractRow {
 }
 
 function mapRow(r: any): ContractRow {
+  // Normalize TrangThaiThanhLy từ DB (không dấu) sang format hiển thị (có dấu)
+  const rawStatus = r.TrangThaiThanhLy ?? r.trangThaiThanhLy ?? null;
+  let normalizedStatus = rawStatus;
+  if (rawStatus) {
+    const s = rawStatus.toLowerCase().trim();
+    if (s === "dang doi soat" || s === "chờ đối soát") normalizedStatus = "Chờ đối soát";
+    else if (s === "da doi soat" || s === "đã đối soát") normalizedStatus = "Đã đối soát";
+    else if (s === "hoan tat" || s === "hoàn tất") normalizedStatus = "Hoàn tất";
+    else if (s === "chua thanh ly" || s === "chờ thanh lý") normalizedStatus = "Chờ đối soát"; // hiển thị như chờ đối soát
+  }
   return {
     maHopDongThue: r.MaHopDongThue ?? r.maHopDongThue ?? "",
     hinhThucThue: r.HinhThucThue ?? r.hinhThucThue ?? "",
     kyThanhToan: r.KyThanhToan ?? r.kyThanhToan ?? "",
     ngayKetThuc: r.NgayKetThuc ?? r.ngayKetThuc ?? null,
-    trangThaiThanhLy: r.TrangThaiThanhLy ?? r.trangThaiThanhLy ?? null,
+    trangThaiThanhLy: normalizedStatus,
     ngayLap: r.NgayLap ?? r.ngayLap ?? null,
     khachHangSoHuu: r.KhachHangSoHuu ?? r.khachHangSoHuu ?? "",
     tenKhachHang: r.TenKhachHang ?? r.tenKhachHang ?? "",
