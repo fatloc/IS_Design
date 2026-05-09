@@ -10,6 +10,10 @@ import java.math.BigDecimal;
 public interface ContractService {
     ApiListResponse<HopDongThue> getContracts(int page, int size);
     HopDongThue getContractById(String maHopDongThue);
+    java.util.List<java.util.Map<String, Object>> getOperationalContracts(int page, int size);
+    java.util.List<java.util.Map<String, Object>> getSettlementContracts(String trangThai);
+    HopDongThue updateSettlementStatus(String maHopDongThue, String trangThai);
+    String seedSettlementStatus();
     HopDongThue createContract(CreateContractRequest request);
     HopDongThue updateContract(String maHopDongThue, UpdateContractRequest request);
     void deleteContract(String maHopDongThue);

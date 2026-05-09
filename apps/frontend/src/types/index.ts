@@ -112,7 +112,9 @@ export interface Appointment {
   trangThaiHen: string | null;
   ngayHen: SqlDate | null;
   khachHangXem: string | null;
+  maYeuCau: string | null;
   nhanVienPhuTrach: string | null;
+  maPhong: string | null;
 }
 
 export interface AppointmentRoom {
@@ -156,6 +158,7 @@ export interface Transaction {
   keToanLapPhieu: string | null;
   quanLyDoiChung: string | null;
   maChungTu: string | null;
+  soTienGiaoDich: number | null;
 }
 
 export interface HandoverDocument {

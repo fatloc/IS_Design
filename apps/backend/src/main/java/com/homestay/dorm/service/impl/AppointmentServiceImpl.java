@@ -11,15 +11,30 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class AppointmentServiceImpl implements AppointmentService {
 
     private final LichXemPhongRepository lichXemPhongRepository;
+    private final JdbcTemplate jdbcTemplate;
+
+    private void populateMaPhong(LichXemPhong lichHen) {
+        if (lichHen == null) return;
+        try {
+            String sql = "SELECT MaPhongDuocXem FROM CHITIETLICHXEM WHERE LichXemPhong = ? LIMIT 1";
+            String maPhong = jdbcTemplate.queryForObject(sql, String.class, lichHen.getMaLichHen());
+            lichHen.setMaPhong(maPhong);
+        } catch (Exception e) {
+            // No room assigned or other error
+        }
+    }
 
     @Override
     public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year) {
@@ -33,13 +48,24 @@ public class AppointmentServiceImpl implements AppointmentService {
         } else {
             appointmentPage = lichXemPhongRepository.findAll(pageable);
         }
+        appointmentPage.getContent().forEach(this::populateMaPhong);
         return ApiListResponse.fromPage(appointmentPage);
     }
 
     @Override
+    public LichXemPhong getAppointmentByMaYeuCau(String maYeuCau) {
+        LichXemPhong lichHen = lichXemPhongRepository.findFirstByMaYeuCau(maYeuCau)
+                .orElse(null);
+        if (lichHen != null) populateMaPhong(lichHen);
+        return lichHen;
+    }
+
+    @Override
     public LichXemPhong getAppointmentById(String maLichHen) {
-        return lichXemPhongRepository.findById(maLichHen)
+        LichXemPhong lichHen = lichXemPhongRepository.findById(maLichHen)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch hẹn: " + maLichHen));
+        populateMaPhong(lichHen);
+        return lichHen;
     }
 
     @Override
@@ -52,10 +78,23 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .trangThaiHen(req.getTrangThaiHen() != null ? req.getTrangThaiHen() : "Pending")
                 .ngayHen(req.getNgayHen())
                 .khachHangXem(req.getKhachHangXem())
+            .maYeuCau(req.getMaYeuCau())
                 .nhanVienPhuTrach(req.getNhanVienPhuTrach())
                 .build();
                 
-        return lichXemPhongRepository.save(lichHen);
+        LichXemPhong saved = lichXemPhongRepository.save(lichHen);
+        
+        if (req.getMaPhong() != null && !req.getMaPhong().trim().isEmpty()) {
+            try {
+                jdbcTemplate.update("INSERT INTO CHITIETLICHXEM (LichXemPhong, MaPhongDuocXem) VALUES (?, ?) ON DUPLICATE KEY UPDATE MaPhongDuocXem = VALUES(MaPhongDuocXem)", 
+                    saved.getMaLichHen(), req.getMaPhong().trim());
+            } catch (Exception e) {
+                // ignore if room doesn't exist or already exists
+            }
+        }
+        
+        populateMaPhong(saved);
+        return saved;
     }
 
     @Override
@@ -66,14 +105,18 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (req.getTrangThaiHen() != null) lichHen.setTrangThaiHen(req.getTrangThaiHen());
         if (req.getNgayHen() != null) lichHen.setNgayHen(req.getNgayHen());
         if (req.getKhachHangXem() != null) lichHen.setKhachHangXem(req.getKhachHangXem());
+        if (req.getMaYeuCau() != null) lichHen.setMaYeuCau(req.getMaYeuCau());
         if (req.getNhanVienPhuTrach() != null) lichHen.setNhanVienPhuTrach(req.getNhanVienPhuTrach());
         
-        return lichXemPhongRepository.save(lichHen);
+        LichXemPhong saved = lichXemPhongRepository.save(lichHen);
+        populateMaPhong(saved);
+        return saved;
     }
 
     @Override
     public void deleteAppointment(String maLichHen) {
         LichXemPhong lichHen = getAppointmentById(maLichHen);
+        jdbcTemplate.update("DELETE FROM CHITIETLICHXEM WHERE LichXemPhong = ?", lichHen.getMaLichHen());
         lichXemPhongRepository.delete(lichHen);
     }
 }

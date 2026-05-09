@@ -1,266 +1,392 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import {
-  TrendingUp, Wallet, PiggyBank, FileWarning,
-  AlertTriangle, Clock, ArrowRight, CheckCircle,
-  BarChart3, Activity
+  Receipt, CreditCard, Scale, ArrowRight,
+  CheckCircle2, Clock, AlertCircle, TrendingUp,
+  Banknote, RefreshCw, FileText, Activity,
 } from "lucide-react";
-import { overduePayments, pendingRefunds, invoices, accTransactions } from "../../data/accountantMockData";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { getRentalRequests } from "../../services/accountingV2";
+import { getOperationalContracts, getSettlementContracts } from "../../services/api";
 
-const fmt = (n: number) => (n / 1_000_000).toFixed(1) + " tr";
-const fmtFull = (n: number) => n.toLocaleString("vi-VN") + " đ";
+function money(n: number) {
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+}
 
-const monthlyData = [
-  { month: "T1", thu: 82, chi: 18 }, { month: "T2", thu: 79, chi: 16 },
-  { month: "T3", thu: 85, chi: 20 }, { month: "T4", thu: 88, chi: 19 },
-];
-
-const stats = [
-  {
-    label: "Doanh thu tháng 4",
-    value: "88,0 tr",
-    icon: TrendingUp,
-    color: "text-violet-600",
-    bg: "bg-violet-50",
-    border: "border-violet-100",
-    sub: "↑ 3.5% so với T3",
-    subColor: "text-emerald-600",
-  },
-  {
-    label: "Thu trong ngày",
-    value: "7,2 tr",
-    icon: Wallet,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    border: "border-blue-100",
-    sub: "3 giao dịch hôm nay",
-    subColor: "text-slate-400",
-  },
-  {
-    label: "Tổng cọc đang giữ",
-    value: "112,4 tr",
-    icon: PiggyBank,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-100",
-    sub: "15 hợp đồng hiện hành",
-    subColor: "text-slate-400",
-  },
-  {
-    label: "Hoá đơn chờ xử lý",
-    value: String(invoices.filter(i => i.status === "Not Sent" || i.status === "Sent").length),
-    icon: FileWarning,
-    color: "text-amber-600",
-    bg: "bg-amber-50",
-    border: "border-amber-100",
-    sub: `${invoices.filter(i => i.status === "Overdue").length} quá hạn cần xử lý`,
-    subColor: "text-red-500",
-  },
-];
-
-export default function AccountantDashboard() {
-  const navigate = useNavigate();
-  const todayIncome = accTransactions.filter(t => t.type === "Income" && t.createdAt.startsWith("2025-04-20") && t.status === "Confirmed").reduce((s, t) => s + t.amount, 0);
-
+// ── Stat Card ──────────────────────────────────────────────────────────────
+function StatCard({
+  label, value, sub, icon: Icon, color, bg,
+}: {
+  label: string; value: string | number; sub: string;
+  icon: React.ElementType; color: string; bg: string;
+}) {
   return (
-    <div className="space-y-6">
-      {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-5">
-        {stats.map((s) => (
-          <div key={s.label} className={`bg-white rounded-2xl border ${s.border} p-5 shadow-sm`}>
-            <div className="flex items-start justify-between mb-4">
-              <div className={`w-11 h-11 ${s.bg} rounded-xl flex items-center justify-center`}>
-                <s.icon size={20} className={s.color} />
-              </div>
-            </div>
-            <div className="text-3xl text-slate-900 mb-0.5" style={{ fontWeight: 700 }}>{s.value}</div>
-            <div className="text-sm text-slate-600 mb-1" style={{ fontWeight: 500 }}>{s.label}</div>
-            <div className={`text-xs ${s.subColor}`}>{s.sub}</div>
+    <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+          <div className="mt-2 text-3xl font-bold text-slate-900">{value}</div>
+          <div className="mt-1.5 text-xs text-slate-500">{sub}</div>
+        </div>
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl" style={{ background: bg }}>
+          <Icon size={20} style={{ color }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Workflow Card ──────────────────────────────────────────────────────────
+function WorkflowCard({
+  title, desc, path, icon: Icon, color, bg, badge, badgeColor,
+  steps,
+}: {
+  title: string; desc: string; path: string;
+  icon: React.ElementType; color: string; bg: string;
+  badge?: string; badgeColor?: string;
+  steps: string[];
+}) {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate(path)}
+      className="group w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:shadow-md hover:border-slate-300"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl flex-shrink-0" style={{ background: bg }}>
+            <Icon size={18} style={{ color }} />
+          </div>
+          <div>
+            <div className="font-semibold text-slate-900 text-sm">{title}</div>
+            {badge && (
+              <span className="mt-0.5 inline-block text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: badgeColor + "20", color: badgeColor }}>
+                {badge}
+              </span>
+            )}
+          </div>
+        </div>
+        <ArrowRight size={16} className="text-slate-300 group-hover:text-slate-500 transition mt-1 flex-shrink-0" />
+      </div>
+
+      <p className="mt-3 text-xs text-slate-500 leading-5">{desc}</p>
+
+      {/* Luồng trạng thái */}
+      <div className="mt-4 flex items-center gap-1 flex-wrap">
+        {steps.map((step, i) => (
+          <div key={step} className="flex items-center gap-1">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">{step}</span>
+            {i < steps.length - 1 && <ArrowRight size={10} className="text-slate-300 flex-shrink-0" />}
           </div>
         ))}
       </div>
+    </button>
+  );
+}
 
-      {/* Middle row */}
-      <div className="grid grid-cols-3 gap-5">
-        {/* Overdue Payments */}
-        <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-                <AlertTriangle size={15} className="text-red-500" />
-              </div>
-              <div>
-                <h2 className="text-sm text-slate-900" style={{ fontWeight: 600 }}>Thanh toán quá hạn</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{overduePayments.length} trường hợp cần xử lý ngay</p>
-              </div>
+// ── Recent Item ────────────────────────────────────────────────────────────
+function RecentItem({ id, name, sub, amount, status, statusColor, statusBg }: {
+  id: string; name: string; sub: string; amount?: string;
+  status: string; statusColor: string; statusBg: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0">
+      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0">
+        {(name || id)[0]?.toUpperCase()}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-slate-800 truncate">{name || id}</div>
+        <div className="text-xs text-slate-400 truncate">{sub}</div>
+      </div>
+      <div className="flex-shrink-0 text-right">
+        {amount && <div className="text-sm font-bold text-slate-900">{amount}</div>}
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: statusBg, color: statusColor }}>
+          {status}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Dashboard ─────────────────────────────────────────────────────────
+export default function AccountantDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [rentalStats, setRentalStats] = useState({ moiCount: 0, choPheDuyetCount: 0, daPheDuyetCount: 0 });
+  const [operationalStats, setOperationalStats] = useState({ chuaThuCount: 0, daThuCount: 0 });
+  const [settlementStats, setSettlementStats] = useState({ choDoiSoatCount: 0, daDoiSoatCount: 0 });
+  const [recentRentals, setRecentRentals] = useState<any[]>([]);
+  const [recentSettlements, setRecentSettlements] = useState<any[]>([]);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [rentals, operational, settlements] = await Promise.allSettled([
+        getRentalRequests(),
+        getOperationalContracts({ page: 0, size: 200 }),
+        getSettlementContracts(),
+      ]);
+
+      // Rental requests stats
+      if (rentals.status === "fulfilled") {
+        const data = rentals.value as any[];
+        setRentalStats({
+          moiCount: data.filter(r => r.status === "Yêu cầu mới").length,
+          choPheDuyetCount: data.filter(r => r.status === "Chờ phê duyệt").length,
+          daPheDuyetCount: data.filter(r => r.status === "Đã phê duyệt").length,
+        });
+        setRecentRentals(data.slice(0, 4));
+      }
+
+      // Operational payments stats
+      if (operational.status === "fulfilled") {
+        const data = operational.value as any[];
+        const normalize = (v: string | null | undefined) => {
+          const t = (v ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+          return t.includes("da thu") || t.includes("thanh cong") || t.includes("paid") ? "da thu" : "chua thu";
+        };
+        setOperationalStats({
+          chuaThuCount: data.filter(r => normalize(r.TrangThaiThanhToan ?? r.trangThaiThanhToan) === "chua thu").length,
+          daThuCount: data.filter(r => normalize(r.TrangThaiThanhToan ?? r.trangThaiThanhToan) === "da thu").length,
+        });
+      }
+
+      // Settlement stats
+      if (settlements.status === "fulfilled") {
+        const data = settlements.value as any[];
+        setSettlementStats({
+          choDoiSoatCount: data.filter(r => (r.TrangThaiThanhLy ?? r.trangThaiThanhLy) === "Chờ đối soát").length,
+          daDoiSoatCount: data.filter(r => (r.TrangThaiThanhLy ?? r.trangThaiThanhLy) === "Đã đối soát").length,
+        });
+        setRecentSettlements(data.filter(r => (r.TrangThaiThanhLy ?? r.trangThaiThanhLy) === "Chờ đối soát").slice(0, 4));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const totalPending = rentalStats.moiCount + rentalStats.daPheDuyetCount + operationalStats.chuaThuCount + settlementStats.choDoiSoatCount;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+        <p className="mt-4 text-sm text-slate-500">Đang tải dữ liệu...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+
+      {/* Header */}
+      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 text-xs font-semibold text-slate-700">
+              <TrendingUp size={12} className="text-emerald-600" /> Kế toán Dashboard
             </div>
-            <button onClick={() => navigate("/accountant/invoices")}
-              className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 transition" style={{ fontWeight: 500 }}>
-              Xem hoá đơn <ArrowRight size={12} />
+            <h1 className="mt-3 text-2xl font-bold text-slate-900">Tổng quan nghiệp vụ</h1>
+            <p className="mt-1.5 text-sm text-slate-600">
+              Theo dõi 3 luồng kế toán chính: thu cọc, thu định kỳ và đối soát thanh lý.
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            {totalPending > 0 && (
+              <div className="flex items-center gap-2 text-xs font-semibold bg-amber-50 border border-amber-200 rounded-full px-3 py-2">
+                <AlertCircle size={12} className="text-amber-500" />
+                <span className="text-amber-700">{totalPending} việc cần xử lý</span>
+              </div>
+            )}
+            <button onClick={load}
+              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-white/70 rounded-full px-3 py-2 hover:bg-white transition">
+              <RefreshCw size={12} /> Làm mới
             </button>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {overduePayments.map((op) => (
-              <div key={op.id} className="px-5 py-3.5 flex items-center gap-4 hover:bg-red-50/30 transition group">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm ${
-                  op.daysOverdue >= 7 ? "bg-red-100 text-red-700" :
-                  op.daysOverdue >= 3 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"
-                }`} style={{ fontWeight: 700 }}>
-                  {op.daysOverdue}d
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-800" style={{ fontWeight: 600 }}>{op.residentName}</span>
-                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">{op.roomId}</span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xs text-slate-400">Quá hạn {op.daysOverdue} ngày</span>
-                    {op.lastReminderSent && (
-                      <span className="text-xs text-slate-400">Nhắc: {op.lastReminderSent}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm text-red-600" style={{ fontWeight: 700 }}>{fmtFull(op.amount)}</div>
-                </div>
-                <button className="opacity-0 group-hover:opacity-100 transition px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs" style={{ fontWeight: 500 }}>
-                  Gửi nhắc
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Pending Refunds */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Clock size={15} className="text-blue-500" />
-              </div>
-              <div>
-                <h2 className="text-sm text-slate-900" style={{ fontWeight: 600 }}>Hoàn cọc đang chờ</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{pendingRefunds.length} khách hàng</p>
-              </div>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {pendingRefunds.map((rf) => (
-              <div key={rf.id} className="px-5 py-4 hover:bg-slate-50 transition">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <div className="text-sm text-slate-800" style={{ fontWeight: 600 }}>{rf.residentName}</div>
-                    <div className="text-xs text-slate-400">{rf.roomId} · Trả phòng {rf.checkoutDate}</div>
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded-lg flex-shrink-0 ${
-                    rf.status === "Ready" ? "bg-emerald-100 text-emerald-700" :
-                    rf.status === "Processing" ? "bg-blue-100 text-blue-700" :
-                    "bg-amber-100 text-amber-700"
-                  }`} style={{ fontWeight: 500 }}>
-                    {rf.status === "Ready" ? "Sẵn sàng" : rf.status === "Processing" ? "Đang xử lý" : "Tính toán"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-slate-400">Hoàn lại</div>
-                    <div className={`text-sm mt-0.5 ${rf.refundAmount > 0 ? "text-emerald-600" : "text-slate-400"}`} style={{ fontWeight: 700 }}>
-                      {rf.refundAmount > 0 ? fmtFull(rf.refundAmount) : "—"}
-                    </div>
-                  </div>
-                  {rf.status === "Ready" && (
-                    <button
-                      onClick={() => navigate("/accountant/reconciliation")}
-                      className="text-xs px-2.5 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition"
-                      style={{ fontWeight: 500 }}>
-                      Xuất PDF
-                    </button>
-                  )}
-                  {rf.status === "Calculating" && (
-                    <button
-                      onClick={() => navigate("/accountant/reconciliation")}
-                      className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition"
-                      style={{ fontWeight: 500 }}>
-                      Đối soát
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
 
-      {/* Chart + Quick status */}
-      <div className="grid grid-cols-3 gap-5">
-        {/* Revenue chart */}
-        <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm text-slate-900" style={{ fontWeight: 600 }}>Thu – Chi 4 tháng gần nhất</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Đơn vị: triệu đồng</p>
-            </div>
-            <BarChart3 size={16} className="text-violet-400" />
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={monthlyData} barCategoryGap="30%" barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-              <Tooltip
-                contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}
-                formatter={(v: number) => [`${v} tr`, ""]}
-              />
-              <Bar dataKey="thu" fill="#7c3aed" radius={[6, 6, 0, 0]} name="Thu" />
-              <Bar dataKey="chi" fill="#e2e8f0" radius={[6, 6, 0, 0]} name="Chi" />
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex items-center gap-4 mt-2">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-3 h-3 rounded-sm bg-violet-600" /> Doanh thu
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-3 h-3 rounded-sm bg-slate-200" /> Chi phí
-            </div>
-          </div>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Yêu cầu mới"
+          value={rentalStats.moiCount}
+          sub="Chờ kế toán kiểm tra"
+          icon={Receipt}
+          color="#2563EB"
+          bg="#EFF6FF"
+        />
+        <StatCard
+          label="Chờ thu cọc"
+          value={rentalStats.daPheDuyetCount}
+          sub="Manager đã duyệt"
+          icon={Banknote}
+          color="#059669"
+          bg="#ECFDF5"
+        />
+        <StatCard
+          label="HĐ chưa thu kỳ"
+          value={operationalStats.chuaThuCount}
+          sub="Thu tiền định kỳ"
+          icon={CreditCard}
+          color="#7C3AED"
+          bg="#F5F3FF"
+        />
+        <StatCard
+          label="Chờ đối soát"
+          value={settlementStats.choDoiSoatCount}
+          sub="Hợp đồng thanh lý"
+          icon={Scale}
+          color="#D97706"
+          bg="#FFFBEB"
+        />
+      </div>
 
-        {/* Invoice status mini */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm text-slate-900" style={{ fontWeight: 600 }}>Trạng thái hoá đơn T4</h2>
-            <Activity size={16} className="text-violet-400" />
+      {/* Workflow Cards */}
+      <div>
+        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Luồng nghiệp vụ</h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <WorkflowCard
+            title="Yêu cầu thu cọc"
+            desc="Nhận yêu cầu từ sale, kiểm tra thông tin, phát phiếu thu và xác nhận đã thu tiền cọc."
+            path="/accountant/rental-requests"
+            icon={Receipt}
+            color="#2563EB"
+            bg="#EFF6FF"
+            badge={rentalStats.moiCount > 0 ? `${rentalStats.moiCount} yêu cầu mới` : undefined}
+            badgeColor="#2563EB"
+            steps={["Yêu cầu mới", "Phát phiếu", "Chờ duyệt", "Thu tiền"]}
+          />
+          <WorkflowCard
+            title="Thu tiền định kỳ"
+            desc="Kiểm tra các khoản thu từ hợp đồng đang hoạt động, điều chỉnh và xác nhận đã thu."
+            path="/accountant/operational-payments"
+            icon={CreditCard}
+            color="#7C3AED"
+            bg="#F5F3FF"
+            badge={operationalStats.chuaThuCount > 0 ? `${operationalStats.chuaThuCount} chưa thu` : undefined}
+            badgeColor="#7C3AED"
+            steps={["Chưa thu", "Kiểm tra", "Xác nhận thu"]}
+          />
+          <WorkflowCard
+            title="Đối soát thanh lý"
+            desc="Tính toán hoàn cọc, khấu trừ chi phí và xác nhận kết quả đối soát khi khách trả phòng."
+            path="/accountant/checkout-settlement"
+            icon={Scale}
+            color="#059669"
+            bg="#ECFDF5"
+            badge={settlementStats.choDoiSoatCount > 0 ? `${settlementStats.choDoiSoatCount} chờ đối soát` : undefined}
+            badgeColor="#D97706"
+            steps={["Chờ đối soát", "Tạo bảng đối soát", "Đã đối soát"]}
+          />
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+        {/* Recent Rental Requests */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Receipt size={15} className="text-blue-600" />
+              <span className="text-sm font-semibold text-slate-900">Yêu cầu thu cọc gần đây</span>
+            </div>
+            <button onClick={() => window.location.href = "/accountant/rental-requests"}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition">
+              Xem tất cả →
+            </button>
           </div>
-          <div className="space-y-3">
-            {(["Paid","Sent","Not Sent","Overdue"] as const).map(s => {
-              const count = invoices.filter(i => i.status === s).length;
-              const pct = Math.round((count / invoices.length) * 100);
-              const cfg = {
-                Paid:     { label: "Đã thanh toán", color: "bg-emerald-500", text: "text-emerald-700", light: "bg-emerald-50" },
-                Sent:     { label: "Đã gửi",         color: "bg-blue-500",    text: "text-blue-700",    light: "bg-blue-50" },
-                "Not Sent":{ label: "Chưa gửi",      color: "bg-slate-300",   text: "text-slate-600",   light: "bg-slate-50" },
-                Overdue:  { label: "Quá hạn",        color: "bg-red-500",     text: "text-red-700",     light: "bg-red-50" },
-              }[s];
+          <div className="px-5 divide-y divide-slate-50">
+            {recentRentals.length === 0 ? (
+              <div className="py-8 text-center text-sm text-slate-400">Không có yêu cầu nào</div>
+            ) : recentRentals.map(r => {
+              const statusMap: Record<string, { color: string; bg: string }> = {
+                "Yêu cầu mới":   { color: "#2563EB", bg: "#EFF6FF" },
+                "Chờ phê duyệt": { color: "#D97706", bg: "#FFFBEB" },
+                "Đã phê duyệt":  { color: "#059669", bg: "#ECFDF5" },
+                "Đã xác nhận":   { color: "#6B7280", bg: "#F9FAFB" },
+              };
+              const cfg = statusMap[r.status] ?? { color: "#6B7280", bg: "#F9FAFB" };
               return (
-                <div key={s}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-slate-600" style={{ fontWeight: 500 }}>{cfg.label}</span>
-                    <span className={`text-xs ${cfg.text}`} style={{ fontWeight: 700 }}>{count}</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${cfg.color} transition-all duration-500`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
+                <RecentItem
+                  key={r.id}
+                  id={r.id}
+                  name={r.client}
+                  sub={`${r.room || "—"} · ${r.date || ""}`}
+                  amount={r.rent != null ? money(r.rent + (r.deposit ?? 0) + (r.fees ?? 0)) : undefined}
+                  status={r.status}
+                  statusColor={cfg.color}
+                  statusBg={cfg.bg}
+                />
               );
             })}
           </div>
-          <button
-            onClick={() => navigate("/accountant/invoices")}
-            className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-50 text-violet-700 text-xs hover:bg-violet-100 transition"
-            style={{ fontWeight: 600 }}>
-            <CheckCircle size={13} /> Tạo hoá đơn tháng 5
-          </button>
+        </div>
+
+        {/* Recent Settlements */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Scale size={15} className="text-emerald-600" />
+              <span className="text-sm font-semibold text-slate-900">Hợp đồng chờ đối soát</span>
+            </div>
+            <button onClick={() => window.location.href = "/accountant/checkout-settlement"}
+              className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 transition">
+              Xem tất cả →
+            </button>
+          </div>
+          <div className="px-5 divide-y divide-slate-50">
+            {recentSettlements.length === 0 ? (
+              <div className="py-8 text-center text-sm text-slate-400">Không có hợp đồng nào chờ đối soát</div>
+            ) : recentSettlements.map(r => {
+              const maHD = r.MaHopDongThue ?? r.maHopDongThue ?? "";
+              const tenKH = r.TenKhachHang ?? r.tenKhachHang ?? maHD;
+              const phong = r.DanhSachPhong ?? r.danhSachPhong ?? r.DanhSachGiuong ?? r.danhSachGiuong ?? "—";
+              const ngayKT = r.NgayKetThuc ?? r.ngayKetThuc ?? "";
+              return (
+                <RecentItem
+                  key={maHD}
+                  id={maHD}
+                  name={tenKH}
+                  sub={`HĐ ${maHD} · ${phong ? `P.${phong}` : "—"} · KT: ${ngayKT ? ngayKT.slice(0, 10) : "—"}`}
+                  status="Chờ đối soát"
+                  statusColor="#D97706"
+                  statusBg="#FFFBEB"
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
+
+      {/* Summary Row */}
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
+        <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+          <Activity size={15} className="text-slate-500" /> Tóm tắt trạng thái
+        </h3>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { label: "Đã thu cọc", value: rentalStats.moiCount === 0 && rentalStats.daPheDuyetCount === 0 ? "—" : `${rentalStats.choPheDuyetCount} chờ duyệt`, icon: CheckCircle2, color: "#059669" },
+            { label: "HĐ đã thu kỳ", value: `${operationalStats.daThuCount} hợp đồng`, icon: CheckCircle2, color: "#059669" },
+            { label: "Đã đối soát", value: `${settlementStats.daDoiSoatCount} hợp đồng`, icon: CheckCircle2, color: "#059669" },
+            { label: "Tổng cần xử lý", value: `${totalPending} việc`, icon: Clock, color: totalPending > 0 ? "#D97706" : "#059669" },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3 flex items-center gap-3">
+              <item.icon size={16} style={{ color: item.color }} className="flex-shrink-0" />
+              <div>
+                <div className="text-xs text-slate-500">{item.label}</div>
+                <div className="text-sm font-bold text-slate-900">{item.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }

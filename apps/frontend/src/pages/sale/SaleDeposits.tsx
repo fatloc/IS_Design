@@ -5,6 +5,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { depositRecords as initialRecords, DepositRecord, DepositStatus } from "../../data/saleMockData";
+import { useToast } from "../../components/ToastProvider";
 
 const fmt = (n: number) => n.toLocaleString("vi-VN") + " đ";
 
@@ -183,13 +184,14 @@ function DepositCard({
 }
 
 export default function SaleDeposits() {
+  const { addToast } = useToast();
   const [records, setRecords] = useState(initialRecords);
 
   const handleSubmit = (id: string) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status: "Awaiting Payment", approvedAt: "2025-04-20" } : r));
   };
   const handleNotify = (_id: string) => {
-    alert("Đã gửi thông báo lịch nhận phòng cho khách hàng!");
+    addToast({ message: "Đã gửi thông báo lịch nhận phòng cho khách hàng!", type: "success" });
   };
   const handleMove = (id: string, status: DepositStatus) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status } : r));

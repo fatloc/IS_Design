@@ -47,4 +47,7 @@ public class PhieuThanhToan {
 
     @Column(name = "MaChungTu", length = 6)
     private String maChungTu;
+
+    @Column(name = "SoTienGiaoDich")
+    private java.math.BigDecimal soTienGiaoDich;
 }

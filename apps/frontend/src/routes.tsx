@@ -1,5 +1,4 @@
 import { createBrowserRouter, Navigate } from "react-router";
-import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 import SaleLayout from "./components/layout/SaleLayout";
 import AccountantLayout from "./components/layout/AccountantLayout";
@@ -24,6 +23,9 @@ import AccountantTransactions from "./pages/accountant/AccountantTransactions";
 import AccountantInvoices from "./pages/accountant/AccountantInvoices";
 import AccountantReconciliation from "./pages/accountant/AccountantReconciliation";
 import AccountantContracts from "./pages/accountant/AccountantContracts";
+import RentalRequests from "./pages/accountant_v2/RentalRequests";
+import OperationalPayments from "./pages/accountant_v2/OperationalPayments";
+import CheckoutSettlement from "./pages/accountant_v2/CheckoutSettlement";
 
 export const router = createBrowserRouter([
   {
@@ -40,60 +42,45 @@ export const router = createBrowserRouter([
   },
   {
     path: "/manager",
-    element: <ProtectedRoute allowedRoles={["manager", "quanly"]} />,
+    Component: Layout,
     children: [
-      {
-        path: "",
-        Component: Layout,
-        children: [
-          { index: true, element: <Navigate to="/manager/dashboard" replace /> },
-          { path: "dashboard", Component: Dashboard },
-          { path: "rooms", Component: Rooms },
-          { path: "workflows", Component: Workflows },
-          { path: "financials", Component: Financials },
-          { path: "showings", Component: Showings },
-          { path: "settings", Component: Settings },
-          { path: "approvals", Component: ApprovalHub },
-          { path: "operations", Component: Operations },
-        ],
-      },
+      { index: true, element: <Navigate to="/manager/dashboard" replace /> },
+      { path: "dashboard", Component: Dashboard },
+      { path: "rooms", Component: Rooms },
+      { path: "workflows", Component: Workflows },
+      { path: "financials", Component: Financials },
+      { path: "showings", Component: Showings },
+      { path: "settings", Component: Settings },
+      { path: "approvals", Component: ApprovalHub },
+      { path: "operations", Component: Operations },
     ],
   },
   {
     path: "/sale",
-    element: <ProtectedRoute allowedRoles={["sale", "sales", "manager", "quanly"]} />,
+    Component: SaleLayout,
     children: [
-      {
-        path: "",
-        Component: SaleLayout,
-        children: [
-          { index: true, element: <Navigate to="/sale/dashboard" replace /> },
-          { path: "dashboard", Component: SaleDashboard },
-          { path: "requests", Component: SaleRequests },
-          { path: "appointments", Component: SaleAppointments },
-          { path: "customers", Component: SaleCustomers },
-          { path: "deposits", Component: SaleDeposits },
-          { path: "contracts", Component: SaleContracts },
-        ],
-      },
+      { index: true, element: <Navigate to="/sale/dashboard" replace /> },
+      { path: "dashboard", Component: SaleDashboard },
+      { path: "requests", Component: SaleRequests },
+      { path: "appointments", Component: SaleAppointments },
+      { path: "customers", Component: SaleCustomers },
+      { path: "deposits", Component: SaleDeposits },
+      { path: "contracts", Component: SaleContracts },
     ],
   },
   {
     path: "/accountant",
-    element: <ProtectedRoute allowedRoles={["accountant", "ketoan", "manager", "quanly"]} />,
+    Component: AccountantLayout,
     children: [
-      {
-        path: "",
-        Component: AccountantLayout,
-        children: [
-          { index: true, element: <Navigate to="/accountant/dashboard" replace /> },
-          { path: "dashboard", Component: AccountantDashboard },
-          { path: "transactions", Component: AccountantTransactions },
-          { path: "invoices", Component: AccountantInvoices },
-          { path: "reconciliation", Component: AccountantReconciliation },
-          { path: "contracts", Component: AccountantContracts },
-        ],
-      },
+      { index: true, element: <Navigate to="/accountant/dashboard" replace /> },
+      { path: "dashboard", Component: AccountantDashboard },
+      { path: "rental-requests", Component: RentalRequests },
+      { path: "operational-payments", Component: OperationalPayments },
+      { path: "checkout-settlement", Component: CheckoutSettlement },
+      { path: "transactions", Component: AccountantTransactions },
+      { path: "invoices", Component: AccountantInvoices },
+      { path: "reconciliation", Component: AccountantReconciliation },
+      { path: "contracts", Component: AccountantContracts },
     ],
   },
   {

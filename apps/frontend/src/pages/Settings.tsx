@@ -7,6 +7,7 @@ import {
   Info, Save, RotateCcw, Settings2, Lock, FileText, CalendarDays,
 } from "lucide-react";
 import { Pagination } from "../components/Pagination";
+import { useToast } from "../components/ToastProvider";
 import { usePagedList } from "../hooks/usePagedList";
 import { getContracts, updateContract, type ApiContract,
   getRooms, createRoom, updateRoom, deleteRoom,
@@ -146,6 +147,7 @@ function formatCurrency(value: number | string | null | undefined) {
 //  TAB 1 — Room Management
 // ═══════════════════════════════════════════════════════════════════════════
 function RoomTab() {
+  const { addToast } = useToast();
   const {
     items: rooms, loading, error,
     totalElements, totalPages,
@@ -180,7 +182,7 @@ function RoomTab() {
       await createRoom({ maPhong: newCode.toUpperCase(), sucChuaToiDa: Number(newCap)||2, giaThuePhong: newPrice||null, trangThai: "Trống", chiNhanh: newBranch||null });
       await reload();
       setShowAdd(false); setNewCode(""); setNewCap("2"); setNewPrice(""); setNewBranch("");
-    } catch (err: any) { alert(err?.response?.data?.message ?? "Lỗi khi thêm phòng"); }
+    } catch (err: any) { addToast({ message: err?.response?.data?.message ?? "Lỗi khi thêm phòng", type: "error" }); }
     finally { setSaving(false); }
   };
 
@@ -190,7 +192,7 @@ function RoomTab() {
     try {
       await updateRoom(editRoom.maPhong, editForm as UpdateRoomPayload);
       await reload(); setEditRoom(null);
-    } catch (err: any) { alert(err?.response?.data?.message ?? "Lỗi khi cập nhật phòng"); }
+    } catch (err: any) { addToast({ message: err?.response?.data?.message ?? "Lỗi khi cập nhật phòng", type: "error" }); }
     finally { setSaving(false); }
   };
 
@@ -199,7 +201,7 @@ function RoomTab() {
     try {
       await deleteRoom(room.maPhong);
       await reload(); setDeleteConfirm(null);
-    } catch (err: any) { alert(err?.response?.data?.message ?? "Lỗi khi xóa phòng"); }
+    } catch (err: any) { addToast({ message: err?.response?.data?.message ?? "Lỗi khi xóa phòng", type: "error" }); }
     finally { setSaving(false); }
   };
 
@@ -616,6 +618,7 @@ const AVATAR_COLORS: Record<string, { gradient: string }> = {
 };
 
 function StaffTab() {
+  const { addToast } = useToast();
   const {
     items: rawStaff,
     page,
@@ -632,18 +635,29 @@ function StaffTab() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | StaffRole>("all");
 
-  const staff: StaffUser[] = rawStaff.map((emp) => ({
-    id: emp.maNhanVien,
-    name: emp.hoTen || "Chưa đặt tên",
-    email: emp.email || "---",
-    phone: emp.soDienThoai || "---",
-    role: (emp.loaiNhanVien?.includes("Sale") ? "Nhân viên Sale" :
-           emp.loaiNhanVien?.includes("Kế toán") ? "Kế toán" :
-           emp.loaiNhanVien?.includes("Manager") ? "Manager" : "Nhân viên Sale") as StaffRole,
-    status: "Hoạt động",
-    joinedAt: "Mới",
-    avatar: (emp.hoTen || "??").split(" ").slice(-2).map((s: string) => s[0]).join("").toUpperCase(),
-  }));
+  const staff: StaffUser[] = rawStaff.map((emp) => {
+    // loaiNhanVien trong DB: "Quan ly", "Tu van", "Ke toan"
+    const loai = (emp.loaiNhanVien ?? "").toLowerCase().trim();
+    let role: StaffRole;
+    if (loai === "quan ly" || loai.includes("manager") || loai.includes("quản lý")) {
+      role = "Manager";
+    } else if (loai === "ke toan" || loai.includes("kế toán") || loai.includes("ketoan")) {
+      role = "Kế toán";
+    } else {
+      // "Tu van", "Sale", mặc định → Nhân viên Sale
+      role = "Nhân viên Sale";
+    }
+    return {
+      id: emp.maNhanVien,
+      name: emp.hoTen || "Chưa đặt tên",
+      email: emp.email || "---",
+      phone: emp.soDienThoai || "---",
+      role,
+      status: "Hoạt động" as StaffStatus,
+      joinedAt: "Mới",
+      avatar: (emp.hoTen || "??").split(" ").slice(-2).map((s: string) => s[0]).join("").toUpperCase(),
+    };
+  });
 
   const filteredStaff = staff.filter((u) => {
     const matchSearch =
@@ -771,7 +785,7 @@ function StaffTab() {
                           onClick={async () => {
                             try {
                               // Example of toggle status if backend supported it
-                              alert("Tính năng cập nhật trạng thái nhân sự đang được phát triển");
+                              addToast({ message: "Tính năng cập nhật trạng thái nhân sự đang được phát triển", type: "info" });
                             } catch (err) {
                               console.error(err);
                             }
@@ -1057,10 +1071,10 @@ function ContractDetailPane({
                     await updateContract(selectedContract.maHopDongThue, payload);
                     setEditMode(false);
                     await reload();
-                    alert("Cập nhật hợp đồng thành công");
+                    addToast({ message: "Cập nhật hợp đồng thành công", type: "success" });
                   } catch (err: any) {
                     console.error(err);
-                    alert(err?.message ?? "Lỗi khi cập nhật hợp đồng");
+                    addToast({ message: err?.message ?? "Lỗi khi cập nhật hợp đồng", type: "error" });
                   } finally {
                     setSaving(false);
                   }
@@ -1100,6 +1114,7 @@ function ContractTab() {
     setSize,
     reload,
   } = usePagedList<ApiContract>(getContracts, 8);
+  const { addToast } = useToast();
 
   const [search, setSearch] = useState("");
   const [modalContract, setModalContract] = useState<ApiContract | null>(null);
@@ -1314,6 +1329,7 @@ function ContractTab() {
 }
 
 function ContractDetailModal({ contract, onClose, reload }: { contract: ApiContract; onClose: () => void; reload: () => void; }) {
+  const { addToast } = useToast();
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<ApiContract>>({ ...contract });
@@ -1343,7 +1359,7 @@ function ContractDetailModal({ contract, onClose, reload }: { contract: ApiContr
       await reload();
       onClose();
     } catch (err: any) {
-      alert(err?.message ?? "Lỗi khi cập nhật hợp đồng");
+      addToast({ message: err?.message ?? "Lỗi khi cập nhật hợp đồng", type: "error" });
     } finally { setSaving(false); }
   };
 

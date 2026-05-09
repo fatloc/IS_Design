@@ -11,10 +11,12 @@ import {
   updateRequest, 
   getCustomers, 
   getTransactions, 
-  updateTransaction 
+  updateTransaction,
+  createTransaction,
 } from "../services/api";
 import type { Request, Customer, Transaction } from "../types";
 import { Pagination } from "../components/Pagination";
+import { useToast } from "../components/ToastProvider";
 
 const A = "#4F46E5";
 const AL = "#818CF8";
@@ -82,10 +84,10 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
 
   const approve = async (id: string) => {
     try {
-      await updateRequest(id, { trangThaiYeuCau: "Đặt cọc thành công" });
+      await updateRequest(id, { trangThaiYeuCau: "Đã phê duyệt" });
       showToast("Đã duyệt yêu cầu thuê phòng");
       reload();
-    } catch (err) {
+    } catch {
       showToast("Lỗi khi duyệt yêu cầu", "err");
     }
   };
@@ -98,26 +100,41 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
       setRejectingId(null);
       setRejectText("");
       reload();
-    } catch (err) {
+    } catch {
       showToast("Lỗi khi từ chối", "err");
     }
   };
 
+  function fmt(n: number | string | null | undefined) {
+    if (!n) return "—";
+    return Number(n).toLocaleString("vi-VN") + " đ";
+  }
+
   const items = useMemo<RentalReq[]>(() => {
     return rawItems.map(r => {
       const customer = r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null;
-      const tenantName = customer?.hoTen ?? "Khách chưa rõ";
+      const tenantName = customer?.hoTen ?? r.khachHangYeuCau ?? "Khách chưa rõ";
+      // Xây dựng mô tả yêu cầu từ dữ liệu thực
+      const roomType = r.soLuongNguoi && r.soLuongNguoi > 1 ? "Toàn phòng" : "Ghép giường";
+      const extras: string[] = [];
+      if (r.coDieuHoa) extras.push("Điều hòa");
+      if (r.coBaiGuiXe) extras.push("Bãi xe");
       return {
         id: r.maYeuCau,
         tenant: tenantName,
         avatar: tenantName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase(),
-        room: "Phòng chờ",
-        roomType: r.soLuongNguoi && r.soLuongNguoi > 1 ? "Toàn phòng" : "Ghép giường",
-        period: "6 tháng",
+        room: r.khuVuc ? `Khu vực: ${r.khuVuc}` : "Chưa xác định khu vực",
+        roomType,
+        period: r.soLuongNguoi ? `${r.soLuongNguoi} người` : "—",
         fromDate: r.thoiGianBatDauThueDuKien ?? "—",
         submitted: r.thoiGianBanGiaoPhongDuKien ?? "—",
-        note: r.cacTieuChiKhac ?? "",
-        source: r.khuVuc ?? "Website",
+        note: [
+          r.cacTieuChiKhac ?? "",
+          r.mucGiaMongMuon ? `Mức giá: ${fmt(r.mucGiaMongMuon)}` : "",
+          extras.length > 0 ? `Yêu cầu: ${extras.join(", ")}` : "",
+          r.gioiTinhYeuCau ? `Giới tính: ${r.gioiTinhYeuCau}` : "",
+        ].filter(Boolean).join(" · "),
+        source: r.khuVuc ?? "Chưa rõ",
         status: "pending",
       };
     });
@@ -275,7 +292,7 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
     size,
     setSize,
   } = usePagedList<Transaction>(getTransactions, 10, {
-    loaiGiaoDich: "Thu tiền coc",
+    loaiGiaoDich: "Thu tien coc",
     trangThai: "Cho xu ly",
   });
 
@@ -289,19 +306,28 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
   };
 
   const items = useMemo<DepositReq[]>(() => {
-    return rawItems.map(t => ({
-      id: t.maPhieuThanhToan,
-      tenant: "Khách hàng",
-      avatar: "KH",
-      room: "A101",
-      amount: 0,
-      accountant: t.keToanLapPhieu ?? "Kế toán",
-      date: t.ngayGiaoDich ?? "—",
-      method: t.hinhThucThanhToan ?? "Chuyển khoản",
-      ref: t.maPhieuThanhToan,
-      status: "pending",
-    }));
-  }, [rawItems]);
+    return rawItems.map(t => {
+      // maChungTu là mã yêu cầu hoặc mã hợp đồng — dùng để tìm khách hàng
+      const maChungTu = t.maChungTu ?? "";
+      // Tìm khách hàng qua keToanLapPhieu hoặc quanLyDoiChung nếu có
+      // Hiển thị thông tin thực từ transaction
+      const tenantName = t.keToanLapPhieu
+        ? `Phiếu bởi: ${t.keToanLapPhieu}`
+        : `Mã CT: ${maChungTu || t.maPhieuThanhToan}`;
+      return {
+        id: t.maPhieuThanhToan,
+        tenant: maChungTu || t.maPhieuThanhToan,
+        avatar: (maChungTu || "P").slice(0, 2).toUpperCase(),
+        room: t.ghiChu ? t.ghiChu.slice(0, 40) : "—",
+        amount: t.soTienGiaoDich ?? 0,
+        accountant: t.keToanLapPhieu ?? "—",
+        date: t.ngayGiaoDich ?? "—",
+        method: t.hinhThucThanhToan ?? "—",
+        ref: t.maPhieuThanhToan,
+        status: "pending",
+      };
+    });
+  }, [rawItems, customers]);
 
   return (
     <div>
@@ -322,22 +348,25 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
         <table className="w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              {["Khách hàng", "Phòng", "Số tiền cọc", "Kế toán", "Hình thức", "Ngày", "Hành động"].map(h => (
+              {["Mã phiếu", "Mã chứng từ", "Số tiền cọc", "Kế toán lập", "Hình thức", "Ngày GD", "Ghi chú", "Hành động"].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-[0.7rem] font-extrabold text-slate-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {items.map((dep, i) => (
+            {items.map((dep) => (
               <tr key={dep.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                <td className="px-4 py-3 font-semibold text-sm">{dep.tenant}</td>
-                <td className="px-4 py-3 text-sm">{dep.room}</td>
-                <td className="px-4 py-3 font-bold">₫{dep.amount.toLocaleString()}</td>
-                <td className="px-4 py-3 text-sm">{dep.accountant}</td>
-                <td className="px-4 py-3 text-[0.7rem] font-bold uppercase">{dep.method}</td>
-                <td className="px-4 py-3 text-[0.7rem]">{dep.date}</td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{dep.id}</td>
+                <td className="px-4 py-3 font-semibold text-sm text-slate-800">{dep.tenant}</td>
+                <td className="px-4 py-3 font-bold text-emerald-700">
+                  {dep.amount > 0 ? dep.amount.toLocaleString("vi-VN") + " đ" : "—"}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-600">{dep.accountant}</td>
+                <td className="px-4 py-3 text-[0.7rem] font-bold uppercase text-slate-600">{dep.method}</td>
+                <td className="px-4 py-3 text-[0.7rem] text-slate-500">{dep.date}</td>
+                <td className="px-4 py-3 text-xs text-slate-500 max-w-[180px] truncate" title={dep.room}>{dep.room}</td>
                 <td className="px-4 py-3">
-                  <button onClick={() => confirm(dep.id)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[0.75rem] font-bold">
+                  <button onClick={() => confirm(dep.id)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[0.75rem] font-bold hover:bg-emerald-700 transition">
                     Xác nhận
                   </button>
                 </td>
@@ -373,10 +402,28 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
   const [checkingId, setCheckingId] = useState<string | null>(null);
 
   const getRules = (c: ConditionReq) => [
-    { label: "Giới tính phù hợp", ok: c.gender === c.roomGender || c.roomGender === "—", detail: `${c.gender} ↔ Phòng ${c.roomGender}` },
-    { label: "Khu vực được duyệt", ok: c.areaOk, detail: "Khu vực hợp lệ" },
-    { label: "Quy tắc nhóm ở", ok: c.groupOk, detail: "Tuân thủ quy định" },
-    { label: "Xác minh CMND/CCCD", ok: c.idVerified, detail: c.idVerified ? "Đã xác minh" : "Chưa xác minh" },
+    {
+      label: "Giới tính phù hợp",
+      ok: c.gender === c.roomGender || c.roomGender === "—" || c.gender === "—",
+      detail: c.gender !== "—" && c.roomGender !== "—"
+        ? `Khách: ${c.gender} · Yêu cầu: ${c.roomGender}`
+        : c.gender !== "—" ? `Khách: ${c.gender}` : "Chưa có thông tin giới tính",
+    },
+    {
+      label: "Khu vực được duyệt",
+      ok: c.areaOk,
+      detail: c.areaOk ? c.room : "Chưa có khu vực",
+    },
+    {
+      label: "Số lượng người hợp lệ",
+      ok: c.groupOk,
+      detail: c.groupOk ? "Đã khai báo số người" : "Chưa khai báo số người",
+    },
+    {
+      label: "Xác minh CMND/CCCD",
+      ok: c.idVerified,
+      detail: c.idVerified ? "Đã có CCCD trong hệ thống" : "Chưa có CCCD",
+    },
   ];
 
   const allPass = (c: ConditionReq) => (c.gender === c.roomGender || c.roomGender === "—") && c.areaOk && c.groupOk && c.idVerified;
@@ -384,17 +431,28 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
   const items = useMemo<ConditionReq[]>(() => {
     return rawItems.map(r => {
       const customer = r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null;
-      const tenantName = customer?.hoTen ?? "Khách chưa rõ";
+      const tenantName = customer?.hoTen ?? r.khachHangYeuCau ?? "Khách chưa rõ";
+      // Kiểm tra điều kiện thực từ DB
+      const gioiTinhYC = r.gioiTinhYeuCau ?? "";
+      const gioiTinhKH = customer?.phai ?? "";
+      // Giới tính phù hợp: nếu yêu cầu có giới tính thì phải khớp với khách
+      const genderOk = !gioiTinhYC || !gioiTinhKH || gioiTinhYC === gioiTinhKH;
+      // Khu vực: có khu vực là hợp lệ
+      const areaOk = !!(r.khuVuc && r.khuVuc.trim());
+      // Số lượng người: hợp lệ nếu > 0
+      const groupOk = !!(r.soLuongNguoi && r.soLuongNguoi > 0);
+      // CCCD đã xác minh
+      const idVerified = !!(customer?.cccd && customer.cccd.trim());
       return {
         id: r.maYeuCau,
         tenant: tenantName,
         avatar: tenantName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase(),
-        room: "Chưa phân",
-        gender: customer?.phai ?? "—",
-        roomGender: "—",
-        areaOk: true,
-        groupOk: true,
-        idVerified: !!customer?.cccd,
+        room: r.khuVuc ? `Khu vực: ${r.khuVuc}` : "Chưa xác định",
+        gender: gioiTinhKH || "—",
+        roomGender: gioiTinhYC || "—",
+        areaOk,
+        groupOk,
+        idVerified,
         status: "pending",
       };
     });
@@ -479,9 +537,9 @@ export default function ApprovalHub() {
   const customerMap = useMemo(() => new Map(customersList.map(c => [c.maKhachHang, c])), [customersList]);
 
   const tabs = [
-    { id: "rentals", label: "Duyệt thuê", icon: FileText, color: A },
-    { id: "deposits", label: "Xác nhận cọc", icon: DollarSign, color: "#059669" },
-    { id: "conditions", label: "Kiểm tra", icon: ShieldCheck, color: "#D97706" },
+    { id: "rentals",    label: "Duyệt thuê",  icon: FileText,    color: A },
+    { id: "deposits",   label: "Xác nhận cọc", icon: DollarSign,  color: "#059669" },
+    { id: "conditions", label: "Kiểm tra",     icon: ShieldCheck, color: "#D97706" },
   ] as const;
 
   return (
