@@ -20,6 +20,7 @@ public class OperationCheckoutResponse {
     private String roomType;
     private String moveOut;
     private BigDecimal deposit;
+    private BigDecimal netAmount;
     private int daysLeft;
     private String status;
     private List<OperationAssetResponse> assets;

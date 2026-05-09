@@ -11,9 +11,9 @@ const RING_CLR = "#F97316";
 
 const NAV_ITEMS = [
   { label: "Dashboard",             icon: LayoutDashboard, path: "/sale/dashboard",     badge: null as string|null },
-  { label: "Yêu cầu thuê",          icon: FileText,        path: "/sale/requests",      badge: "3"  },
+  { label: "Yêu cầu thuê",          icon: FileText,        path: "/sale/requests",      badge: null },
   { label: "Lịch xem phòng",        icon: CalendarDays,    path: "/sale/appointments",  badge: null },
-  { label: "Hồ sơ Khách hàng",      icon: Users,           path: "/sale/customers",     badge: "2"  },
+  { label: "Hồ sơ Khách hàng",      icon: Users,           path: "/sale/customers",     badge: null },
   { label: "Hợp đồng",              icon: ClipboardList,   path: "/sale/contracts",     badge: null },
 ];
 

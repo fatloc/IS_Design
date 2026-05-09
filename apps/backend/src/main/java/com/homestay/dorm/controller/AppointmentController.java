@@ -26,6 +26,11 @@ public class AppointmentController {
         return appointmentService.getAppointments(page, size, month, year);
     }
 
+    @GetMapping("/by-request/{maYeuCau}")
+    public ApiResponse<LichXemPhong> getAppointmentByMaYeuCau(@PathVariable String maYeuCau) {
+        return ApiResponse.ok(appointmentService.getAppointmentByMaYeuCau(maYeuCau));
+    }
+
     @GetMapping("/{maLichHen}")
     public ApiResponse<LichXemPhong> getAppointmentById(@PathVariable String maLichHen) {
         return ApiResponse.ok(appointmentService.getAppointmentById(maLichHen));

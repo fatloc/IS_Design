@@ -22,6 +22,9 @@ import AccountantDashboard from "./pages/accountant/AccountantDashboard";
 import AccountantTransactions from "./pages/accountant/AccountantTransactions";
 import AccountantInvoices from "./pages/accountant/AccountantInvoices";
 import AccountantReconciliation from "./pages/accountant/AccountantReconciliation";
+import RentalRequests from "./pages/accountant_v2/RentalRequests";
+import OperationalPayments from "./pages/accountant_v2/OperationalPayments";
+import CheckoutSettlement from "./pages/accountant_v2/CheckoutSettlement";
 
 export const router = createBrowserRouter([
   {
@@ -70,6 +73,9 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/accountant/dashboard" replace /> },
       { path: "dashboard", Component: AccountantDashboard },
+      { path: "rental-requests", Component: RentalRequests },
+      { path: "operational-payments", Component: OperationalPayments },
+      { path: "checkout-settlement", Component: CheckoutSettlement },
       { path: "transactions", Component: AccountantTransactions },
       { path: "invoices", Component: AccountantInvoices },
       { path: "reconciliation", Component: AccountantReconciliation },
