@@ -46,4 +46,18 @@ public class CustomerServiceImpl implements CustomerService {
         if (data.getQuocTich() != null)    kh.setQuocTich(data.getQuocTich());
         return khachHangRepository.save(kh);
     }
+
+    @Override
+    public KhachHang createCustomer(KhachHang data) {
+        if (data.getSoDienThoai() != null && data.getSoDienThoai().length() > 10) {
+            throw new RuntimeException("Số điện thoại không được vượt quá 10 ký tự.");
+        }
+        if (data.getCccd() != null && data.getCccd().length() > 12) {
+            throw new RuntimeException("CCCD không được vượt quá 12 ký tự.");
+        }
+        
+        String newId = String.format("KH%04d", new java.util.Random().nextInt(10000));
+        data.setMaKhachHang(newId);
+        return khachHangRepository.save(data);
+    }
 }

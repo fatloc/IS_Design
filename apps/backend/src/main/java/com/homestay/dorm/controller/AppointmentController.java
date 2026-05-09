@@ -8,11 +8,13 @@ import com.homestay.dorm.entity.LichXemPhong;
 import com.homestay.dorm.service.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/appointments")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER')")
 public class AppointmentController {
 
     private final AppointmentService appointmentService;

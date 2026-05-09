@@ -27,12 +27,23 @@ export default function SaleDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const today = useMemo(() => {
+  const { today, yesterday, currentMonth } = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, "0");
     const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    const yy = yest.getFullYear();
+    const ym = String(yest.getMonth() + 1).padStart(2, "0");
+    const yd = String(yest.getDate()).padStart(2, "0");
+    
+    return {
+      today: `${y}-${m}-${d}`,
+      yesterday: `${yy}-${ym}-${yd}`,
+      currentMonth: now.getMonth() + 1
+    };
   }, []);
 
   useEffect(() => {
@@ -123,6 +134,14 @@ export default function SaleDashboard() {
   const visiblePendingRequests = newestPendingRequests.slice(0, 5);
   const depositedToday = deposits.filter((d) => d.ngayLap === today);
 
+  const yesterdayAppointments = appointments.filter(a => a.ngayHen === yesterday);
+  const aptTrend = todayAppointments.length - yesterdayAppointments.length;
+  const aptTrendStr = aptTrend >= 0 ? `+${aptTrend} so với hôm qua` : `${aptTrend} so với hôm qua`;
+
+  const yesterdayDeposits = deposits.filter(d => d.ngayLap === yesterday);
+  const depTrend = depositedToday.length - yesterdayDeposits.length;
+  const depTrendStr = depTrend >= 0 ? `↑ ${depTrend} so với hôm qua` : `↓ ${Math.abs(depTrend)} so với hôm qua`;
+
   const stats = [
     {
       label: "Lịch xem hôm nay",
@@ -130,7 +149,7 @@ export default function SaleDashboard() {
       icon: CalendarDays,
       color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
       sub: `${todayAppointments.filter(a => a.status === "Shown").length} đã xem xong`,
-      trend: "+2 so với hôm qua",
+      trend: aptTrendStr,
     },
     {
       label: "Yêu cầu đang xử lý",
@@ -146,7 +165,7 @@ export default function SaleDashboard() {
       icon: BedDouble,
       color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
       sub: `${depositedToday.length} hồ sơ cọc phát sinh hôm nay`,
-      trend: "↑ 2 so với hôm qua",
+      trend: depTrendStr,
     },
   ];
 
@@ -167,6 +186,80 @@ export default function SaleDashboard() {
             <div className="text-xs text-slate-400 mt-1">{stat.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Inventory at-a-glance */}
+      <div className="grid grid-cols-2 gap-5">
+        {/* Request funnel */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Tình trạng yêu cầu tháng {currentMonth}</h2>
+            <TrendingUp size={16} className="text-emerald-500" />
+          </div>
+          <div className="grid grid-cols-5 gap-2">
+            {(["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(status => {
+              const count = mappedRequests.filter(r => r.status === status).length;
+              const pct = mappedRequests.length > 0 ? Math.round((count / mappedRequests.length) * 100) : 0;
+              return (
+                <div key={status} className="text-center">
+                  <div className={`text-2xl mb-1 ${
+                    status === "Deposited" ? "text-emerald-600" : status === "Cancelled" ? "text-slate-400" :
+                    status === "Pending" ? "text-amber-600" : status === "Scheduled" ? "text-blue-600" : "text-purple-600"
+                  }`} style={{ fontWeight: 700 }}>{count}</div>
+                  <div className={`text-xs px-1.5 py-0.5 rounded-full inline-block ${statusColors[status]}`} style={{ fontWeight: 500, fontSize: "10px" }}>
+                    {statusLabels[status]}
+                  </div>
+                  <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${
+                      status === "Deposited" ? "bg-emerald-400" : status === "Cancelled" ? "bg-slate-300" :
+                      status === "Pending" ? "bg-amber-400" : status === "Scheduled" ? "bg-blue-400" : "bg-purple-400"
+                    }`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Rental mode breakdown */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Phân loại hình thức thuê</h2>
+            <BedDouble size={16} className="text-teal-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {(["Whole Room","Shared Bed"] as const).map(mode => {
+              const reqs = mappedRequests.filter(r => r.rentalMode === mode);
+              const isWhole = mode === "Whole Room";
+              return (
+                <div key={mode} className={`rounded-xl p-4 border ${isWhole ? "bg-violet-50 border-violet-100" : "bg-teal-50 border-teal-100"}`}>
+                  <div className={`text-2xl mb-1 ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 700 }}>{reqs.length}</div>
+                  <div className={`text-sm ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 600 }}>
+                    {isWhole ? "🏠 Toàn phòng" : "🛏 Ghép giường"}
+                  </div>
+                  <div className={`text-xs mt-1 ${isWhole ? "text-violet-500" : "text-teal-500"}`}>
+                    {reqs.filter(r => r.status === "Deposited").length} đã đặt cọc
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 space-y-2">
+            {(["Male","Female","Any"] as const).map(g => {
+              const count = mappedRequests.filter(r => r.gender === g).length;
+              return (
+                <div key={g} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 w-16">{g === "Male" ? "Nam" : g === "Female" ? "Nữ" : "Bất kỳ"}</span>
+                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${g === "Male" ? "bg-blue-400" : g === "Female" ? "bg-pink-400" : "bg-slate-300"}`}
+                      style={{ width: `${mappedRequests.length > 0 ? (count / mappedRequests.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs text-slate-500 w-4 text-right" style={{ fontWeight: 600 }}>{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Main grid */}
@@ -298,80 +391,6 @@ export default function SaleDashboard() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Inventory at-a-glance */}
-      <div className="grid grid-cols-2 gap-5">
-        {/* Request funnel */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Tình trạng yêu cầu tháng 4</h2>
-            <TrendingUp size={16} className="text-emerald-500" />
-          </div>
-          <div className="grid grid-cols-5 gap-2">
-            {(["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(status => {
-              const count = mappedRequests.filter(r => r.status === status).length;
-              const pct = mappedRequests.length > 0 ? Math.round((count / mappedRequests.length) * 100) : 0;
-              return (
-                <div key={status} className="text-center">
-                  <div className={`text-2xl mb-1 ${
-                    status === "Deposited" ? "text-emerald-600" : status === "Cancelled" ? "text-slate-400" :
-                    status === "Pending" ? "text-amber-600" : status === "Scheduled" ? "text-blue-600" : "text-purple-600"
-                  }`} style={{ fontWeight: 700 }}>{count}</div>
-                  <div className={`text-xs px-1.5 py-0.5 rounded-full inline-block ${statusColors[status]}`} style={{ fontWeight: 500, fontSize: "10px" }}>
-                    {statusLabels[status]}
-                  </div>
-                  <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${
-                      status === "Deposited" ? "bg-emerald-400" : status === "Cancelled" ? "bg-slate-300" :
-                      status === "Pending" ? "bg-amber-400" : status === "Scheduled" ? "bg-blue-400" : "bg-purple-400"
-                    }`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Rental mode breakdown */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Phân loại hình thức thuê</h2>
-            <BedDouble size={16} className="text-teal-500" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {(["Whole Room","Shared Bed"] as const).map(mode => {
-              const reqs = mappedRequests.filter(r => r.rentalMode === mode);
-              const isWhole = mode === "Whole Room";
-              return (
-                <div key={mode} className={`rounded-xl p-4 border ${isWhole ? "bg-violet-50 border-violet-100" : "bg-teal-50 border-teal-100"}`}>
-                  <div className={`text-2xl mb-1 ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 700 }}>{reqs.length}</div>
-                  <div className={`text-sm ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 600 }}>
-                    {isWhole ? "🏠 Toàn phòng" : "🛏 Ghép giường"}
-                  </div>
-                  <div className={`text-xs mt-1 ${isWhole ? "text-violet-500" : "text-teal-500"}`}>
-                    {reqs.filter(r => r.status === "Deposited").length} đã đặt cọc
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-4 space-y-2">
-            {(["Male","Female","Any"] as const).map(g => {
-              const count = mappedRequests.filter(r => r.gender === g).length;
-              return (
-                <div key={g} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 w-16">{g === "Male" ? "Nam" : g === "Female" ? "Nữ" : "Bất kỳ"}</span>
-                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${g === "Male" ? "bg-blue-400" : g === "Female" ? "bg-pink-400" : "bg-slate-300"}`}
-                      style={{ width: `${mappedRequests.length > 0 ? (count / mappedRequests.length) * 100 : 0}%` }} />
-                  </div>
-                  <span className="text-xs text-slate-500 w-4 text-right" style={{ fontWeight: 600 }}>{count}</span>
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>

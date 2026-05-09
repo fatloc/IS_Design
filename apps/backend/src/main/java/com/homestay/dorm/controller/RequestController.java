@@ -8,11 +8,13 @@ import com.homestay.dorm.entity.YeuCauDangKy;
 import com.homestay.dorm.service.RequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/requests")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER')")
 public class RequestController {
 
     private final RequestService requestService;
@@ -22,8 +24,10 @@ public class RequestController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(required = false) String nhanVienPhuTrach,
-            @RequestParam(required = false) String trangThaiYeuCau) {
-        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau);
+            @RequestParam(required = false) String trangThaiYeuCau,
+            @RequestParam(required = false) String ngayTao,
+            @RequestParam(required = false) String thang) {
+        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau, ngayTao, thang);
     }
 
     @GetMapping("/{maYeuCau}")
