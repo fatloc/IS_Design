@@ -41,3 +41,7 @@ package-lock.json
 **/coverage/
 **/.temp/
 **/tmp/
+.agent
+PLAN-dorm-management.md
+GEMINI.md
+ERRORS.md
