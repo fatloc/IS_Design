@@ -38,7 +38,9 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
+                org.springframework.data.domain.Sort.Direction.DESC, "ngayHen"
+        ));
         Page<LichXemPhong> appointmentPage;
         if (month != null && year != null) {
             // month is 1-indexed (January=1)
@@ -48,7 +50,16 @@ public class AppointmentServiceImpl implements AppointmentService {
         } else {
             appointmentPage = lichXemPhongRepository.findAll(pageable);
         }
-        appointmentPage.getContent().forEach(this::populateMaPhong);
+        appointmentPage.getContent().forEach(apt -> {
+            this.populateMaPhong(apt);
+            boolean overdue = false;
+            if (("Pending".equalsIgnoreCase(apt.getTrangThaiHen()) || "Chờ xử lý".equalsIgnoreCase(apt.getTrangThaiHen())) && apt.getNgayHen() != null) {
+                if (apt.getNgayHen().isBefore(LocalDate.now())) {
+                    overdue = true;
+                }
+            }
+            apt.setIsOverdue(overdue);
+        });
         return ApiListResponse.fromPage(appointmentPage);
     }
 

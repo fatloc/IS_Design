@@ -115,6 +115,7 @@ CREATE TABLE HOPDONGTHUE (
     KyThanhToan VARCHAR(50),
     SoLuongThanhVien INT,
     NgayKetThuc DATE,
+    TrangThaiThanhLy VARCHAR(50),
     FOREIGN KEY (MaHopDongThue) REFERENCES CHUNGTU(MaVanBan)
 );
 

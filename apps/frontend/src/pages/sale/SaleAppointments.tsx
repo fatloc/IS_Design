@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import {
   CalendarDays, Plus, User, ChevronLeft, ChevronRight, Home, X,
   Check, CheckCircle, Phone, ChevronDown, MessageSquare, Save, Clock,
@@ -219,7 +219,14 @@ function ApptRow({ appt, onUpdate }: {
             {getInitials(appt.khachHangXem)}
           </div>
           <div className="flex-1 min-w-0">
-            <div style={{ fontWeight:800, fontSize:"0.9rem", color:"#1E293B" }}>KH: {appt.khachHangXem ?? "--"}</div>
+            <div className="flex items-center gap-2">
+              <div style={{ fontWeight:800, fontSize:"0.9rem", color:"#1E293B" }}>KH: {appt.khachHangXem ?? "--"}</div>
+              {appt.isOverdue && (
+                <span className="flex items-center gap-1 text-red-600 px-1.5 py-0.5 rounded bg-red-50" style={{ fontSize: "0.68rem", fontWeight: 700 }}>
+                  <AlertTriangle size={10} /> Quá hạn xử lý
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               <div className="flex items-center gap-1">
                 <Clock size={10} style={{ color:"#CBD5E1" }}/>
