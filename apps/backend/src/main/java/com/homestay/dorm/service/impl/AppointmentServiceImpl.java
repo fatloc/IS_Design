@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AppointmentServiceImpl implements AppointmentService {
@@ -23,6 +25,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year) {
+        long startTime = System.currentTimeMillis();
         Pageable pageable = PageRequest.of(page, size);
         Page<LichXemPhong> appointmentPage;
         if (month != null && year != null) {
@@ -33,7 +36,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         } else {
             appointmentPage = lichXemPhongRepository.findAll(pageable);
         }
-        return ApiListResponse.fromPage(appointmentPage);
+        ApiListResponse<LichXemPhong> response = ApiListResponse.fromPage(appointmentPage);
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Appointments loaded in {} ms", (endTime - startTime));
+        return response;
     }
 
     @Override

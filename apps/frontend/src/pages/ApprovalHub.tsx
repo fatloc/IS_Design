@@ -3,7 +3,7 @@ import {
   ClipboardCheck, DollarSign, Users, Check, X, AlertTriangle,
   ChevronRight, Clock, Calendar, Home, CheckCircle, XCircle,
   FileText, ShieldCheck, Send, MessageSquare, BadgeCheck,
-  Building2, Info, BedDouble, MapPin, Fingerprint,
+  Building2, Info, BedDouble, MapPin, Fingerprint, Loader2,
 } from "lucide-react";
 import { usePagedList } from "../hooks/usePagedList";
 import { 
@@ -61,6 +61,7 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
   const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectText, setRejectText] = useState("");
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const {
     items: rawItems,
@@ -81,17 +82,21 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
   };
 
   const approve = async (id: string) => {
+    setProcessingId(id);
     try {
       await updateRequest(id, { trangThaiYeuCau: "Đặt cọc thành công" });
       showToast("Đã duyệt yêu cầu thuê phòng");
       reload();
     } catch (err) {
       showToast("Lỗi khi duyệt yêu cầu", "err");
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const confirmReject = async (id: string) => {
     if (!rejectText.trim()) return;
+    setProcessingId(id);
     try {
       await updateRequest(id, { trangThaiYeuCau: "Từ chối" });
       showToast("Đã từ chối yêu cầu", "err");
@@ -100,6 +105,8 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
       reload();
     } catch (err) {
       showToast("Lỗi khi từ chối", "err");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -215,14 +222,17 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
                 {!isRejecting && (
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button onClick={() => setRejectingId(req.id)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition"
+                      disabled={processingId === req.id}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl cursor-pointer hover:opacity-80 transition disabled:opacity-50"
                       style={{ background: "#FFF1F2", border: "1.5px solid #FECDD3", color: "#DC2626", fontSize: "0.78rem", fontWeight: 700 }}>
                       <X size={13} /> Từ chối
                     </button>
                     <button onClick={() => approve(req.id)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition text-white"
+                      disabled={processingId === req.id}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl cursor-pointer hover:opacity-90 transition text-white disabled:opacity-50"
                       style={{ background: `linear-gradient(135deg,${A},#7C3AED)`, fontSize: "0.78rem", fontWeight: 700, boxShadow: `0 2px 10px ${A}40` }}>
-                      <Check size={13} /> Đồng ý cho thuê
+                      {processingId === req.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      Đồng ý cho thuê
                     </button>
                   </div>
                 )}
@@ -245,10 +255,14 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
                       />
                       <div className="flex items-center justify-end gap-2 mt-2">
                         <button onClick={() => setRejectingId(null)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">Hủy</button>
+                          disabled={processingId === req.id}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm cursor-pointer hover:bg-slate-50 transition disabled:opacity-50">Hủy</button>
                         <button onClick={() => confirmReject(req.id)}
-                          disabled={!rejectText.trim()}
-                          className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm">Xác nhận</button>
+                          disabled={!rejectText.trim() || processingId === req.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm cursor-pointer hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                          {processingId === req.id ? <Loader2 size={13} className="animate-spin" /> : null}
+                          Xác nhận
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -337,7 +351,7 @@ function DepositSection({ customers }: { customers: Map<string, Customer> }) {
                 <td className="px-4 py-3 text-[0.7rem] font-bold uppercase">{dep.method}</td>
                 <td className="px-4 py-3 text-[0.7rem]">{dep.date}</td>
                 <td className="px-4 py-3">
-                  <button onClick={() => confirm(dep.id)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[0.75rem] font-bold">
+                  <button onClick={() => confirm(dep.id)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[0.75rem] font-bold cursor-pointer hover:bg-emerald-700 transition">
                     Xác nhận
                   </button>
                 </td>
@@ -441,7 +455,7 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
                 <div className="text-center">
                   <div className="text-lg font-black" style={{ color: passes === 4 ? "#059669" : "#D97706" }}>{passes}/4</div>
                 </div>
-                <button onClick={() => setCheckingId(isOpen ? null : c.id)} className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl font-bold text-xs">
+                <button onClick={() => setCheckingId(isOpen ? null : c.id)} className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer hover:bg-slate-200 transition">
                   {isOpen ? "Đóng" : "Kiểm tra"}
                 </button>
               </div>
@@ -457,7 +471,7 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
                     ))}
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => submitCheck(c.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
+                    <button onClick={() => submitCheck(c.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg cursor-pointer hover:opacity-90 transition">
                       {passAll ? "Xác nhận & Chuyển bước" : "Ghi chú & Tiếp tục"}
                     </button>
                   </div>

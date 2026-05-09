@@ -27,7 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 // Kéo toàn bộ Entity và Repository vào để xài cho gọn, khỏi báo lỗi thiếu
 import com.homestay.dorm.entity.*;
 import com.homestay.dorm.repository.*;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContractServiceImpl implements ContractService {
@@ -44,9 +46,13 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
+        long startTime = System.currentTimeMillis();
         Pageable pageable = PageRequest.of(page, size);
         Page<HopDongThue> pageData = repository.findAll(pageable);
-        return ApiListResponse.fromPage(pageData);
+        ApiListResponse<HopDongThue> response = ApiListResponse.fromPage(pageData);
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Contracts loaded in {} ms", (endTime - startTime));
+        return response;
     }
 
     @Override

@@ -6,6 +6,7 @@ import com.homestay.dorm.dto.response.OperationCheckoutResponse;
 import com.homestay.dorm.dto.response.OperationsResponse;
 import com.homestay.dorm.service.OperationsService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,8 +17,9 @@ import java.sql.Time;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -25,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationsServiceImpl implements OperationsService {
@@ -33,19 +36,25 @@ public class OperationsServiceImpl implements OperationsService {
     private static final int MAX_ITEMS = 10;
 
     private final JdbcTemplate jdbcTemplate;
+    private final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(15);
 
     @Override
     public OperationsResponse getOperations() {
-        List<OperationAssetResponse> assetTemplate = loadAssetTemplate();
-        Map<String, BigDecimal> latestDepositByCustomer = loadLatestDepositsByCustomer();
+        long startTime = System.currentTimeMillis();
+        
+        CompletableFuture<List<OperationAssetResponse>> assetTemplateFuture = CompletableFuture.supplyAsync(this::loadAssetTemplate, executor);
+        CompletableFuture<List<OperationCheckinResponse>> checkinsFuture = CompletableFuture.supplyAsync(() -> loadCheckins(assetTemplateFuture.join()), executor);
+        CompletableFuture<List<OperationCheckoutResponse>> checkoutsFuture = CompletableFuture.supplyAsync(() -> loadCheckouts(assetTemplateFuture.join()), executor);
 
-        List<OperationCheckinResponse> checkins = loadCheckins(assetTemplate);
-        List<OperationCheckoutResponse> checkouts = loadCheckouts(assetTemplate, latestDepositByCustomer);
-
-        return OperationsResponse.builder()
-                .checkins(checkins)
-                .checkouts(checkouts)
+        OperationsResponse response = OperationsResponse.builder()
+                .checkins(checkinsFuture.join())
+                .checkouts(checkoutsFuture.join())
                 .build();
+                
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Operations stats loaded in {} ms", (endTime - startTime));
+        
+        return response;
     }
 
     private List<OperationCheckinResponse> loadCheckins(List<OperationAssetResponse> assetTemplate) {
@@ -63,39 +72,58 @@ public class OperationsServiceImpl implements OperationsService {
                 LIMIT %d
                 """.formatted(MAX_ITEMS);
 
-        List<RawDocumentRow> depositRows = jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
-                rs.getString("id"),
-                toLocalDate(rs.getDate("ngayLap")),
-                toLocalTime(rs.getTime("gioLap")),
-                rs.getString("customerId"),
-                rs.getString("customerName"),
-                rs.getBigDecimal("deposit")
-        ));
-
-        Map<String, List<String>> roomsByDeposit = jdbcTemplate.query(
-                "SELECT MaHoSoCoc, MaPhong FROM CHITIETCOCPHONG",
-                rs -> {
-                    Map<String, List<String>> map = new LinkedHashMap<>();
-                    while (rs.next()) {
-                        map.computeIfAbsent(rs.getString("MaHoSoCoc"), key -> new ArrayList<>())
-                                .add(rs.getString("MaPhong"));
-                    }
-                    return map;
-                }
+        CompletableFuture<List<RawDocumentRow>> depositRowsF = CompletableFuture.supplyAsync(() ->
+            jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
+                    rs.getString("id"),
+                    toLocalDate(rs.getDate("ngayLap")),
+                    toLocalTime(rs.getTime("gioLap")),
+                    rs.getString("customerId"),
+                    rs.getString("customerName"),
+                    rs.getBigDecimal("deposit")
+            )), executor
         );
 
-        Map<String, List<RawBedLinkRow>> bedsByDeposit = jdbcTemplate.query(
-                "SELECT c.MaHoSoCoc AS depositId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId " +
-                        "FROM CHITIETCOCGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong",
-                rs -> {
-                    Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
-                    while (rs.next()) {
-                        map.computeIfAbsent(rs.getString("depositId"), key -> new ArrayList<>())
-                                .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
+        List<RawDocumentRow> depositRows = depositRowsF.join();
+        if (depositRows.isEmpty()) {
+            return List.of();
+        }
+
+        String depositIds = depositRows.stream()
+                .map(r -> "'" + r.id() + "'")
+                .collect(Collectors.joining(","));
+
+        CompletableFuture<Map<String, List<String>>> roomsByDepositF = CompletableFuture.supplyAsync(() ->
+            jdbcTemplate.query(
+                    "SELECT MaHoSoCoc, MaPhong FROM CHITIETCOCPHONG WHERE MaHoSoCoc IN (" + depositIds + ")",
+                    rs -> {
+                        Map<String, List<String>> map = new LinkedHashMap<>();
+                        while (rs.next()) {
+                            map.computeIfAbsent(rs.getString("MaHoSoCoc"), key -> new ArrayList<>())
+                                    .add(rs.getString("MaPhong"));
+                        }
+                        return map;
                     }
-                    return map;
-                }
+            ), executor
         );
+
+        CompletableFuture<Map<String, List<RawBedLinkRow>>> bedsByDepositF = CompletableFuture.supplyAsync(() ->
+            jdbcTemplate.query(
+                    "SELECT c.MaHoSoCoc AS depositId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId " +
+                            "FROM CHITIETCOCGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong " +
+                            "WHERE c.MaHoSoCoc IN (" + depositIds + ")",
+                    rs -> {
+                        Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
+                        while (rs.next()) {
+                            map.computeIfAbsent(rs.getString("depositId"), key -> new ArrayList<>())
+                                    .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
+                        }
+                        return map;
+                    }
+            ), executor
+        );
+
+        Map<String, List<String>> roomsByDeposit = roomsByDepositF.join();
+        Map<String, List<RawBedLinkRow>> bedsByDeposit = bedsByDepositF.join();
 
         List<OperationCheckinResponse> items = new ArrayList<>();
         for (RawDocumentRow deposit : depositRows) {
@@ -140,10 +168,7 @@ public class OperationsServiceImpl implements OperationsService {
                 .build();
     }
 
-    private List<OperationCheckoutResponse> loadCheckouts(
-            List<OperationAssetResponse> assetTemplate,
-            Map<String, BigDecimal> latestDepositByCustomer
-    ) {
+    private List<OperationCheckoutResponse> loadCheckouts(List<OperationAssetResponse> assetTemplate) {
         String sql = """
                 SELECT h.MaHopDongThue AS id,
                        c.NgayLap AS ngayLap,
@@ -158,39 +183,86 @@ public class OperationsServiceImpl implements OperationsService {
                 LIMIT %d
                 """.formatted(MAX_ITEMS);
 
-        List<RawDocumentRow> contractRows = jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
-                rs.getString("id"),
-                toLocalDate(rs.getDate("ngayLap")),
-                toLocalTime(rs.getTime("gioLap")),
-                rs.getString("customerId"),
-                rs.getString("customerName"),
-                null
-        ));
-
-        Map<String, List<String>> roomsByContract = jdbcTemplate.query(
-                "SELECT MaHopDongThue, MaPhong FROM CHITIETTHUEPHONG",
-                rs -> {
-                    Map<String, List<String>> map = new LinkedHashMap<>();
-                    while (rs.next()) {
-                        map.computeIfAbsent(rs.getString("MaHopDongThue"), key -> new ArrayList<>())
-                                .add(rs.getString("MaPhong"));
-                    }
-                    return map;
-                }
+        CompletableFuture<List<RawDocumentRow>> contractRowsF = CompletableFuture.supplyAsync(() ->
+            jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
+                    rs.getString("id"),
+                    toLocalDate(rs.getDate("ngayLap")),
+                    toLocalTime(rs.getTime("gioLap")),
+                    rs.getString("customerId"),
+                    rs.getString("customerName"),
+                    null
+            )), executor
         );
 
-        Map<String, List<RawBedLinkRow>> bedsByContract = jdbcTemplate.query(
-                "SELECT c.MaHopDongThue AS contractId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId " +
-                        "FROM CHITIETTHUEGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong",
-                rs -> {
-                    Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
-                    while (rs.next()) {
-                        map.computeIfAbsent(rs.getString("contractId"), key -> new ArrayList<>())
-                                .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
+        List<RawDocumentRow> contractRows = contractRowsF.join();
+        if (contractRows.isEmpty()) {
+            return List.of();
+        }
+
+        String contractIds = contractRows.stream()
+                .map(r -> "'" + r.id() + "'")
+                .collect(Collectors.joining(","));
+                
+        String customerIds = contractRows.stream()
+                .map(RawDocumentRow::customerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(id -> "'" + id + "'")
+                .collect(Collectors.joining(","));
+        
+        String finalCustomerIds = customerIds.isEmpty() ? "'EMPTY'" : customerIds;
+
+        CompletableFuture<Map<String, List<String>>> roomsByContractF = CompletableFuture.supplyAsync(() ->
+            jdbcTemplate.query(
+                    "SELECT MaHopDongThue, MaPhong FROM CHITIETTHUEPHONG WHERE MaHopDongThue IN (" + contractIds + ")",
+                    rs -> {
+                        Map<String, List<String>> map = new LinkedHashMap<>();
+                        while (rs.next()) {
+                            map.computeIfAbsent(rs.getString("MaHopDongThue"), key -> new ArrayList<>())
+                                    .add(rs.getString("MaPhong"));
+                        }
+                        return map;
                     }
-                    return map;
-                }
+            ), executor
         );
+
+        CompletableFuture<Map<String, List<RawBedLinkRow>>> bedsByContractF = CompletableFuture.supplyAsync(() ->
+            jdbcTemplate.query(
+                    "SELECT c.MaHopDongThue AS contractId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId " +
+                            "FROM CHITIETTHUEGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong " +
+                            "WHERE c.MaHopDongThue IN (" + contractIds + ")",
+                    rs -> {
+                        Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
+                        while (rs.next()) {
+                            map.computeIfAbsent(rs.getString("contractId"), key -> new ArrayList<>())
+                                    .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
+                        }
+                        return map;
+                    }
+            ), executor
+        );
+
+        CompletableFuture<Map<String, BigDecimal>> depositsByCustomerF = CompletableFuture.supplyAsync(() -> {
+            String depositSql = "SELECT c.KhachHangSoHuu AS customerId, h.MucTienCoc AS deposit " +
+                                "FROM HOSODATCOC h JOIN CHUNGTU c ON c.MaVanBan = h.MaHoSoDatCoc " +
+                                "WHERE c.KhachHangSoHuu IN (" + finalCustomerIds + ") " +
+                                "ORDER BY c.NgayLap DESC, c.GioLap DESC";
+            Map<String, BigDecimal> map = new LinkedHashMap<>();
+            jdbcTemplate.query(depositSql, rs -> {
+                while (rs.next()) {
+                    String customerId = rs.getString("customerId");
+                    if (customerId != null && !map.containsKey(customerId)) {
+                        map.put(customerId, zeroIfNull(rs.getBigDecimal("deposit")));
+                    }
+                }
+                return null;
+            });
+            return map;
+        }, executor);
+
+        Map<String, List<String>> roomsByContract = roomsByContractF.join();
+        Map<String, List<RawBedLinkRow>> bedsByContract = bedsByContractF.join();
+        Map<String, BigDecimal> latestDepositByCustomer = depositsByCustomerF.join();
 
         List<OperationCheckoutResponse> items = new ArrayList<>();
         for (RawDocumentRow contract : contractRows) {
@@ -253,6 +325,7 @@ public class OperationsServiceImpl implements OperationsService {
                 LEFT JOIN CHITIETBANGIAO ct ON ct.MaBienBanBanGiao = bb.MaBienBanBanGiao
                 LEFT JOIN TAISAN ts ON ts.MaTaiSan = ct.MaTaiSanBanGiao
                 ORDER BY bb.MaBienBanBanGiao DESC, ct.MaTaiSanBanGiao ASC
+                LIMIT 50
                 """;
 
         Map<String, List<OperationAssetResponse>> grouped = new LinkedHashMap<>();
@@ -278,29 +351,7 @@ public class OperationsServiceImpl implements OperationsService {
         return cloneAssets(firstTemplate);
     }
 
-    private Map<String, BigDecimal> loadLatestDepositsByCustomer() {
-        String sql = """
-                SELECT c.KhachHangSoHuu AS customerId,
-                       h.MucTienCoc AS deposit,
-                       c.NgayLap AS ngayLap,
-                       c.GioLap AS gioLap
-                FROM HOSODATCOC h
-                JOIN CHUNGTU c ON c.MaVanBan = h.MaHoSoDatCoc
-                ORDER BY c.NgayLap DESC, c.GioLap DESC, h.MaHoSoDatCoc DESC
-                """;
 
-        Map<String, BigDecimal> map = new LinkedHashMap<>();
-        jdbcTemplate.query(sql, rs -> {
-            while (rs.next()) {
-                String customerId = rs.getString("customerId");
-                if (customerId != null && !customerId.isBlank() && !map.containsKey(customerId)) {
-                    map.put(customerId, zeroIfNull(rs.getBigDecimal("deposit")));
-                }
-            }
-            return null;
-        });
-        return map;
-    }
 
     private List<OperationAssetResponse> cloneAssets(List<OperationAssetResponse> source) {
         return source.stream()

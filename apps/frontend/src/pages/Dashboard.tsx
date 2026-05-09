@@ -161,11 +161,11 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <button onClick={loadData} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition">
+          <button onClick={loadData} className="p-2 rounded-xl text-slate-400 cursor-pointer hover:bg-slate-100 transition">
             <RotateCcw size={18} />
           </button>
           <button onClick={() => navigate("/manager/approvals")}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl transition"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl cursor-pointer hover:opacity-90 transition"
             style={{ background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#DC2626", fontSize: "0.78rem", fontWeight: 700 }}>
             <AlertCircle size={13} /> {criticalCount} việc khẩn cấp
           </button>
@@ -276,7 +276,7 @@ export default function Dashboard() {
                     <div style={{ fontSize: "0.75rem", color: "#64748B" }}>{task.desc}</div>
                   </div>
                   <button onClick={() => navigate(task.source === "approvals" ? "/manager/approvals" : "/manager/operations")}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white font-extrabold text-[0.72rem] transition opacity-0 group-hover:opacity-100"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white font-extrabold text-[0.72rem] cursor-pointer hover:scale-105 transition opacity-0 group-hover:opacity-100"
                     style={{ background: `linear-gradient(135deg,${cfg.text},${cfg.dot})` }}>
                     Xử lý <ChevronRight size={12} />
                   </button>

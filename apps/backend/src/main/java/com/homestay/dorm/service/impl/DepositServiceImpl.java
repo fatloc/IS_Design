@@ -22,7 +22,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DepositServiceImpl implements DepositService {
@@ -34,9 +36,13 @@ public class DepositServiceImpl implements DepositService {
 
     @Override
     public ApiListResponse<HoSoDatCoc> getDeposits(int page, int size) {
+        long startTime = System.currentTimeMillis();
         Pageable pageable = PageRequest.of(page, size);
         Page<HoSoDatCoc> pageData = repository.findAll(pageable);
-        return ApiListResponse.fromPage(pageData);
+        ApiListResponse<HoSoDatCoc> response = ApiListResponse.fromPage(pageData);
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Deposits loaded in {} ms", (endTime - startTime));
+        return response;
     }
 
     @Override

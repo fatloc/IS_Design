@@ -191,7 +191,7 @@ function PaginationControls({
         />
         <button
           onClick={goToTypedPage}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer hover:opacity-90 transition"
           style={{ background: `linear-gradient(135deg,${A},#7C3AED)` }}
         >
           Đi
@@ -255,7 +255,7 @@ function CheckInTab({
     setTimeout(() => {
       onRoomsChange(rooms.filter((room) => room.id !== modalId));
       closeModal();
-    }, 1600);
+    }, 400);
   };
 
   const activeRoom = selectedRoom;
@@ -368,7 +368,7 @@ function CheckInTab({
                 <td className="px-4 py-3">
                   <button
                     onClick={() => openModal(room)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white transition"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white cursor-pointer hover:opacity-90 transition"
                     style={{ background: `linear-gradient(135deg,${A},#7C3AED)`, fontSize: "0.78rem", fontWeight: 700, boxShadow: `0 2px 8px ${A}35` }}
                   >
                     <ClipboardList size={13} /> Lập biên bản
@@ -437,7 +437,7 @@ function CheckInTab({
                         <div className="flex items-center gap-3 px-4 py-3">
                           <button
                             onClick={() => updateItem(index, "present", !item.present)}
-                            className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition"
+                            className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 cursor-pointer hover:opacity-80 transition"
                             style={{ background: item.present ? A : "#F1F5F9", border: `2px solid ${item.present ? A : "#CBD5E1"}` }}
                           >
                             {item.present && <Check size={11} className="text-white" />}
@@ -497,18 +497,17 @@ function CheckInTab({
             </div>
 
             <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderTop: "1px solid #F1F5F9", background: "#FAFBFD" }}>
-              <button onClick={closeModal} className="px-4 py-2.5 rounded-xl transition" style={{ border: "1.5px solid #E2E8F0", fontSize: "0.82rem", fontWeight: 600, color: "#64748B" }}>
+              <button onClick={closeModal} className="px-4 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 transition" style={{ border: "1.5px solid #E2E8F0", fontSize: "0.82rem", fontWeight: 600, color: "#64748B" }}>
                 Hủy
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={!allPresent || confirmed}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white transition"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white cursor-pointer hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   background: confirmed ? "#059669" : !allPresent ? "#CBD5E1" : `linear-gradient(135deg,${A},#7C3AED)`,
                   fontSize: "0.85rem",
                   fontWeight: 800,
-                  cursor: !allPresent ? "not-allowed" : "pointer",
                   boxShadow: !allPresent || confirmed ? "none" : `0 3px 12px ${A}40`,
                 }}
               >
@@ -587,7 +586,7 @@ function CheckOutTab({
     setTimeout(() => {
       onRoomsChange(rooms.filter((room) => room.id !== modalId));
       closeModal();
-    }, 1600);
+    }, 400);
   };
 
   const activeRoom = selectedRoom;
@@ -712,7 +711,7 @@ function CheckOutTab({
                   <td className="px-4 py-3">
                     <button
                       onClick={() => openModal(room)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl cursor-pointer hover:opacity-80 transition"
                       style={{ background: "#FFF7ED", border: "1.5px solid #FDE68A", color: "#C2410C", fontSize: "0.78rem", fontWeight: 700 }}
                     >
                       <SlidersHorizontal size={13} /> Thanh lý
