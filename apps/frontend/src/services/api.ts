@@ -300,6 +300,45 @@ export async function updateContractSettlementStatus(maHopDongThue: string, tran
   return response.data.data;
 }
 
+export interface SaleDashboardResponse {
+  requestStatusCounts: Record<string, number>;
+  requestRentalModeCounts: Record<string, number>;
+  depositedByRentalModeCounts: Record<string, number>;
+  requestGenderCounts: Record<string, number>;
+  todayAppointments: {
+    id: string;
+    time: string;
+    clientName: string;
+    rentalMode: "Whole Room" | "Shared Bed";
+    targetAssetLabel: string;
+    staffName: string;
+    status: string;
+    notes: string;
+  }[];
+  visiblePendingRequests: {
+    id: string;
+    date: string;
+    clientName: string;
+    phone: string;
+    rentalMode: "Whole Room" | "Shared Bed";
+    headcount: number;
+    gender: string;
+    budget: string;
+    status: string;
+    criteria: string[];
+    note: string;
+  }[];
+  pendingRequestsCount: number;
+  depositedTodayCount: number;
+  yesterdayAppointmentsCount: number;
+  yesterdayDepositsCount: number;
+}
+
+export async function getSaleDashboardStats(): Promise<SaleDashboardResponse> {
+  const response = await api.get<ApiResponse<SaleDashboardResponse>>("/dashboard/sale/stats");
+  return response.data.data;
+}
+
 export async function createContract(payload: CreateContractPayload) {
   const response = await api.post<ApiResponse<ApiContract>>("/contracts", payload);
   return response.data.data;

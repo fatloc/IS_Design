@@ -82,6 +82,16 @@ public class RequestServiceImpl implements RequestService {
             yeuCauPage = yeuCauRepository.findAll(pageable);
         }
 
+        yeuCauPage.forEach(req -> {
+            boolean overdue = false;
+            if ("Yêu cầu mới".equals(req.getTrangThaiYeuCau()) && req.getThoiGianBatDauThueDuKien() != null) {
+                if (req.getThoiGianBatDauThueDuKien().isBefore(LocalDate.now())) {
+                    overdue = true;
+                }
+            }
+            req.setIsOverdue(overdue);
+        });
+
         return ApiListResponse.fromPage(yeuCauPage);
     }
 

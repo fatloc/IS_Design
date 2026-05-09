@@ -104,6 +104,7 @@ export interface Request {
   khachHangYeuCau: string | null;
   nhanVienPhuTrach: string | null;
   trangThaiYeuCau?: string | null;
+  isOverdue?: boolean;
 }
 
 export interface Appointment {
@@ -115,6 +116,7 @@ export interface Appointment {
   maYeuCau: string | null;
   nhanVienPhuTrach: string | null;
   maPhong: string | null;
+  isOverdue?: boolean;
 }
 
 export interface AppointmentRoom {

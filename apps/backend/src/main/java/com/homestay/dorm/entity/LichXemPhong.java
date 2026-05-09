@@ -42,4 +42,7 @@ public class LichXemPhong {
 
     @jakarta.persistence.Transient
     private String maPhong;
+
+    @jakarta.persistence.Transient
+    private Boolean isOverdue;
 }

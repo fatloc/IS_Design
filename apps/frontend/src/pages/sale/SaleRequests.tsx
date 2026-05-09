@@ -23,7 +23,9 @@ type ReqStatus =
 interface RentalRequest {
   id: string; customer: string; avatar: string; phone: string;
   roomType: string; area: string; budget: string;
-  status: ReqStatus; created: string;
+  status: ReqStatus;
+  isOverdue?: boolean;
+  created: string;
   room: string | null; showingDate: string | null;
   note?: string | null;
 }
@@ -438,6 +440,7 @@ export default function SaleRequests() {
         area: request.khuVuc ?? "Chưa rõ khu vực",
         budget: formatBudget(request.mucGiaMongMuon),
         status: toStatus(request),
+        isOverdue: request.isOverdue,
         created: formatDate(request.thoiGianBatDauThueDuKien ?? request.thoiGianBanGiaoPhongDuKien),
         room: matchedAppointment?.maPhong ?? null,
         showingDate: matchedAppointment ? formatSchedule(matchedAppointment.ngayHen, matchedAppointment.thoiGianHen) : null,
@@ -653,11 +656,18 @@ export default function SaleRequests() {
                       </td>
                       {/* Status */}
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                          style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: "0.72rem", fontWeight: 700 }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
-                          {req.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                            style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: "0.72rem", fontWeight: 700 }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+                            {req.status}
+                          </span>
+                          {req.isOverdue && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-red-600" style={{ fontSize: "0.68rem", fontWeight: 700 }}>
+                              <AlertTriangle size={10} /> Quá hạn ưu tiên xử lý
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {/* Actions */}
                       <td className="px-4 py-3">

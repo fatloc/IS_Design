@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, FileText, BedDouble, ArrowRight, User, Phone, MapPin, TrendingUp, AlertCircle, Clock, Home } from "lucide-react";
 import { useNavigate } from "react-router";
-import { getAppointments, getCustomers, getDeposits, getRequests, getUsers, Deposit } from "../../services/api";
-import type { Appointment, Customer, Employee, Request } from "../../types";
+import { getSaleDashboardStats, SaleDashboardResponse } from "../../services/api";
 
 const statusColors: Record<string, string> = {
   Pending: "bg-amber-100 text-amber-700",
@@ -19,32 +18,11 @@ const statusLabels: Record<string, string> = {
 
 export default function SaleDashboard() {
   const navigate = useNavigate();
-  const [requests, setRequests] = useState<Request[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [deposits, setDeposits] = useState<Deposit[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [data, setData] = useState<SaleDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const { today, yesterday, currentMonth } = useMemo(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    
-    const yest = new Date(now);
-    yest.setDate(yest.getDate() - 1);
-    const yy = yest.getFullYear();
-    const ym = String(yest.getMonth() + 1).padStart(2, "0");
-    const yd = String(yest.getDate()).padStart(2, "0");
-    
-    return {
-      today: `${y}-${m}-${d}`,
-      yesterday: `${yy}-${ym}-${yd}`,
-      currentMonth: now.getMonth() + 1
-    };
-  }, []);
+  
+  const currentMonth = new Date().getMonth() + 1;
 
   useEffect(() => {
     let active = true;
@@ -52,20 +30,9 @@ export default function SaleDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const [requestsRes, appointmentsRes, depositsRes, customersRes, usersRes] = await Promise.all([
-          getRequests({ page: 0, size: 500 }),
-          getAppointments({ page: 0, size: 500 }),
-          getDeposits({ page: 0, size: 500 }),
-          getCustomers({ page: 0, size: 500 }),
-          getUsers({ page: 0, size: 500 }),
-        ]);
-
+        const statsData = await getSaleDashboardStats();
         if (!active) return;
-        setRequests(requestsRes.data ?? []);
-        setAppointments(appointmentsRes.data ?? []);
-        setDeposits(depositsRes.data ?? []);
-        setCustomers(customersRes.data ?? []);
-        setEmployees((usersRes.data ?? []).filter((item): item is Employee => "maNhanVien" in item));
+        setData(statsData);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Không tải được dữ liệu dashboard");
@@ -80,107 +47,41 @@ export default function SaleDashboard() {
     };
   }, []);
 
-  const customerMap = useMemo(() => new Map(customers.map((c) => [c.maKhachHang, c])), [customers]);
-  const employeeMap = useMemo(() => new Map(employees.map((e) => [e.maNhanVien, e])), [employees]);
-
-  const toDashboardStatus = (status?: string | null): "Pending" | "Scheduled" | "Shown" | "Deposited" | "Cancelled" => {
-    switch (status?.trim()) {
-      case "Yêu cầu mới":
-        return "Pending";
-      case "Đã lên lịch xem":
-        return "Scheduled";
-      case "Đã xem phòng":
-        return "Shown";
-      case "Đặt cọc thành công":
-        return "Deposited";
-      case "Đã hủy":
-        return "Cancelled";
-      default:
-        return "Pending";
-    }
-  };
-
-  const dashboardData = useMemo(() => {
-    const todayAppointments = appointments
-      .filter((a) => a.ngayHen === today)
-      .map((a) => ({
-        id: a.maLichHen,
-        time: a.thoiGianHen?.slice(0, 5) ?? "--:--",
-        clientName: customerMap.get(a.khachHangXem ?? "")?.hoTen ?? a.khachHangXem ?? "Khách hàng",
-        rentalMode: "Shared Bed" as "Whole Room" | "Shared Bed",
-        targetAssetLabel: `Lịch hẹn ${a.maLichHen}`,
-        staffName: employeeMap.get(a.nhanVienPhuTrach ?? "")?.hoTen ?? a.nhanVienPhuTrach ?? "--",
-        status: a.trangThaiHen === "Đã xem" ? "Shown" : a.trangThaiHen === "Đã hủy" ? "Cancelled" : "Pending",
-        notes: "",
-      }));
-
-    const mappedRequests = requests.map((r) => ({
-      id: r.maYeuCau,
-      date: r.thoiGianBatDauThueDuKien ?? r.thoiGianBanGiaoPhongDuKien ?? "",
-      clientName: customerMap.get(r.khachHangYeuCau ?? "")?.hoTen ?? r.khachHangYeuCau ?? "Khách hàng",
-      phone: customerMap.get(r.khachHangYeuCau ?? "")?.soDienThoai ?? "--",
-      rentalMode: r.soLuongNguoi && r.soLuongNguoi > 1 ? "Whole Room" as const : "Shared Bed" as const,
-      headcount: r.soLuongNguoi ?? 1,
-      gender: r.gioiTinhYeuCau === "Nam" ? "Male" : r.gioiTinhYeuCau === "Nữ" ? "Female" : "Any",
-      budget: r.mucGiaMongMuon ? `${Math.round(Number(r.mucGiaMongMuon) / 1000000 * 10) / 10}M` : "Chưa cập nhật",
-      status: toDashboardStatus(r.trangThaiYeuCau),
-      criteria: r.cacTieuChiKhac ? [r.cacTieuChiKhac] : [],
-      note: r.cacTieuChiKhac ?? "",
-    }));
-
-    const pendingRequests = mappedRequests.filter((r) => r.status === "Pending" || r.status === "Scheduled");
-    const newestPendingRequests = [...mappedRequests]
-      .filter((r) => r.status === "Pending")
-      .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
-    const visiblePendingRequests = newestPendingRequests.slice(0, 5);
-    const depositedToday = deposits.filter((d) => d.ngayLap === today);
-
-    const yesterdayAppointments = appointments.filter(a => a.ngayHen === yesterday);
-    const aptTrend = todayAppointments.length - yesterdayAppointments.length;
+  const stats = useMemo(() => {
+    if (!data) return [];
+    const aptTrend = data.todayAppointments.length - data.yesterdayAppointmentsCount;
     const aptTrendStr = aptTrend >= 0 ? `+${aptTrend} so với hôm qua` : `${aptTrend} so với hôm qua`;
 
-    const yesterdayDeposits = deposits.filter(d => d.ngayLap === yesterday);
-    const depTrend = depositedToday.length - yesterdayDeposits.length;
+    const depTrend = data.depositedTodayCount - data.yesterdayDepositsCount;
     const depTrendStr = depTrend >= 0 ? `↑ ${depTrend} so với hôm qua` : `↓ ${Math.abs(depTrend)} so với hôm qua`;
 
-    const stats = [
+    return [
       {
         label: "Lịch xem hôm nay",
-        value: todayAppointments.length,
+        value: data.todayAppointments.length,
         icon: CalendarDays,
         color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
-        sub: `${todayAppointments.filter(a => a.status === "Shown").length} đã xem xong`,
+        sub: `${data.todayAppointments.filter(a => a.status === "Shown").length} đã xem xong`,
         trend: aptTrendStr,
       },
       {
         label: "Yêu cầu đang xử lý",
-        value: pendingRequests.length,
+        value: data.pendingRequestsCount,
         icon: FileText,
         color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
-        sub: `${mappedRequests.filter(r => r.status === "Pending").length} mới chờ phân công`,
+        sub: `${data.requestStatusCounts["Pending"] || 0} mới chờ phân công`,
         trend: "Cần follow-up sớm",
       },
       {
         label: "Giường/Phòng đặt cọc hôm nay",
-        value: depositedToday.length,
+        value: data.depositedTodayCount,
         icon: BedDouble,
         color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
-        sub: `${depositedToday.length} hồ sơ cọc phát sinh hôm nay`,
+        sub: `${data.depositedTodayCount} hồ sơ cọc phát sinh hôm nay`,
         trend: depTrendStr,
       },
     ];
-
-    return {
-      todayAppointments,
-      mappedRequests,
-      pendingRequests,
-      visiblePendingRequests,
-      depositedToday,
-      stats
-    };
-  }, [appointments, requests, deposits, customerMap, employeeMap, today, yesterday]);
-
-  const { todayAppointments, mappedRequests, visiblePendingRequests, stats } = dashboardData;
+  }, [data]);
 
   return (
     <div className="space-y-6">
@@ -210,9 +111,11 @@ export default function SaleDashboard() {
             <TrendingUp size={16} className="text-emerald-500" />
           </div>
           <div className="grid grid-cols-5 gap-2">
-            {(["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(status => {
-              const count = mappedRequests.filter(r => r.status === status).length;
-              const pct = mappedRequests.length > 0 ? Math.round((count / mappedRequests.length) * 100) : 0;
+            {!data ? null : (["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(status => {
+              const count = data.requestStatusCounts[status] || 0;
+              const totalRequests = Object.values(data.requestStatusCounts || {}).reduce((a, b) => a + b, 0);
+              const pct = totalRequests > 0 ? Math.round((count / totalRequests) * 100) : 0;
+              
               return (
                 <div key={status} className="text-center">
                   <div className={`text-2xl mb-1 ${
@@ -241,31 +144,33 @@ export default function SaleDashboard() {
             <BedDouble size={16} className="text-teal-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {(["Whole Room","Shared Bed"] as const).map(mode => {
-              const reqs = mappedRequests.filter(r => r.rentalMode === mode);
+            {!data ? null : (["Whole Room","Shared Bed"] as const).map(mode => {
+              const reqsCount = data.requestRentalModeCounts[mode] || 0;
+              const depCount = data.depositedByRentalModeCounts[mode] || 0;
               const isWhole = mode === "Whole Room";
               return (
                 <div key={mode} className={`rounded-xl p-4 border ${isWhole ? "bg-violet-50 border-violet-100" : "bg-teal-50 border-teal-100"}`}>
-                  <div className={`text-2xl mb-1 ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 700 }}>{reqs.length}</div>
+                  <div className={`text-2xl mb-1 ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 700 }}>{reqsCount}</div>
                   <div className={`text-sm ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 600 }}>
                     {isWhole ? "🏠 Toàn phòng" : "🛏 Ghép giường"}
                   </div>
                   <div className={`text-xs mt-1 ${isWhole ? "text-violet-500" : "text-teal-500"}`}>
-                    {reqs.filter(r => r.status === "Deposited").length} đã đặt cọc
+                    {depCount} đã đặt cọc
                   </div>
                 </div>
               );
             })}
           </div>
           <div className="mt-4 space-y-2">
-            {(["Male","Female","Any"] as const).map(g => {
-              const count = mappedRequests.filter(r => r.gender === g).length;
+            {!data ? null : (["Male","Female","Any"] as const).map(g => {
+              const count = data.requestGenderCounts[g] || 0;
+              const totalRequests = Object.values(data.requestStatusCounts || {}).reduce((a, b) => a + b, 0);
               return (
                 <div key={g} className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-16">{g === "Male" ? "Nam" : g === "Female" ? "Nữ" : "Bất kỳ"}</span>
                   <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${g === "Male" ? "bg-blue-400" : g === "Female" ? "bg-pink-400" : "bg-slate-300"}`}
-                      style={{ width: `${mappedRequests.length > 0 ? (count / mappedRequests.length) * 100 : 0}%` }} />
+                      style={{ width: `${totalRequests > 0 ? (count / totalRequests) * 100 : 0}%` }} />
                   </div>
                   <span className="text-xs text-slate-500 w-4 text-right" style={{ fontWeight: 600 }}>{count}</span>
                 </div>
@@ -292,14 +197,14 @@ export default function SaleDashboard() {
           <div className="p-5">
             {loading && <div className="text-center py-10 text-slate-400 text-sm">Đang tải dữ liệu lịch hẹn...</div>}
             {error && <div className="text-center py-10 text-red-500 text-sm">{error}</div>}
-            {!loading && !error && (
-              todayAppointments.length === 0 ? (
+            {!loading && !error && data && (
+              data.todayAppointments.length === 0 ? (
                 <div className="text-center py-10 text-slate-400 text-sm">Không có lịch xem phòng hôm nay</div>
               ) : (
                 <div className="relative">
                   <div className="absolute left-[42px] top-3 bottom-3 w-px bg-slate-100" />
                   <div className="space-y-4">
-                    {todayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map((apt) => (
+                    {data.todayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map((apt) => (
                       <div key={apt.id} className="flex gap-4 items-start group">
                         <div className="w-[42px] flex-shrink-0 text-right">
                           <span className="text-xs text-slate-500" style={{ fontWeight: 600 }}>{apt.time}</span>
@@ -363,7 +268,7 @@ export default function SaleDashboard() {
             </button>
           </div>
           <div className="divide-y divide-slate-100">
-            {visiblePendingRequests.map((req) => (
+            {data && data.visiblePendingRequests.map((req) => (
               <div key={req.id} className="px-5 py-3.5 hover:bg-slate-50 transition cursor-pointer">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
@@ -384,7 +289,7 @@ export default function SaleDashboard() {
                     {statusLabels[req.status]}
                   </span>
                 </div>
-                {req.criteria.length > 0 && (
+                {req.criteria && req.criteria.length > 0 && (
                   <div className="mt-1.5 ml-11 flex gap-1 flex-wrap">
                     {req.criteria.slice(0, 2).map(c => (
                       <span key={c} className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{c}</span>

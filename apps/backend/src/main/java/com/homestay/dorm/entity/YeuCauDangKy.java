@@ -60,4 +60,7 @@ public class YeuCauDangKy {
 
     @Column(name = "TrangThaiYeuCau", length = 30)
     private String trangThaiYeuCau;
+
+    @jakarta.persistence.Transient
+    private Boolean isOverdue;
 }

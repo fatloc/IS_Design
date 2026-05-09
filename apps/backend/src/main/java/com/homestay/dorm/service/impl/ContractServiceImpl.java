@@ -48,7 +48,9 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
+                org.springframework.data.domain.Sort.Direction.DESC, "ngayLap"
+        ));
         Page<HopDongThue> pageData = repository.findAll(pageable);
         return ApiListResponse.fromPage(pageData);
     }
