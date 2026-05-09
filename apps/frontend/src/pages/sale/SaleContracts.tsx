@@ -325,7 +325,7 @@ export default function SaleContracts() {
                   const status = getContractStatus(c);
                   const cs = CONTRACT_STATUS_CFG[status] ?? DEFAULT_CS;
                   return (
-                    <tr key={c.maHopDongThue}
+                    <tr key={c.maHopDongThue || `contract-${i}`}
                       style={{ background:i%2===0?"white":"#FAFBFD", borderBottom:"1px solid #F1F5F9" }}
                       className="hover:bg-orange-50/15 transition-colors">
                       <td className="px-4 py-3">

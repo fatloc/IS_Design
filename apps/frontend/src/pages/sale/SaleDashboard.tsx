@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, FileText, BedDouble, ArrowRight, User, Phone, MapPin, TrendingUp, AlertCircle, Clock, Home } from "lucide-react";
 import { useNavigate } from "react-router";
-import { getAppointments, getCustomers, getDeposits, getRequests, getUsers } from "../../services/api";
-import type { Appointment, Customer, Deposit, Employee, Request } from "../../types";
+import { getAppointments, getCustomers, getDeposits, getRequests, getUsers, Deposit } from "../../services/api";
+import type { Appointment, Customer, Employee, Request } from "../../types";
 
 const statusColors: Record<string, string> = {
   Pending: "bg-amber-100 text-amber-700",
@@ -100,74 +100,87 @@ export default function SaleDashboard() {
     }
   };
 
-  const todayAppointments = appointments
-    .filter((a) => a.ngayHen === today)
-    .map((a) => ({
-      id: a.maLichHen,
-      time: a.thoiGianHen?.slice(0, 5) ?? "--:--",
-      clientName: customerMap.get(a.khachHangXem ?? "")?.hoTen ?? a.khachHangXem ?? "Khách hàng",
-      rentalMode: "Shared Bed" as const,
-      targetAssetLabel: `Lịch hẹn ${a.maLichHen}`,
-      staffName: employeeMap.get(a.nhanVienPhuTrach ?? "")?.hoTen ?? a.nhanVienPhuTrach ?? "--",
-      status: a.trangThaiHen === "Đã xem" ? "Shown" : a.trangThaiHen === "Đã hủy" ? "Cancelled" : "Pending",
-      notes: "",
+  const dashboardData = useMemo(() => {
+    const todayAppointments = appointments
+      .filter((a) => a.ngayHen === today)
+      .map((a) => ({
+        id: a.maLichHen,
+        time: a.thoiGianHen?.slice(0, 5) ?? "--:--",
+        clientName: customerMap.get(a.khachHangXem ?? "")?.hoTen ?? a.khachHangXem ?? "Khách hàng",
+        rentalMode: "Shared Bed" as "Whole Room" | "Shared Bed",
+        targetAssetLabel: `Lịch hẹn ${a.maLichHen}`,
+        staffName: employeeMap.get(a.nhanVienPhuTrach ?? "")?.hoTen ?? a.nhanVienPhuTrach ?? "--",
+        status: a.trangThaiHen === "Đã xem" ? "Shown" : a.trangThaiHen === "Đã hủy" ? "Cancelled" : "Pending",
+        notes: "",
+      }));
+
+    const mappedRequests = requests.map((r) => ({
+      id: r.maYeuCau,
+      date: r.thoiGianBatDauThueDuKien ?? r.thoiGianBanGiaoPhongDuKien ?? "",
+      clientName: customerMap.get(r.khachHangYeuCau ?? "")?.hoTen ?? r.khachHangYeuCau ?? "Khách hàng",
+      phone: customerMap.get(r.khachHangYeuCau ?? "")?.soDienThoai ?? "--",
+      rentalMode: r.soLuongNguoi && r.soLuongNguoi > 1 ? "Whole Room" as const : "Shared Bed" as const,
+      headcount: r.soLuongNguoi ?? 1,
+      gender: r.gioiTinhYeuCau === "Nam" ? "Male" : r.gioiTinhYeuCau === "Nữ" ? "Female" : "Any",
+      budget: r.mucGiaMongMuon ? `${Math.round(Number(r.mucGiaMongMuon) / 1000000 * 10) / 10}M` : "Chưa cập nhật",
+      status: toDashboardStatus(r.trangThaiYeuCau),
+      criteria: r.cacTieuChiKhac ? [r.cacTieuChiKhac] : [],
+      note: r.cacTieuChiKhac ?? "",
     }));
 
-  const mappedRequests = requests.map((r) => ({
-    id: r.maYeuCau,
-    date: r.thoiGianBatDauThueDuKien ?? r.thoiGianBanGiaoPhongDuKien ?? "",
-    clientName: customerMap.get(r.khachHangYeuCau ?? "")?.hoTen ?? r.khachHangYeuCau ?? "Khách hàng",
-    phone: customerMap.get(r.khachHangYeuCau ?? "")?.soDienThoai ?? "--",
-    rentalMode: r.soLuongNguoi && r.soLuongNguoi > 1 ? "Whole Room" as const : "Shared Bed" as const,
-    headcount: r.soLuongNguoi ?? 1,
-    gender: r.gioiTinhYeuCau === "Nam" ? "Male" : r.gioiTinhYeuCau === "Nữ" ? "Female" : "Any",
-    budget: r.mucGiaMongMuon ? `${Math.round(Number(r.mucGiaMongMuon) / 1000000 * 10) / 10}M` : "Chưa cập nhật",
-    status: toDashboardStatus(r.trangThaiYeuCau),
-    criteria: r.cacTieuChiKhac ? [r.cacTieuChiKhac] : [],
-    note: r.cacTieuChiKhac ?? "",
-  }));
+    const pendingRequests = mappedRequests.filter((r) => r.status === "Pending" || r.status === "Scheduled");
+    const newestPendingRequests = [...mappedRequests]
+      .filter((r) => r.status === "Pending")
+      .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+    const visiblePendingRequests = newestPendingRequests.slice(0, 5);
+    const depositedToday = deposits.filter((d) => d.ngayLap === today);
 
-  const pendingRequests = mappedRequests.filter((r) => r.status === "Pending" || r.status === "Scheduled");
-  const newestPendingRequests = [...mappedRequests]
-    .filter((r) => r.status === "Pending")
-    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
-  const visiblePendingRequests = newestPendingRequests.slice(0, 5);
-  const depositedToday = deposits.filter((d) => d.ngayLap === today);
+    const yesterdayAppointments = appointments.filter(a => a.ngayHen === yesterday);
+    const aptTrend = todayAppointments.length - yesterdayAppointments.length;
+    const aptTrendStr = aptTrend >= 0 ? `+${aptTrend} so với hôm qua` : `${aptTrend} so với hôm qua`;
 
-  const yesterdayAppointments = appointments.filter(a => a.ngayHen === yesterday);
-  const aptTrend = todayAppointments.length - yesterdayAppointments.length;
-  const aptTrendStr = aptTrend >= 0 ? `+${aptTrend} so với hôm qua` : `${aptTrend} so với hôm qua`;
+    const yesterdayDeposits = deposits.filter(d => d.ngayLap === yesterday);
+    const depTrend = depositedToday.length - yesterdayDeposits.length;
+    const depTrendStr = depTrend >= 0 ? `↑ ${depTrend} so với hôm qua` : `↓ ${Math.abs(depTrend)} so với hôm qua`;
 
-  const yesterdayDeposits = deposits.filter(d => d.ngayLap === yesterday);
-  const depTrend = depositedToday.length - yesterdayDeposits.length;
-  const depTrendStr = depTrend >= 0 ? `↑ ${depTrend} so với hôm qua` : `↓ ${Math.abs(depTrend)} so với hôm qua`;
+    const stats = [
+      {
+        label: "Lịch xem hôm nay",
+        value: todayAppointments.length,
+        icon: CalendarDays,
+        color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
+        sub: `${todayAppointments.filter(a => a.status === "Shown").length} đã xem xong`,
+        trend: aptTrendStr,
+      },
+      {
+        label: "Yêu cầu đang xử lý",
+        value: pendingRequests.length,
+        icon: FileText,
+        color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
+        sub: `${mappedRequests.filter(r => r.status === "Pending").length} mới chờ phân công`,
+        trend: "Cần follow-up sớm",
+      },
+      {
+        label: "Giường/Phòng đặt cọc hôm nay",
+        value: depositedToday.length,
+        icon: BedDouble,
+        color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
+        sub: `${depositedToday.length} hồ sơ cọc phát sinh hôm nay`,
+        trend: depTrendStr,
+      },
+    ];
 
-  const stats = [
-    {
-      label: "Lịch xem hôm nay",
-      value: todayAppointments.length,
-      icon: CalendarDays,
-      color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
-      sub: `${todayAppointments.filter(a => a.status === "Shown").length} đã xem xong`,
-      trend: aptTrendStr,
-    },
-    {
-      label: "Yêu cầu đang xử lý",
-      value: pendingRequests.length,
-      icon: FileText,
-      color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
-      sub: `${mappedRequests.filter(r => r.status === "Pending").length} mới chờ phân công`,
-      trend: "Cần follow-up sớm",
-    },
-    {
-      label: "Giường/Phòng đặt cọc hôm nay",
-      value: depositedToday.length,
-      icon: BedDouble,
-      color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
-      sub: `${depositedToday.length} hồ sơ cọc phát sinh hôm nay`,
-      trend: depTrendStr,
-    },
-  ];
+    return {
+      todayAppointments,
+      mappedRequests,
+      pendingRequests,
+      visiblePendingRequests,
+      depositedToday,
+      stats
+    };
+  }, [appointments, requests, deposits, customerMap, employeeMap, today, yesterday]);
+
+  const { todayAppointments, mappedRequests, visiblePendingRequests, stats } = dashboardData;
 
   return (
     <div className="space-y-6">

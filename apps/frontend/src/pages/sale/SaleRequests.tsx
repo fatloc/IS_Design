@@ -28,23 +28,6 @@ interface RentalRequest {
   note?: string | null;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────────
-const INIT_REQUESTS: RentalRequest[] = [
-  { id: "rq1", customer: "Trần Minh Khôi", avatar: "MK", phone: "0912 345 678", roomType: "Ghép giường", area: "Q.7", budget: "1.5 – 2.0M", status: "Đã xem phòng", created: "24/04/2026", room: "A102", showingDate: "26/04/2026" },
-  { id: "rq2", customer: "Nguyễn Thị Hoa", avatar: "TH", phone: "0918 765 432", roomType: "Toàn phòng", area: "Q.1", budget: "3.0 – 4.0M", status: "Đã lên lịch xem", created: "25/04/2026", room: "B203", showingDate: "29/04/2026" },
-  { id: "rq3", customer: "Lê Văn Phú", avatar: "VP", phone: "0905 123 456", roomType: "Ghép giường", area: "Q.7", budget: "1.2 – 1.8M", status: "Yêu cầu mới", created: "27/04/2026", room: null, showingDate: null },
-  { id: "rq4", customer: "Phạm Thị Ngân", avatar: "TN", phone: "0901 234 567", roomType: "Toàn phòng", area: "Q.3", budget: "2.5 – 3.5M", status: "Đã xem phòng", created: "22/04/2026", room: "A103", showingDate: "25/04/2026" },
-  { id: "rq5", customer: "Hoàng Văn Dũng", avatar: "VD", phone: "0908 654 321", roomType: "Ghép giường", area: "Q.7", budget: "1.0 – 1.5M", status: "Chờ phê duyệt", created: "20/04/2026", room: "C301", showingDate: "23/04/2026" },
-  { id: "rq6", customer: "Vũ Minh Anh", avatar: "MA", phone: "0916 789 012", roomType: "Toàn phòng", area: "Q.1", budget: "3.5 – 4.5M", status: "Đặt cọc thành công", created: "18/04/2026", room: "B201", showingDate: "21/04/2026" },
-  { id: "rq7", customer: "Đỗ Thị Thanh", avatar: "TT", phone: "0903 456 789", roomType: "Ghép giường", area: "Q.7", budget: "1.2 – 1.6M", status: "Yêu cầu mới", created: "28/04/2026", room: null, showingDate: null },
-];
-
-const AVAILABLE_ROOMS = [
-  { code: "A102", type: "Ghép giường", floor: 1, price: "1,800,000", area: "22m²", status: "Trống" },
-  { code: "B204", type: "Ghép giường", floor: 2, price: "1,600,000", area: "20m²", status: "Trống" },
-  { code: "C301", type: "Toàn phòng", floor: 3, price: "3,200,000", area: "28m²", status: "Trống" },
-  { code: "A105", type: "Toàn phòng", floor: 1, price: "2,900,000", area: "25m²", status: "Trống" },
-];
 
 const STATUS_CFG: Record<ReqStatus, { bg: string; color: string; dot: string; border: string }> = {
   "Yêu cầu mới": { bg: "#EEF2FF", color: "#4338CA", dot: "#6366F1", border: "#C7D2FE" },
