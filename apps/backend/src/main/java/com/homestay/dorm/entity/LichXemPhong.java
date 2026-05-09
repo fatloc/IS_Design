@@ -34,6 +34,12 @@ public class LichXemPhong {
     @Column(name = "KhachHangXem", length = 6)
     private String khachHangXem;
 
+    @Column(name = "MaYeuCau", length = 6)
+    private String maYeuCau;
+
     @Column(name = "NhanVienPhuTrach", length = 4)
     private String nhanVienPhuTrach;
+
+    @jakarta.persistence.Transient
+    private String maPhong;
 }

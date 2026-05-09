@@ -20,6 +20,31 @@ public class ContractController {
 
     private final ContractService contractService;
 
+    @GetMapping("/settlement")
+    public ApiResponse<java.util.List<java.util.Map<String, Object>>> getSettlementContracts(
+            @RequestParam(required = false) String trangThai) {
+        return ApiResponse.ok(contractService.getSettlementContracts(trangThai));
+    }
+
+    @PutMapping("/{maHopDongThue}/settlement-status")
+    public ApiResponse<HopDongThue> updateSettlementStatus(
+            @PathVariable String maHopDongThue,
+            @RequestParam String trangThai) {
+        return ApiResponse.ok(contractService.updateSettlementStatus(maHopDongThue, trangThai));
+    }
+
+    @PostMapping("/seed-settlement-status")
+    public ApiResponse<String> seedSettlementStatus() {
+        return ApiResponse.ok(contractService.seedSettlementStatus());
+    }
+
+    @GetMapping("/operational")
+    public ApiResponse<java.util.List<java.util.Map<String, Object>>> getOperationalContracts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(contractService.getOperationalContracts(page, size));
+    }
+
     @GetMapping
     public ApiListResponse<HopDongThue> getContracts(
             @RequestParam(defaultValue = "0") int page,

@@ -11,5 +11,6 @@ public class UpdateAppointmentRequest {
     private String trangThaiHen;
     private LocalDate ngayHen;
     private String khachHangXem;
+    private String maYeuCau;
     private String nhanVienPhuTrach;
 }

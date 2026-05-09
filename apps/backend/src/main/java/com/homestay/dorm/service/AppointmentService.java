@@ -8,6 +8,7 @@ import com.homestay.dorm.entity.LichXemPhong;
 public interface AppointmentService {
     ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year);
     LichXemPhong getAppointmentById(String maLichHen);
+    LichXemPhong getAppointmentByMaYeuCau(String maYeuCau);
     LichXemPhong createAppointment(CreateAppointmentRequest request);
     LichXemPhong updateAppointment(String maLichHen, UpdateAppointmentRequest request);
     void deleteAppointment(String maLichHen);

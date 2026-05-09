@@ -12,7 +12,7 @@ import type {
   DepositFile
 } from "../types";
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = "http://localhost:8080/api";
 const AUTH_TOKEN_KEY = "token";
 
 export type ApiListResponse<T> = {
@@ -92,8 +92,9 @@ export type OperationCheckoutItem = {
   roomType: string;
   moveOut: string;
   deposit: number;
+  netAmount?: number | null;
   daysLeft: number;
-  status: "Chờ thanh lý" | "Chờ đối soát" | "Đã trả phòng";
+  status: "Chờ thanh lý" | "Chờ đối soát" | "Đã đối soát" | "Đã đối soát và thanh lý" | "Đã trả phòng";
   assets: OperationAsset[];
 };
 
@@ -258,6 +259,11 @@ export async function getAppointments(params?: Record<string, unknown>) {
   return response.data;
 }
 
+export async function getAppointmentByRequest(maYeuCau: string) {
+  const response = await api.get<ApiResponse<Appointment>>(`/appointments/by-request/${maYeuCau}`);
+  return response.data.data;
+}
+
 export async function createAppointment(payload: CreateAppointmentPayload) {
   const response = await api.post<ApiResponse<Appointment>>("/appointments", payload);
   return response.data.data;
@@ -271,6 +277,22 @@ export async function updateAppointment(maLichHen: string, payload: UpdateAppoin
 export async function getContracts(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<ApiContract>>("/contracts", { params });
   return response.data;
+}
+
+export async function getOperationalContracts(params?: Record<string, unknown>) {
+  const response = await api.get<ApiResponse<any[]>>("/contracts/operational", { params });
+  return response.data.data ?? [];
+}
+
+export async function getSettlementContracts(trangThai?: string) {
+  const params = trangThai ? { trangThai } : {};
+  const response = await api.get<ApiResponse<any[]>>("/contracts/settlement", { params });
+  return response.data.data ?? [];
+}
+
+export async function updateContractSettlementStatus(maHopDongThue: string, trangThai: string) {
+  const response = await api.put<ApiResponse<any>>(`/contracts/${maHopDongThue}/settlement-status`, null, { params: { trangThai } });
+  return response.data.data;
 }
 
 export async function createContract(payload: CreateContractPayload) {
@@ -321,6 +343,18 @@ export async function updateDeposit(maHoSoDatCoc: string, payload: UpdateDeposit
 export async function getOperations() {
   const response = await api.get<ApiResponse<OperationsResponse>>("/operations");
   return response.data.data;
+}
+
+export async function confirmHandover(data: any) {
+  await api.post("/operations/handover", data);
+}
+
+export async function confirmCheckout(data: any) {
+  await api.post("/operations/checkout", data);
+}
+
+export async function finishCheckout(id: string) {
+  await api.post(`/operations/finish-checkout/${id}`);
 }
 
 export async function getDashboardStats() {

@@ -28,4 +28,6 @@ public class HopDongThue extends ChungTu {
     @Column(name = "NgayKetThuc")
     private LocalDate ngayKetThuc;
 
+    @Column(name = "TrangThaiThanhLy", length = 30)
+    private String trangThaiThanhLy;
 }
