@@ -85,18 +85,18 @@ public class OperationsServiceImpl implements OperationsService {
                 "INSERT INTO BIENBANTRAPHONG (MaBienBanTraPhong, MaHopDongThue) VALUES (?, ?)",
                 bbId, request.getId());
 
-        // 3. Cập nhật TrangThaiThanhLy → "Chờ đối soát" để kế toán xử lý
+        // 3. Cập nhật TrangThaiThanhLy → "Dang doi soat" để kế toán xử lý
         jdbcTemplate.update(
-                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Chờ đối soát' WHERE MaHopDongThue = ?",
+                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Dang doi soat' WHERE MaHopDongThue = ?",
                 request.getId());
     }
 
     @Override
     @Transactional
     public void finishCheckout(String id) {
-        // Manager ký bàn giao → set "Hoàn tất" → biến mất khỏi danh sách
+        // Manager ký bàn giao → set "Hoan tat" → biến mất khỏi danh sách
         jdbcTemplate.update(
-                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoàn tất' WHERE MaHopDongThue = ?", id);
+                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoan tat' WHERE MaHopDongThue = ?", id);
     }
 
     @Override
@@ -202,7 +202,7 @@ public class OperationsServiceImpl implements OperationsService {
             List<OperationAssetResponse> assetTemplate,
             Map<String, BigDecimal> latestDepositByCustomer) {
 
-        // Lấy toàn bộ hợp đồng cần thanh lý (trừ "Hoàn tất")
+        // Lấy toàn bộ hợp đồng cần thanh lý (trừ "Hoan tat")
         String sql = """
                 SELECT h.MaHopDongThue AS id,
                        c.NgayLap AS ngayLap, c.GioLap AS gioLap,
@@ -214,7 +214,7 @@ public class OperationsServiceImpl implements OperationsService {
                 FROM HOPDONGTHUE h
                 JOIN CHUNGTU c ON c.MaVanBan = h.MaHopDongThue
                 LEFT JOIN KHACHHANG k ON k.MaKhachHang = c.KhachHangSoHuu
-                WHERE h.TrangThaiThanhLy IN ('Chờ thanh lý', 'Chờ đối soát', 'Đã đối soát')
+                WHERE h.TrangThaiThanhLy IN ('Chua thanh ly', 'Dang doi soat', 'Da doi soat')
                 ORDER BY h.NgayKetThuc ASC
                 """;
 
@@ -279,10 +279,16 @@ public class OperationsServiceImpl implements OperationsService {
                     : (contract.date() != null ? contract.date().plusDays(180) : LocalDate.now());
             int daysLeft = (int) Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), dueDate));
 
-            // Trạng thái lấy trực tiếp từ database (không cần map)
-            String status = contract.trangThaiThanhLy() != null 
-                ? contract.trangThaiThanhLy() 
-                : "Chờ thanh lý";
+            // Map trạng thái từ DB (không dấu) sang frontend (có dấu)
+            String raw = contract.trangThaiThanhLy() != null ? contract.trangThaiThanhLy().trim() : "";
+            String status;
+            if ("Da doi soat".equalsIgnoreCase(raw) || "Đã đối soát".equals(raw)) {
+                status = "Đã đối soát";
+            } else if ("Dang doi soat".equalsIgnoreCase(raw) || "Chờ đối soát".equals(raw)) {
+                status = "Chờ đối soát";
+            } else {
+                status = "Chờ thanh lý";
+            }
 
             if (rooms.isEmpty() && beds.isEmpty()) {
                 items.add(buildCheckoutItem(contract, contract.id(), "Toàn phòng",

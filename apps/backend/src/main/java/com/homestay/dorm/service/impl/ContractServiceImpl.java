@@ -102,10 +102,15 @@ public class ContractServiceImpl implements ContractService {
     public List<Map<String, Object>> getSettlementContracts(String trangThai) {
         String whereClause;
         if (trangThai != null && !trangThai.isEmpty()) {
-            whereClause = "WHERE h.TrangThaiThanhLy = '" + trangThai.replace("'", "''") + "'";
+            // Map từ format có dấu sang không dấu nếu cần
+            String normalized = trangThai;
+            if ("Chờ đối soát".equals(trangThai)) normalized = "Dang doi soat";
+            else if ("Đã đối soát".equals(trangThai)) normalized = "Da doi soat";
+            else if ("Chờ thanh lý".equals(trangThai)) normalized = "Chua thanh ly";
+            whereClause = "WHERE h.TrangThaiThanhLy = '" + normalized.replace("'", "''") + "'";
         } else {
-            // Kế toán chỉ thấy hợp đồng đã được manager chuyển sang "Chờ đối soát" hoặc "Đã đối soát"
-            whereClause = "WHERE h.TrangThaiThanhLy IN ('Chờ đối soát', 'Đã đối soát')";
+            // Kế toán thấy hợp đồng đang đối soát hoặc đã đối soát
+            whereClause = "WHERE h.TrangThaiThanhLy IN ('Dang doi soat', 'Da doi soat')";
         }
         String sql = "SELECT"
             + " h.MaHopDongThue, h.HinhThucThue, h.KyThanhToan, h.NgayKetThuc, h.TrangThaiThanhLy,"
@@ -131,7 +136,13 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public HopDongThue updateSettlementStatus(String maHopDongThue, String trangThai) {
         HopDongThue hk = getContractById(maHopDongThue);
-        hk.setTrangThaiThanhLy(trangThai);
+        // Normalize về format không dấu để đồng nhất với dữ liệu trong DB
+        String normalized = trangThai;
+        if ("Chờ đối soát".equals(trangThai))  normalized = "Dang doi soat";
+        else if ("Đã đối soát".equals(trangThai))   normalized = "Da doi soat";
+        else if ("Hoàn tất".equals(trangThai))      normalized = "Hoan tat";
+        else if ("Chờ thanh lý".equals(trangThai))  normalized = "Chua thanh ly";
+        hk.setTrangThaiThanhLy(normalized);
         return repository.save(hk);
     }
 
