@@ -262,6 +262,7 @@ def generate_data():
             random.choice(ky_thanh_toan),
             random.randint(1, 8),
             random_date(date(2023, 1, 1), date(2026, 12, 31)),  # NgayKetThuc
+            random.choice(["Chua thanh ly", "Dang doi soat", "Da thanh ly"])
         )
         for hid in contract_ids
     ]
@@ -478,7 +479,7 @@ def insert_all(connection, data):
         "KHACHHANG": "INSERT INTO KHACHHANG (MaKhachHang, HoTen, SoDienThoai, Email, Phai, CCCD, QuocTich) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         "NHANVIEN": "INSERT INTO NHANVIEN (MaNhanVien, HoTen, SoDienThoai, Email, TenDangNhap, MatKhau, Phai, CCCD, LoaiNhanVien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "CHUNGTU": "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap, ChiNhanh, NhanVienLap, KhachHangSoHuu) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        "HOPDONGTHUE": "INSERT INTO HOPDONGTHUE (MaHopDongThue, HinhThucThue, KyThanhToan, SoLuongThanhVien, NgayKetThuc) VALUES (%s, %s, %s, %s, %s)",
+        "HOPDONGTHUE": "INSERT INTO HOPDONGTHUE (MaHopDongThue, HinhThucThue, KyThanhToan, SoLuongThanhVien, NgayKetThuc, TrangThaiThanhLy) VALUES (%s, %s, %s, %s, %s, %s)",
         "THANHVIENNHOM": "INSERT INTO THANHVIENNHOM (MaThanhVien, HoTen, CCCD, SoDienThoai, Phai, QuocTich, MaHopDongThue, NguoiDaiDien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
         "YEUCAUDANGKY": "INSERT INTO YEUCAUDANGKY (MaYeuCau, NgayTao, SoLuongNguoi, GioiTinhYeuCau, ThoiGianBatDauThueDuKien, ThoiGianBanGiaoPhongDuKien, CoDieuHoa, KhuVuc, MucGiaMongMuon, CoBaiGuiXe, CacTieuChiKhac, KhachHangYeuCau, NhanVienPhuTrach, TrangThaiYeuCau) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "LICHXEMPHONG": "INSERT INTO LICHXEMPHONG (MaLichHen, ThoiGianHen, TrangThaiHen, NgayHen, KhachHangXem, MaYeuCau, NhanVienPhuTrach) VALUES (%s, %s, %s, %s, %s, %s, %s)",
