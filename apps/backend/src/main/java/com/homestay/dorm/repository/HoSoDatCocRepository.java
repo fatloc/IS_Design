@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface HoSoDatCocRepository extends JpaRepository<HoSoDatCoc, String> {
+    java.util.Optional<HoSoDatCoc> findByKhachHangSoHuu(String khachHangSoHuu);
 }

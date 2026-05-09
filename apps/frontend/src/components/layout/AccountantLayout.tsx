@@ -21,18 +21,23 @@ const NAV_GROUPS = [
   {
     label: "Nghiệp vụ kế toán",
     items: [
-      { label: "Rental Requests", icon: ArrowLeftRight, path: "/accountant/rental-requests" },
-      { label: "Operational Payments", icon: FileText, path: "/accountant/operational-payments" },
-      { label: "Check-out Settlement", icon: Scale, path: "/accountant/checkout-settlement" },
+      { label: "Rental Requests",      icon: ArrowLeftRight, path: "/accountant/rental-requests"      },
+      { label: "Operational Payments", icon: FileText,       path: "/accountant/operational-payments" },
+      { label: "Check-out Settlement", icon: Scale,          path: "/accountant/checkout-settlement"  },
+      { label: "Quản lý Hợp đồng",    icon: FileText,       path: "/accountant/contracts"            },
     ],
   },
 ];
 
 const PAGE_META: Record<string, { title: string; sub: string; icon: React.ElementType; crumbs: string[] }> = {
-  "/accountant/dashboard": { title: "Dashboard Kế toán", sub: "Tổng quan 4 luồng kế toán bám dữ liệu DB", icon: LayoutDashboard, crumbs: ["Kế toán", "Dashboard"] },
-  "/accountant/transactions": { title: "Thanh toán tiền cọc", sub: "Nhận yêu cầu thuê và sinh phiếu thu cọc từ sale", icon: ArrowLeftRight, crumbs: ["Kế toán", "Thanh toán tiền cọc"] },
-  "/accountant/invoices": { title: "Thanh toán đầu kỳ", sub: "Thu tiền khi vào ở dựa trên hợp đồng đã ký", icon: FileText, crumbs: ["Kế toán", "Thanh toán đầu kỳ"] },
-  "/accountant/reconciliation": { title: "Đối soát & trả phòng", sub: "Tính hoàn cọc, khấu trừ và xác nhận thanh lý", icon: Scale, crumbs: ["Kế toán", "Đối soát & trả phòng"] },
+  "/accountant/dashboard":            { title: "Dashboard Kế toán",       sub: "Tổng quan 3 luồng kế toán",                    icon: LayoutDashboard, crumbs: ["Kế toán", "Dashboard"] },
+  "/accountant/rental-requests":      { title: "Yêu cầu thu cọc",         sub: "Kiểm tra và phát phiếu thu cọc từ sale",        icon: ArrowLeftRight,  crumbs: ["Kế toán", "Yêu cầu thu cọc"] },
+  "/accountant/operational-payments": { title: "Thu tiền định kỳ",        sub: "Thu tiền từ hợp đồng đang hoạt động",           icon: FileText,        crumbs: ["Kế toán", "Thu tiền định kỳ"] },
+  "/accountant/checkout-settlement":  { title: "Đối soát thanh lý",       sub: "Tính hoàn cọc, khấu trừ và xác nhận thanh lý", icon: Scale,           crumbs: ["Kế toán", "Đối soát thanh lý"] },
+  "/accountant/transactions":         { title: "Thanh toán tiền cọc",     sub: "Nhận yêu cầu thuê và sinh phiếu thu cọc",      icon: ArrowLeftRight,  crumbs: ["Kế toán", "Thanh toán tiền cọc"] },
+  "/accountant/invoices":             { title: "Thanh toán đầu kỳ",       sub: "Thu tiền khi vào ở dựa trên hợp đồng đã ký",   icon: FileText,        crumbs: ["Kế toán", "Thanh toán đầu kỳ"] },
+  "/accountant/reconciliation":       { title: "Đối soát & trả phòng",    sub: "Tính hoàn cọc, khấu trừ và xác nhận thanh lý", icon: Scale,           crumbs: ["Kế toán", "Đối soát & trả phòng"] },
+  "/accountant/contracts":            { title: "Quản lý Hợp đồng",        sub: "Danh sách hợp đồng thuê đang hoạt động",       icon: FileText,        crumbs: ["Kế toán", "Hợp đồng"] },
 };
 
 function AccountantSidebar() {

@@ -19,12 +19,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import java.time.temporal.ChronoUnit;
+import com.homestay.dorm.dto.response.DoiSoatResponse;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import org.springframework.transaction.annotation.Transactional;
+
+// Kéo toàn bộ Entity và Repository vào để xài cho gọn, khỏi báo lỗi thiếu
+import com.homestay.dorm.entity.*;
+import com.homestay.dorm.repository.*;
+
 @Service
 @RequiredArgsConstructor
 public class ContractServiceImpl implements ContractService {
 
     private final HopDongThueRepository repository;
     private final JdbcTemplate jdbcTemplate;
+
+    private final ChiTietThuePhongRepository chiTietThuePhongRepository;
+    private final ChiTietThueGiuongRepository chiTietThueGiuongRepository;
+    private final DichVuHopDongRepository dichVuHopDongRepository;
+    private final PhongRepository phongRepository;
+    private final GiuongRepository giuongRepository;
+    private final DichVuRepository dichVuRepository;
+    private final HoSoDatCocRepository hoSoDatCocRepository;
 
     @Override
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
@@ -122,7 +142,9 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional
     public HopDongThue createContract(CreateContractRequest req) {
+        // 1. TẠO HỢP ĐỒNG CHÍNH
         String newId = "HD" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
 
         HopDongThue hk = new HopDongThue();
@@ -167,7 +189,6 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public String seedSettlementStatus() {
-        // Đếm tổng số hợp đồng
         Integer total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM HOPDONGTHUE", Integer.class);
         if (total == null || total == 0) {
             return "Không có hợp đồng nào trong database";
@@ -214,4 +235,48 @@ public class ContractServiceImpl implements ContractService {
             choThanhLy, choDoiSoat, daDoiSoat
         );
     }
+
+    @Override
+    public java.math.BigDecimal tinhTienThueKyDau(String maHopDongThue) {
+        // Stub — tính tiền thuê kỳ đầu dựa trên hợp đồng
+        HopDongThue hopDong = getContractById(maHopDongThue);
+        // Lấy giá thuê từ CHITIETTHUEPHONG hoặc CHITIETTHUEGIUONG qua jdbcTemplate
+        java.math.BigDecimal giaThue = jdbcTemplate.queryForObject(
+            "SELECT COALESCE(" +
+            "  (SELECT p.GiaThuePhong FROM CHITIETTHUEPHONG tp JOIN PHONG p ON p.MaPhong = tp.MaPhong WHERE tp.MaHopDongThue = ? LIMIT 1)," +
+            "  (SELECT COALESCE(SUM(g.GiaThue),0) FROM CHITIETTHUEGIUONG tg JOIN GIUONG g ON g.MaGiuong = tg.MaGiuong WHERE tg.MaHopDongThue = ?)" +
+            ", 0)",
+            java.math.BigDecimal.class, maHopDongThue, maHopDongThue
+        );
+        return giaThue != null ? giaThue : java.math.BigDecimal.ZERO;
+    }
+
+    @Override
+    public com.homestay.dorm.dto.response.DoiSoatResponse doiSoatChiPhi(
+            String maHopDongThue, java.math.BigDecimal tongTienKhauTru, boolean laHetHanHopDong) {
+        // Stub — trả về kết quả đối soát cơ bản
+        if (tongTienKhauTru == null) tongTienKhauTru = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal tienCoc = java.math.BigDecimal.valueOf(5000000);
+        java.math.BigDecimal tyLe = laHetHanHopDong ? java.math.BigDecimal.ONE : new java.math.BigDecimal("0.7");
+        java.math.BigDecimal hoan = tienCoc.multiply(tyLe).subtract(tongTienKhauTru);
+        return com.homestay.dorm.dto.response.DoiSoatResponse.builder()
+            .maHopDong(maHopDongThue)
+            .tienCocBanDau(tienCoc)
+            .tyLeHoanCoc(laHetHanHopDong ? "100%" : "70%")
+            .tienCocDuocHoanCoBan(tienCoc.multiply(tyLe))
+            .tongTienKhauTru(tongTienKhauTru)
+            .soTienThucTe(hoan.abs())
+            .loaiGiaoDich(hoan.compareTo(java.math.BigDecimal.ZERO) >= 0 ? "Hoàn cọc" : "Thu thêm")
+            .build();
+    }
+
+    @Override
+    public void thanhLyHopDong(String maHopDongThue) {
+        // Cập nhật trạng thái thanh lý thành "Hoàn tất"
+        jdbcTemplate.update(
+            "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoàn tất', NgayKetThuc = ? WHERE MaHopDongThue = ?",
+            java.time.LocalDate.now(), maHopDongThue
+        );
+    }
 }
+
