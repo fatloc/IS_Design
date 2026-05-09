@@ -41,3 +41,11 @@ package-lock.json
 **/coverage/
 **/.temp/
 **/tmp/
+.agent
+errors.md
+gemini.md
+PLAN-dorm-management.md
+.gitignore
+PLAN-dorm-management.md
+GEMINI.md
+ERRORS.md

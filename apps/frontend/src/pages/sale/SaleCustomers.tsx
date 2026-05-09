@@ -186,21 +186,6 @@ export default function SaleCustomers() {
         </div>
       </div>
 
-      {/* Pagination – outside the panels to avoid layout issues */}
-      <div className="flex items-center justify-between px-1 mb-3">
-        <span style={{ fontSize:"0.75rem", color:"#94A3B8" }}>
-          Trang <strong style={{ color:"#475569" }}>{page + 1}</strong> / {totalPages || 1} &nbsp;·&nbsp; {totalElements.toLocaleString()} khách hàng
-        </span>
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          totalElements={totalElements}
-          pageSize={size}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => { setSize(s); setPage(0); }}
-        />
-      </div>
-
       <div className="grid gap-5" style={{ gridTemplateColumns:"320px 1fr" }}>
         {/* Left – Customer list */}
         <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
@@ -216,7 +201,7 @@ export default function SaleCustomers() {
           </div>
 
           {/* List */}
-          <div className="overflow-y-auto no-scrollbar" style={{ maxHeight:"calc(100vh - 320px)" }}>
+          <div className="overflow-y-auto no-scrollbar" style={{ maxHeight:"calc(100vh - 380px)" }}>
             {loading ? (
               <div className="p-4 space-y-2">
                 {Array.from({length:8}).map((_,i)=>(
@@ -260,6 +245,18 @@ export default function SaleCustomers() {
                 );
               })
             )}
+          </div>
+
+          {/* Pagination footer */}
+          <div className="px-3" style={{ borderTop:"1px solid #F1F5F9", background:"#FAFBFD" }}>
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalElements={totalElements}
+              pageSize={size}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setSize(s); setPage(0); }}
+            />
           </div>
         </div>
 

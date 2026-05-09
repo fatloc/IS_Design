@@ -12,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -22,22 +23,74 @@ public class RequestServiceImpl implements RequestService {
     private final YeuCauDangKyRepository yeuCauRepository;
 
     @Override
-    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau) {
-        Pageable pageable = PageRequest.of(page, size);
+    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau, String ngayTao, String thang) {
+        // Sort by ngayTao DESC (newest first)
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
+            org.springframework.data.domain.Sort.Direction.DESC, "ngayTao"
+        ));
+        
         Page<YeuCauDangKy> yeuCauPage;
 
         boolean hasNhanVien = nhanVienPhuTrach != null && !nhanVienPhuTrach.isEmpty();
         boolean hasTrangThai = trangThaiYeuCau != null && !trangThaiYeuCau.isEmpty();
+        boolean hasNgayTao = ngayTao != null && !ngayTao.isEmpty();
+        boolean hasThang = thang != null && !thang.isEmpty();
 
-        if (hasNhanVien && hasTrangThai) {
-            yeuCauPage = yeuCauRepository.findByNhanVienPhuTrachAndTrangThaiYeuCau(nhanVienPhuTrach, trangThaiYeuCau, pageable);
-        } else if (hasNhanVien) {
-            yeuCauPage = yeuCauRepository.findByNhanVienPhuTrach(nhanVienPhuTrach, pageable);
-        } else if (hasTrangThai) {
-            yeuCauPage = yeuCauRepository.findByTrangThaiYeuCau(trangThaiYeuCau, pageable);
+        // Parse ngayTao if provided (format: YYYY-MM-DD)
+        LocalDate ngayTaoDate = null;
+        if (hasNgayTao) {
+            try {
+                ngayTaoDate = LocalDate.parse(ngayTao);
+            } catch (Exception e) {
+                throw new RuntimeException("Invalid date format for ngayTao. Expected: YYYY-MM-DD");
+            }
+        }
+
+        // Parse thang if provided (format: YYYY-MM)
+        Integer year = null;
+        Integer month = null;
+        if (hasThang) {
+            try {
+                String[] parts = thang.split("-");
+                year = Integer.parseInt(parts[0]);
+                month = Integer.parseInt(parts[1]);
+            } catch (Exception e) {
+                throw new RuntimeException("Invalid month format. Expected: YYYY-MM");
+            }
+        }
+
+        // Apply filters based on provided parameters
+        if (hasThang) {
+            // Filter by month
+            yeuCauPage = yeuCauRepository.findByFiltersAndMonth(
+                hasNhanVien ? nhanVienPhuTrach : null,
+                hasTrangThai ? trangThaiYeuCau : null,
+                year,
+                month,
+                pageable
+            );
+        } else if (hasNgayTao || hasNhanVien || hasTrangThai) {
+            // Filter by specific date and/or other filters
+            yeuCauPage = yeuCauRepository.findByFilters(
+                hasNhanVien ? nhanVienPhuTrach : null,
+                hasTrangThai ? trangThaiYeuCau : null,
+                ngayTaoDate,
+                pageable
+            );
         } else {
+            // No filters - return all with sorting
             yeuCauPage = yeuCauRepository.findAll(pageable);
         }
+
+        yeuCauPage.forEach(req -> {
+            boolean overdue = false;
+            if ("Yêu cầu mới".equals(req.getTrangThaiYeuCau()) && req.getThoiGianBatDauThueDuKien() != null) {
+                if (req.getThoiGianBatDauThueDuKien().isBefore(LocalDate.now())) {
+                    overdue = true;
+                }
+            }
+            req.setIsOverdue(overdue);
+        });
 
         return ApiListResponse.fromPage(yeuCauPage);
     }
@@ -54,6 +107,7 @@ public class RequestServiceImpl implements RequestService {
         
         YeuCauDangKy yeuCau = YeuCauDangKy.builder()
                 .maYeuCau(newId)
+                .ngayTao(LocalDate.now()) // Auto-set creation date
                 .soLuongNguoi(req.getSoLuongNguoi())
                 .gioiTinhYeuCau(req.getGioiTinhYeuCau())
                 .thoiGianBatDauThueDuKien(req.getThoiGianBatDauThueDuKien())

@@ -8,11 +8,13 @@ import com.homestay.dorm.entity.LichXemPhong;
 import com.homestay.dorm.service.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/appointments")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER')")
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
@@ -24,6 +26,11 @@ public class AppointmentController {
             @RequestParam(required = false)      Integer month,
             @RequestParam(required = false)      Integer year) {
         return appointmentService.getAppointments(page, size, month, year);
+    }
+
+    @GetMapping("/by-request/{maYeuCau}")
+    public ApiResponse<LichXemPhong> getAppointmentByMaYeuCau(@PathVariable String maYeuCau) {
+        return ApiResponse.ok(appointmentService.getAppointmentByMaYeuCau(maYeuCau));
     }
 
     @GetMapping("/{maLichHen}")

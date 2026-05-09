@@ -70,6 +70,7 @@ public class TransactionServiceImpl implements TransactionService {
         ptt.setKeToanLapPhieu(req.getKeToanLapPhieu());
         ptt.setQuanLyDoiChung(req.getQuanLyDoiChung());
         ptt.setMaChungTu(req.getMaChungTu());
+        ptt.setSoTienGiaoDich(req.getSoTienGiaoDich());
         
         return repository.save(ptt);
     }

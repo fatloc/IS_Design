@@ -1,10 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Send, Bell, CheckCircle, Clock, XCircle, AlertCircle,
-  Home, BedDouble, ChevronRight, Phone, Info, GripVertical,
-  ArrowRight
+  Home, BedDouble, ChevronRight, Phone, Info, GripVertical
 } from "lucide-react";
-import { depositRecords as initialRecords, DepositRecord, DepositStatus } from "../../data/saleMockData";
+import { getDeposits, getTransactions, getCustomers } from "../../services/api";
+import { useToast } from "../../components/ToastProvider";
+
+export type DepositStatus = "Pending Approval" | "Awaiting Payment" | "Deposited" | "Cancelled";
+
+export interface DepositRecord {
+  id: string;
+  clientName: string;
+  phone: string;
+  reservedAsset: string;
+  rentalMode: "Whole Room" | "Bed";
+  specificBeds?: number[];
+  depositAmount: number;
+  monthlyRent: number;
+  status: DepositStatus;
+  note?: string;
+  submittedAt: string;
+  approvedAt?: string;
+  paidAt?: string;
+}
 
 const fmt = (n: number) => n.toLocaleString("vi-VN") + " đ";
 
@@ -59,7 +77,16 @@ function DepositCard({
             {isWhole ? <Home size={15} className="text-violet-700" /> : <BedDouble size={15} className="text-teal-700" />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-slate-900" style={{ fontWeight: 700 }}>{record.clientName}</div>
+            <div className="text-sm text-slate-900 flex items-center gap-2" style={{ fontWeight: 700 }}>
+              {record.clientName}
+              {record.status === "Awaiting Payment" && record.approvedAt && (
+                new Date().getTime() - new Date(record.approvedAt).getTime() > 24 * 60 * 60 * 1000
+              ) && (
+                <span className="px-2 py-0.5 rounded text-[0.65rem] bg-red-100 text-red-600 border border-red-200" style={{ fontWeight: 800 }}>
+                  Quá hạn 24h
+                </span>
+              )}
+            </div>
             <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
               <Phone size={9} /> {record.phone}
             </div>
@@ -174,20 +201,79 @@ function DepositCard({
 }
 
 export default function SaleDeposits() {
-  const [records, setRecords] = useState(initialRecords);
+  const { addToast } = useToast();
+  const [records, setRecords] = useState<DepositRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [dRes, tRes, cRes] = await Promise.all([
+        getDeposits({ size: 1000 }),
+        getTransactions({ size: 1000 }),
+        getCustomers({ size: 1000 })
+      ]);
+      const deps = dRes.data;
+      const trans = tRes.data;
+      const customers = cRes.data;
+      
+      const mapped = deps.map(d => {
+        const t = trans.find(tr => tr.maChungTu === d.maVanBan);
+        const c = customers.find(cu => cu.maKhachHang === d.khachHangSoHuu);
+
+        let status: DepositStatus = "Pending Approval";
+        if (t) {
+           if (t.trangThai === "Chờ thanh toán") status = "Awaiting Payment";
+           if (t.trangThai === "Đã thanh toán") status = "Deposited";
+           if (t.trangThai === "Đã hủy") status = "Cancelled";
+        }
+
+        return {
+          id: d.maVanBan,
+          clientName: c?.hoTen || d.khachHangSoHuu || "Khách ẩn danh",
+          phone: c?.soDienThoai || "—",
+          reservedAsset: "Phòng/Giường (CSDL)", 
+          rentalMode: "Whole Room",
+          depositAmount: Number(d.mucTienCoc) || 0,
+          monthlyRent: 0,
+          status,
+          submittedAt: d.ngayLap ? d.ngayLap.toString() : "",
+          paidAt: (t && t.trangThai === "Đã thanh toán" && t.ngayGiaoDich) ? t.ngayGiaoDich.toString() : undefined
+        } as DepositRecord;
+      });
+      setRecords(mapped);
+    } catch(e) {
+      addToast({ message: "Lỗi khi tải dữ liệu cọc", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleSubmit = (id: string) => {
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, status: "Awaiting Payment", approvedAt: "2025-04-20" } : r));
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, status: "Awaiting Payment", approvedAt: "2026-05-09" } : r));
   };
   const handleNotify = (_id: string) => {
-    alert("Đã gửi thông báo lịch nhận phòng cho khách hàng!");
+    addToast({ message: "Đã gửi thông báo lịch nhận phòng cho khách hàng!", type: "success" });
   };
   const handleMove = (id: string, status: DepositStatus) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status } : r));
   };
 
-  const totalDeposited = records.filter(r => r.status === "Deposited").reduce((s, r) => s + r.depositAmount, 0);
+  const totalDeposited = records.filter(r => r.status === "Deposited").reduce((s, r) => s + (Number(r.depositAmount) || 0), 0);
   const pendingCount = records.filter(r => r.status === "Pending Approval").length;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+         <Clock size={32} className="mb-4 animate-spin text-orange-400" />
+         <span className="font-semibold text-sm">Đang tải dữ liệu đặt cọc...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

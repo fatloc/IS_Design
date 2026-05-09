@@ -1,5 +1,7 @@
 package com.homestay.dorm.service.impl;
 
+import com.homestay.dorm.dto.request.CheckoutRequest;
+import com.homestay.dorm.dto.request.HandoverRequest;
 import com.homestay.dorm.dto.response.OperationAssetResponse;
 import com.homestay.dorm.dto.response.OperationCheckinResponse;
 import com.homestay.dorm.dto.response.OperationCheckoutResponse;
@@ -9,12 +11,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Time;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -37,6 +41,49 @@ public class OperationsServiceImpl implements OperationsService {
 
     private final JdbcTemplate jdbcTemplate;
     private final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(15);
+
+    @Override
+    @Transactional
+    public void confirmHandover(HandoverRequest request) {
+        String bbId = "BB" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+        jdbcTemplate.update(
+                "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap) VALUES (?, ?, ?, ?)",
+                bbId, "Biên bản bàn giao", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()));
+        jdbcTemplate.update("INSERT INTO BIENBANBANGIAOTAISAN (MaBienBanBanGiao) VALUES (?)", bbId);
+        for (OperationAssetResponse asset : request.getAssets()) {
+            List<String> assetIds = jdbcTemplate.queryForList(
+                    "SELECT MaTaiSan FROM TAISAN WHERE TenTaiSan = ? LIMIT 1",
+                    String.class, asset.getAsset());
+            String assetId = assetIds.isEmpty() ? "TS0001" : assetIds.get(0);
+            jdbcTemplate.update(
+                    "INSERT INTO CHITIETBANGIAO (MaBienBanBanGiao, MaTaiSanBanGiao, SoLuong) VALUES (?, ?, ?)",
+                    bbId, assetId, 1);
+        }
+        jdbcTemplate.update("UPDATE PHONG SET TrangThai = 'Da thue' WHERE MaPhong = ?", request.getRoom());
+    }
+
+    @Override
+    @Transactional
+    public void confirmCheckout(CheckoutRequest request) {
+        String bbId = "BT" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+        jdbcTemplate.update(
+                "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap) VALUES (?, ?, ?, ?)",
+                bbId, "Biên bản trả phòng", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()));
+        jdbcTemplate.update(
+                "INSERT INTO BIENBANTRAPHONG (MaBienBanTraPhong, MaHopDongThue) VALUES (?, ?)",
+                bbId, request.getId());
+        jdbcTemplate.update(
+                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Dang doi soat' WHERE MaHopDongThue = ?",
+                request.getId());
+    }
+
+    @Override
+    @Transactional
+    public void finishCheckout(String id) {
+        jdbcTemplate.update(
+                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoan tat' WHERE MaHopDongThue = ?",
+                id);
+    }
 
     @Override
     public OperationsResponse getOperations() {

@@ -22,6 +22,9 @@ public class YeuCauDangKy {
     @Column(name = "MaYeuCau", length = 6)
     private String maYeuCau;
 
+    @Column(name = "NgayTao")
+    private LocalDate ngayTao;
+
     @Column(name = "SoLuongNguoi")
     private Integer soLuongNguoi;
 
@@ -57,4 +60,7 @@ public class YeuCauDangKy {
 
     @Column(name = "TrangThaiYeuCau", length = 30)
     private String trangThaiYeuCau;
+
+    @jakarta.persistence.Transient
+    private Boolean isOverdue;
 }
