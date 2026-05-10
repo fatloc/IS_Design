@@ -4,11 +4,14 @@ import com.homestay.dorm.dto.request.CreateRoomRequest;
 import com.homestay.dorm.dto.request.UpdateRoomRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
 import com.homestay.dorm.dto.response.ApiResponse;
+import com.homestay.dorm.dto.response.RoomAvailabilityResponse;
 import com.homestay.dorm.entity.Phong;
 import com.homestay.dorm.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -23,6 +26,12 @@ public class RoomController {
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(required = false) String search) {
         return roomService.getRooms(page, size, search);
+    }
+
+    /** Trả về tất cả phòng kèm thông tin slot trống / công suất hiện tại */
+    @GetMapping("/availability")
+    public ApiResponse<List<RoomAvailabilityResponse>> getRoomAvailability() {
+        return ApiResponse.ok(roomService.getRoomAvailability());
     }
 
     @GetMapping("/{id}")
@@ -49,3 +58,4 @@ public class RoomController {
         return ApiResponse.ok(null);
     }
 }
+
