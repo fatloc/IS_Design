@@ -16,14 +16,14 @@ import {
 const NAV_GROUPS = [
   {
     label: "Tổng quan",
-    items: [{ label: "Dashboard", icon: LayoutDashboard, path: "/accountant/dashboard" }],
+    items: [{ label: "Bảng điều khiển", icon: LayoutDashboard, path: "/accountant/dashboard" }],
   },
   {
     label: "Nghiệp vụ kế toán",
     items: [
-      { label: "Rental Requests", icon: ArrowLeftRight, path: "/accountant/rental-requests" },
-      { label: "Operational Payments", icon: FileText, path: "/accountant/operational-payments" },
-      { label: "Check-out Settlement", icon: Scale, path: "/accountant/checkout-settlement" },
+      { label: "Yêu cầu thuê phòng", icon: ArrowLeftRight, path: "/accountant/rental-requests" },
+      { label: "Thanh toán vận hành", icon: FileText, path: "/accountant/operational-payments" },
+      { label: "Đối soát trả phòng", icon: Scale, path: "/accountant/checkout-settlement" },
     ],
   },
 ];
