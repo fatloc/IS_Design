@@ -1,0 +1,209 @@
+@startuml
+title Chức năng Lập yêu cầu thuê
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+  BorderColor #4C6E8B
+  BackgroundColor #E6F2FF
+  FontColor #222222
+}
+
+skinparam package {
+  BorderColor #888888
+  FontColor #333333
+  FontSize 14
+  Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHYeuCauThue {
+  ' Presentation (SaleRequests.tsx - Request List Screen)
+  -searchInput: SearchBox
+  -statusCards: List<StatusCard>
+  -requestTable: List<RequestRow>
+  -pagination: Pagination
+  -btnTaoYeuCau: Button
+  -btnLamMoi: Button
+  -detailModal: Modal
+  --
+  +loadRequests(params: Map): Promise<void>
+  +openDetail(requestId: String): Void
+  +openCreateRequest(): Void
+  +updateRequestStatus(requestId: String, payload: Map): Promise<void>
+  +handleSearch(query: String): Void
+  +renderStatusCounts(): Void
+  +showToast(message: String, type: String): Void
+}
+
+class MHChiTietYeuCauThue {
+  ' Presentation (RequestDetailModal - Request Detail Screen)
+  -txtMaYeuCau: Label
+  -lblKhachHang: Label
+  -lblSoDienThoai: Label
+  -lblTrangThai: Badge
+  -gridThongTin: Grid
+  -txtLoaiPhong: Label
+  -txtKhuVuc: Label
+  -txtNganSach: Label
+  -txtNgayTao: Label
+  -txtPhongDeXuat: Label
+  -txtNgayXemPhong: Label
+  -txtGhiChu: TextArea
+  --
+  +fetchAppointment(requestId: String): Promise<void>
+  +close(): Void
+  +renderRequestDetails(): Void
+}
+
+class MHLapYeuCauMoi {
+  ' Presentation (CreateRequestTab - Create Request Screen)
+  -searchKhachHang: SearchBox
+  -cboLoaiPhong: Dropdown
+  -txtSoLuongNguoi: TextBox
+  -cboGioiTinh: Dropdown
+  -dtpNgayThueDuKien: DatePicker
+  -dtpNgayNhanPhongDuKien: DatePicker
+  -cboKhuVuc: Dropdown
+  -txtNganSachDuKien: TextBox
+  -chkCoDieuHoa: Checkbox
+  -chkCoBaiGuiXe: Checkbox
+  -txtGhiChuTieuChi: TextArea
+  -btnTaoKhachHangMoi: Button
+  -btnXacNhanTaoYeuCau: Button
+  --
+  +validate(): Boolean
+  +submitCreateRequest(payload: Map): Promise<void>
+  +openCreateCustomerModal(): Void
+  +onCreateCustomerSuccess(customer: Customer): Void
+}
+
+class MHHoSoKhachHang {
+  ' Presentation (SaleCustomers.tsx - Customer List & Profile Screen)
+  -searchCustomer: SearchBox
+  -lstCustomer: List<CustomerItem>
+  -lblHoTen: Label
+  -lblSoDienThoai: Label
+  -lblEmail: Label
+  -lblCCCD: Label
+  -lblQuocTich: Label
+  -lblTrangThaiHoSo: Badge
+  -btnLamMoi: Button
+  --
+  +loadCustomers(params: Map): Promise<void>
+  +selectCustomer(customerId: String): Void
+  +reload(): Void
+  +calcStatus(customer: Customer): String
+}
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+
+class LichXemPhong {
+  ' Entity + Service (LichXemPhong / Appointment + AppointmentService)
+  ' Attributes
+  -maLichHen: String
+  -maYeuCau: String
+  -maPhong: String
+  -ngayHen: Date
+  -thoiGianHen: String
+  --
+  ' Methods (service operations)
+  +getAppointments(page,size,month,year?): ApiListResponse<LichXemPhong>
+  +getAppointmentByMaYeuCau(maYeuCau: String): LichXemPhong
+  +createAppointment(req): LichXemPhong
+}
+
+class YeuCauDangKy {
+  ' Entity + Service (YeuCauDangKy + RequestService)
+  ' Attributes
+  -maYeuCau: String
+  -khachHangYeuCau: String
+  -trangThaiYeuCau: String
+  -thoiGianBatDauThueDuKien: Date
+  -thoiGianBanGiaoPhongDuKien: Date
+  -mucGiaMongMuon: Number
+  -cacTieuChiKhac: String
+  -ngayTao: Date
+  --
+  ' Methods (service operations)
+  +getRequests(page,size,filters...): ApiListResponse<YeuCauDangKy>
+  +getRequestById(maYeuCau: String): YeuCauDangKy
+  +createRequest(req: CreateYeuCauRequest): YeuCauDangKy
+  +updateRequest(maYeuCau: String, req: UpdateYeuCauRequest): YeuCauDangKy
+  +deleteRequest(maYeuCau: String): Void
+  +getRequestStatusCounts(): Map<String, Long>
+}
+
+class KhachHang {
+  ' Entity + Service (KhachHang + CustomerService)
+  ' Attributes
+  -maKhachHang: String
+  -hoTen: String
+  -soDienThoai: String
+  -email: String
+  -cccd: String
+  -phai: String
+  --
+  +getCustomers(page,size,search?): ApiListResponse<KhachHang>
+  +getCustomerById(maKhachHang: String): KhachHang
+  +createCustomer(data: KhachHang): KhachHang
+  +updateCustomer(maKhachHang: String, data: KhachHang): KhachHang
+  +reload(): Void
+}
+}
+
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+class YeuCauDangKyDB {
+  --
+  +findByFiltersWithSearch(...): Page<YeuCauDangKy>
+  +findByFiltersAndMonthWithSearch(...): Page<YeuCauDangKy>
+  +countByStatus(): List<Object[]>
+  +save(entity: YeuCauDangKy): YeuCauDangKy
+  +findById(id: String): Optional<YeuCauDangKy>
+  +delete(entity: YeuCauDangKy): Void
+}
+
+class LichXemPhongDB {
+  --
+  +findByMaYeuCau(maYeuCau: String): Optional<LichXemPhong>
+  +findAll(...): Page<LichXemPhong>
+}
+
+class KhachHangDB {
+  --
+  +findAll(...): Page<KhachHang>
+  +findById(maKhachHang: String): Optional<KhachHang>
+  +save(kh: KhachHang): KhachHang
+}
+}
+
+' ================= LIÊN KẾT GIỮA CÁC TẦNG =================
+
+'0. Giữa các màn hình với trangThaiYeuCau
+MHYeuCauThue o-right- MHChiTietYeuCauThue
+MHLapYeuCauMoi o-right-MHYeuCauThue
+
+' 1. Giao diện gọi Nghiệp vụ (UI -> BLL)
+MHYeuCauThue o-- YeuCauDangKy
+MHChiTietYeuCauThue o-- LichXemPhong
+MHLapYeuCauMoi o-- YeuCauDangKy
+MHLapYeuCauMoi o-- KhachHang
+MHHoSoKhachHang o-- KhachHang
+
+' 2. Quan hệ nội bộ tầng Nghiệp vụ (Entity Relationships)
+KhachHang "1" -right- "0..*" YeuCauDangKy : có
+KhachHang "1" -- "0..*" LichXemPhong : có
+
+' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
+YeuCauDangKy o-- YeuCauDangKyDB
+LichXemPhong o-- LichXemPhongDB 
+KhachHang o-- KhachHangDB
+@enduml
