@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, FileText, BedDouble, ArrowRight, User, Phone, MapPin, TrendingUp, AlertCircle, Clock, Home } from "lucide-react";
+import { CalendarDays, FileText, BedDouble, ArrowRight, User, Phone, MapPin, AlertCircle, Clock, Home } from "lucide-react";
 import { useNavigate } from "react-router";
 import { getSaleDashboardStats, SaleDashboardResponse } from "../../services/api";
 
@@ -15,6 +15,100 @@ const statusLabels: Record<string, string> = {
   Pending: "Chờ xử lý", Scheduled: "Đã hẹn", Shown: "Đã xem",
   Deposited: "Đã cọc", Cancelled: "Huỷ",
 };
+
+const STATUS_HEX: Record<string, string> = {
+  Pending: "#F59E0B",
+  Scheduled: "#3B82F6",
+  Shown: "#A855F7",
+  Deposited: "#10B981",
+  Cancelled: "#94A3B8",
+};
+
+// ── Shared UI Components ───────────────────────────────────────────────────
+function DonutChart({ counts, total, unit = "yêu cầu" }: { counts: any[]; total: number; unit?: string }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [mPos, setMPos] = useState({ x: 0, y: 0 });
+  
+  const r = 85, sw = 28, cx = 110, cy = 110;
+  const circ = 2 * Math.PI * r;
+  let cum = 0;
+
+  return (
+    <div className="relative" onMouseMove={(e) => setMPos({ x: e.clientX, y: e.clientY })}>
+      <svg viewBox="0 0 220 220" width="210" height="210" className="flex-shrink-0 transition-all duration-500">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#F8FAFC" strokeWidth={sw} />
+        {counts.map((seg, idx) => {
+          const pct = total > 0 ? seg.value / total : 0;
+          if (pct === 0) return null;
+          const dash = pct * circ;
+          const offset = -(cum * circ);
+          cum += pct;
+          
+          const isHovered = hovered === idx;
+          
+          return (
+            <circle key={seg.label}
+              cx={cx} cy={cy} r={r}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={isHovered ? sw + 6 : sw}
+              strokeDasharray={`${dash} ${circ}`}
+              strokeDashoffset={offset}
+              transform={`rotate(-90 ${cx} ${cy})`}
+              strokeLinecap="round"
+              className="cursor-pointer transition-all duration-300 opacity-90 hover:opacity-100"
+              onMouseEnter={() => setHovered(idx)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ filter: isHovered ? `drop-shadow(0 0 8px ${seg.color}66)` : 'none' }}
+            />
+          );
+        })}
+        
+        {/* Static Center Text (Total Only) */}
+        <text x={cx} y={cy - 8} textAnchor="middle" dominantBaseline="middle"
+          style={{ fontSize: "36px", fontWeight: 900, fill: "#1E293B" }}>
+          {total}
+        </text>
+        <text x={cx} y={cy + 22} textAnchor="middle"
+          className="uppercase tracking-widest"
+          style={{ fontSize: "10px", fill: "#94A3B8", fontWeight: 700 }}>
+          {unit}
+        </text>
+      </svg>
+
+      {/* Floating Tooltip */}
+      {hovered !== null && (
+        <div 
+          className="fixed z-[9999] pointer-events-none bg-slate-900/90 text-white px-3 py-2 rounded-xl border border-white/10 shadow-2xl backdrop-blur-md transition-opacity duration-200"
+          style={{ 
+            left: mPos.x + 15, 
+            top: mPos.y - 45,
+          }}
+        >
+          <div className="flex flex-col items-start min-w-[80px]">
+            <span className="text-[9px] font-bold text-white/50 uppercase tracking-tighter mb-0.5">{counts[hovered].label}</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-black leading-none">{counts[hovered].value}</span>
+              <span className="text-xs font-bold text-white/70">{unit}</span>
+            </div>
+            <div className="mt-1.5 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+               <div className="h-full bg-white/40" style={{ width: `${Math.round((counts[hovered].value / total) * 100)}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LegendItem({ label, color }: { label: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2.5 group/legend py-0.5">
+      <div className="w-1.5 h-3.5 rounded-full flex-shrink-0 transition-transform group-hover/legend:scale-y-125" style={{ background: color }} />
+      <span className="text-[11px] font-bold text-slate-500 truncate group-hover/legend:text-slate-800 transition-colors uppercase tracking-tight">{label}</span>
+    </div>
+  );
+}
 
 export default function SaleDashboard() {
   const navigate = useNavigate();
@@ -102,80 +196,90 @@ export default function SaleDashboard() {
         ))}
       </div>
 
-      {/* Inventory at-a-glance */}
-      <div className="grid grid-cols-2 gap-5">
-        {/* Request funnel */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Tình trạng yêu cầu tháng {currentMonth}</h2>
-            <TrendingUp size={16} className="text-emerald-500" />
+      {/* Pro Max Charts Row */}
+      <div className="grid grid-cols-3 gap-5">
+        {/* Chart 1: Status */}
+        <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-slate-800 text-[13px] tracking-tight" style={{ fontWeight: 800 }}>TÌNH TRẠNG YÊU CẦU</h2>
+            <div className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] rounded-lg font-bold">Tháng {currentMonth}</div>
           </div>
-          <div className="grid grid-cols-5 gap-2">
-            {!data ? null : (["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(status => {
-              const count = data.requestStatusCounts[status] || 0;
-              const totalRequests = Object.values(data.requestStatusCounts || {}).reduce((a, b) => a + b, 0);
-              const pct = totalRequests > 0 ? Math.round((count / totalRequests) * 100) : 0;
-              
-              return (
-                <div key={status} className="text-center">
-                  <div className={`text-2xl mb-1 ${
-                    status === "Deposited" ? "text-emerald-600" : status === "Cancelled" ? "text-slate-400" :
-                    status === "Pending" ? "text-amber-600" : status === "Scheduled" ? "text-blue-600" : "text-purple-600"
-                  }`} style={{ fontWeight: 700 }}>{count}</div>
-                  <div className={`text-xs px-1.5 py-0.5 rounded-full inline-block ${statusColors[status]}`} style={{ fontWeight: 500, fontSize: "10px" }}>
-                    {statusLabels[status]}
-                  </div>
-                  <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${
-                      status === "Deposited" ? "bg-emerald-400" : status === "Cancelled" ? "bg-slate-300" :
-                      status === "Pending" ? "bg-amber-400" : status === "Scheduled" ? "bg-blue-400" : "bg-purple-400"
-                    }`} style={{ width: `${pct}%` }} />
-                  </div>
+          <div className="flex items-center gap-2">
+            {!data ? null : (
+              <>
+                <DonutChart 
+                  total={Object.values(data.requestStatusCounts || {}).reduce((a, b) => a + b, 0)}
+                  counts={(["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(s => ({
+                    label: statusLabels[s],
+                    value: data.requestStatusCounts[s] || 0,
+                    color: STATUS_HEX[s]
+                  }))}
+                />
+                <div className="flex-1 space-y-3.5 ml-2">
+                  {(["Pending","Scheduled","Shown","Deposited","Cancelled"] as const).map(s => (
+                    <LegendItem 
+                      key={s}
+                      label={statusLabels[s]}
+                      color={STATUS_HEX[s]}
+                    />
+                  ))}
                 </div>
-              );
-            })}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Rental mode breakdown */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Phân loại hình thức thuê</h2>
-            <BedDouble size={16} className="text-teal-500" />
+        {/* Chart 2: Rental Mode */}
+        <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-slate-800 text-[13px] tracking-tight" style={{ fontWeight: 800 }}>LOẠI HÌNH THUÊ</h2>
+            <BedDouble size={14} className="text-violet-500" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            {!data ? null : (["Whole Room","Shared Bed"] as const).map(mode => {
-              const reqsCount = data.requestRentalModeCounts[mode] || 0;
-              const depCount = data.depositedByRentalModeCounts[mode] || 0;
-              const isWhole = mode === "Whole Room";
-              return (
-                <div key={mode} className={`rounded-xl p-4 border ${isWhole ? "bg-violet-50 border-violet-100" : "bg-teal-50 border-teal-100"}`}>
-                  <div className={`text-2xl mb-1 ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 700 }}>{reqsCount}</div>
-                  <div className={`text-sm ${isWhole ? "text-violet-700" : "text-teal-700"}`} style={{ fontWeight: 600 }}>
-                    {isWhole ? "🏠 Toàn phòng" : "🛏 Ghép giường"}
-                  </div>
-                  <div className={`text-xs mt-1 ${isWhole ? "text-violet-500" : "text-teal-500"}`}>
-                    {depCount} đã đặt cọc
-                  </div>
+          <div className="flex items-center gap-2">
+            {!data ? null : (
+              <>
+                <DonutChart 
+                  unit="khách"
+                  total={Object.values(data.requestRentalModeCounts || {}).reduce((a, b) => a + b, 0)}
+                  counts={[
+                    { label: "Toàn phòng", value: data.requestRentalModeCounts["Whole Room"] || 0, color: "#8B5CF6" },
+                    { label: "Ghép giường", value: data.requestRentalModeCounts["Shared Bed"] || 0, color: "#0D9488" }
+                  ]}
+                />
+                <div className="flex-1 space-y-5 ml-2">
+                  <LegendItem label="🏠 Toàn phòng" color="#8B5CF6" />
+                  <LegendItem label="🛏 Ghép giường" color="#0D9488" />
                 </div>
-              );
-            })}
+              </>
+            )}
           </div>
-          <div className="mt-4 space-y-2">
-            {!data ? null : (["Male","Female","Any"] as const).map(g => {
-              const count = data.requestGenderCounts[g] || 0;
-              const totalRequests = Object.values(data.requestStatusCounts || {}).reduce((a, b) => a + b, 0);
-              return (
-                <div key={g} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 w-16">{g === "Male" ? "Nam" : g === "Female" ? "Nữ" : "Bất kỳ"}</span>
-                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${g === "Male" ? "bg-blue-400" : g === "Female" ? "bg-pink-400" : "bg-slate-300"}`}
-                      style={{ width: `${totalRequests > 0 ? (count / totalRequests) * 100 : 0}%` }} />
-                  </div>
-                  <span className="text-xs text-slate-500 w-4 text-right" style={{ fontWeight: 600 }}>{count}</span>
+        </div>
+
+        {/* Chart 3: Gender */}
+        <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-slate-800 text-[13px] tracking-tight" style={{ fontWeight: 800 }}>PHÂN LOẠI GIỚI TÍNH</h2>
+            <User size={14} className="text-pink-500" />
+          </div>
+          <div className="flex items-center gap-2">
+            {!data ? null : (
+              <>
+                <DonutChart 
+                  unit="khách"
+                  total={Object.values(data.requestGenderCounts || {}).reduce((a, b) => a + b, 0)}
+                  counts={[
+                    { label: "Nam", value: data.requestGenderCounts["Male"] || 0, color: "#3B82F6" },
+                    { label: "Nữ", value: data.requestGenderCounts["Female"] || 0, color: "#EC4899" },
+                    { label: "Bất kỳ", value: data.requestGenderCounts["Any"] || 0, color: "#CBD5E1" }
+                  ]}
+                />
+                <div className="flex-1 space-y-4 ml-2">
+                  <LegendItem label="Nam giới" color="#3B82F6" />
+                  <LegendItem label="Nữ giới" color="#EC4899" />
+                  <LegendItem label="Bất kỳ" color="#CBD5E1" />
                 </div>
-              );
-            })}
+              </>
+            )}
           </div>
         </div>
       </div>

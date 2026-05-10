@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect, useMemo } from "react";
 import {
   CalendarDays, Plus, User, ChevronLeft, ChevronRight, Home, X,
   Check, CheckCircle, Phone, ChevronDown, MessageSquare, Save, Clock,
@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { usePagedList } from "../../hooks/usePagedList";
 import { Pagination } from "../../components/Pagination";
+import { useToast } from "../../components/ToastProvider";
 import { getAppointments, updateAppointment, createAppointment, getRequests, updateRequest, getUsers, getRooms } from "../../services/api";
 import type { Appointment, Request, Employee, Room } from "../../types";
 
@@ -171,8 +172,9 @@ function MiniCalendar({
 }
 
 // ── Appointment Row ────────────────────────────────────────────────────────
-function ApptRow({ appt, onUpdate }: {
+function ApptRow({ appt, userMap, onUpdate }: {
   appt: Appointment;
+  userMap: Map<string, string>;
   onUpdate: (id: string, changes: Partial<Appointment>) => void;
 }) {
   const [expanded,  setExpanded]  = useState(false);
@@ -220,7 +222,7 @@ function ApptRow({ appt, onUpdate }: {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <div style={{ fontWeight:800, fontSize:"0.9rem", color:"#1E293B" }}>KH: {appt.khachHangXem ?? "--"}</div>
+              <div style={{ fontWeight:800, fontSize:"0.9rem", color:"#1E293B" }}>KH: {appt.khachHangXem ? userMap.get(appt.khachHangXem) || appt.khachHangXem : "--"}</div>
               {appt.isOverdue && (
                 <span className="flex items-center gap-1 text-red-600 px-1.5 py-0.5 rounded bg-red-50" style={{ fontSize: "0.68rem", fontWeight: 700 }}>
                   <AlertTriangle size={10} /> Quá hạn xử lý
@@ -234,7 +236,7 @@ function ApptRow({ appt, onUpdate }: {
               </div>
               <div className="flex items-center gap-1">
                 <User size={10} style={{ color:"#CBD5E1" }}/>
-                <span style={{ fontSize:"0.72rem", color:"#94A3B8" }}>NV: {appt.nhanVienPhuTrach ?? "--"}</span>
+                <span style={{ fontSize:"0.72rem", color:"#94A3B8" }}>NV: {appt.nhanVienPhuTrach ? userMap.get(appt.nhanVienPhuTrach) || appt.nhanVienPhuTrach : "--"}</span>
               </div>
               <span className="text-xs px-1.5 py-0.5 rounded" style={{ background:`${O}12`, color:O, fontWeight:700, fontSize:"0.68rem" }}>{appt.maLichHen}</span>
             </div>
@@ -302,6 +304,7 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
   const { items: pendingRequests, loading, reload } = usePagedList<Request>(getRequests, 5000, {
     trangThaiYeuCau: "Mới tạo",
   });
+  const { addToast } = useToast();
   const { items: rawEmployees } = usePagedList<any>(getUsers, 500);
   const employees = rawEmployees as Employee[];
   
@@ -314,7 +317,7 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
   const [localPage, setLocalPage] = useState(0);
   const [localSize, setLocalSize] = useState(10);
 
-  const filteredRequests = pendingRequests.filter(req => 
+  const filteredRequests = pendingRequests.filter((req: Request) => 
     (req.khachHangYeuCau ?? "").toLowerCase().includes(search.toLowerCase()) || 
     req.maYeuCau.toLowerCase().includes(search.toLowerCase())
   );
@@ -336,10 +339,14 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
   const handleSchedule = async () => {
     const nvId = staff.split(" - ")[0]?.trim() || staff;
     const roomId = selectedRoomId.split(" - ")[0]?.trim() || selectedRoomId;
-    if (!selectedReq || !date || !time || !nvId || !roomId) return alert("Vui lòng điền đủ thông tin, bao gồm phòng cần xem");
+    if (!selectedReq || !date || !time || !nvId || !roomId) {
+      addToast({ message: "Vui lòng điền đủ thông tin, bao gồm phòng cần xem", type: "error" });
+      return;
+    }
     
     if (nvId.length > 4) {
-      return alert("Mã nhân viên chỉ được chứa tối đa 4 ký tự (ví dụ: 0001). Vui lòng chọn đúng nhân viên từ danh sách!");
+      addToast({ message: "Mã nhân viên chỉ được chứa tối đa 4 ký tự (ví dụ: 0001). Vui lòng chọn đúng nhân viên từ danh sách!", type: "error" });
+      return;
     }
     
     if (selectedReq.thoiGianBatDauThueDuKien) {
@@ -349,7 +356,11 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
       rentalDateObj.setHours(0, 0, 0, 0);
       
       if (selectedDateObj > rentalDateObj) {
-        return alert(`Ngày hẹn xem phòng (${date.split("-").reverse().join("/")}) không được trễ hơn ngày thuê dự kiến (${selectedReq.thoiGianBatDauThueDuKien.split("-").reverse().join("/")}). Vui lòng chọn ngày khác!`);
+        addToast({ 
+          message: `Ngày hẹn xem phòng (${date.split("-").reverse().join("/")}) không được trễ hơn ngày thuê dự kiến (${selectedReq.thoiGianBatDauThueDuKien.split("-").reverse().join("/")}). Vui lòng chọn ngày khác!`, 
+          type: "error" 
+        });
+        return;
       }
     }
 
@@ -367,14 +378,14 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
       await updateRequest(selectedReq.maYeuCau, {
         trangThaiYeuCau: "Đã lên lịch xem",
       });
-      alert("Đã tạo lịch xem phòng!");
+      addToast({ message: "Đã tạo lịch xem phòng!", type: "success" });
       setSelectedReq(null);
       setSelectedRoomId("");
       setStaff("");
       reload();
       onScheduled();
     } catch (e: any) {
-      alert("Lỗi: " + e.message);
+      addToast({ message: "Lỗi: " + e.message, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -397,7 +408,7 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
         </div>
         {loading ? <div className="text-slate-500 text-sm">Đang tải dữ liệu...</div> : (
           <div className="space-y-3">
-             {paginatedRequests.map(req => (
+             {paginatedRequests.map((req: Request) => (
                <div key={req.maYeuCau} 
                  onClick={() => setSelectedReq(req)}
                  className={`p-4 rounded-xl border cursor-pointer transition ${selectedReq?.maYeuCau === req.maYeuCau ? "border-orange-500 bg-orange-50 ring-2 ring-orange-200" : "border-slate-200 hover:border-orange-300 bg-slate-50"}`}>
@@ -469,7 +480,7 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
                  <input type="text" list="room-list" value={selectedRoomId} onChange={e=>setSelectedRoomId(e.target.value)} placeholder="Ví dụ: P001" className="w-full px-4 py-2.5 border rounded-xl bg-slate-50 outline-none focus:bg-white focus:border-orange-500 transition"/>
                  <datalist id="room-list">
                    {rooms.map(room => (
-                     <option key={room.maPhong} value={`${room.maPhong} - ${room.loaiPhong} - ${room.dienTich}m2`} />
+                     <option key={room.maPhong} value={`${room.maPhong} - ${room.trangThai} - Giá: ${room.giaThuePhong}đ`} />
                    ))}
                  </datalist>
                </div>
@@ -503,7 +514,8 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
 export default function SaleAppointments() {
   const [activeTab, setActiveTab] = useState<"pending" | "scheduled">("pending");
 
-
+  const { items: rawUsers } = usePagedList<any>(getUsers, 1000);
+  const userMap = useMemo(() => new Map((rawUsers as any[]).map(u => [u.maKhachHang || u.maNhanVien, u.hoTen])), [rawUsers]);
   const [viewYear,  setViewYear]  = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-indexed
   const [selDay,    setSelDay]    = useState(() => new Date().getDate());
@@ -530,7 +542,7 @@ export default function SaleAppointments() {
   });
 
   const searchFiltered = search
-    ? appointments.filter(a =>
+    ? appointments.filter((a: Appointment) =>
         (a.maLichHen??'').toLowerCase().includes(search.toLowerCase()) ||
         (a.khachHangXem??'').toLowerCase().includes(search.toLowerCase()) ||
         (a.nhanVienPhuTrach??'').toLowerCase().includes(search.toLowerCase())
@@ -695,8 +707,8 @@ export default function SaleAppointments() {
               </div>
             ) : (
               <div>
-                {searchFiltered.map(appt => (
-                  <ApptRow key={appt.maLichHen} appt={appt} onUpdate={handleUpdate}/>
+                {searchFiltered.map((appt: Appointment) => (
+                  <ApptRow key={appt.maLichHen} appt={appt} userMap={userMap} onUpdate={handleUpdate}/>
                 ))}
               </div>
             )}

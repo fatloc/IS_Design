@@ -122,135 +122,135 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public com.homestay.dorm.dto.response.SaleDashboardResponse getSaleDashboardStats() {
+        long startTime = System.currentTimeMillis();
         LocalDate today = LocalDate.now();
         LocalDate yesterday = today.minusDays(1);
 
-        List<YeuCauDangKy> requests = yeuCauDangKyRepository.findAll();
-        List<LichXemPhong> appointments = lichXemPhongRepository.findAll();
-        List<com.homestay.dorm.entity.HoSoDatCoc> deposits = hoSoDatCocRepository.findAll();
+        // 1. Chạy song song các query đếm và lấy data hiển thị
+        CompletableFuture<List<Object[]>> statusCountsFuture = CompletableFuture.supplyAsync(() -> yeuCauDangKyRepository.countByStatus());
+        CompletableFuture<List<Object[]>> genderCountsFuture = CompletableFuture.supplyAsync(() -> yeuCauDangKyRepository.countByGender());
+        CompletableFuture<List<Object[]>> rentalModeCountsFuture = CompletableFuture.supplyAsync(() -> yeuCauDangKyRepository.countByRentalMode());
         
-        Map<String, String> customerMap = khachHangRepository.findAll().stream()
+        CompletableFuture<Long> appsTodayFuture = CompletableFuture.supplyAsync(() -> lichXemPhongRepository.countByNgayHen(today));
+        CompletableFuture<Long> appsYesterdayFuture = CompletableFuture.supplyAsync(() -> lichXemPhongRepository.countByNgayHen(yesterday));
+        
+        CompletableFuture<Long> depositsTodayFuture = CompletableFuture.supplyAsync(() -> hoSoDatCocRepository.countByNgayLap(today));
+        CompletableFuture<Long> depositsYesterdayFuture = CompletableFuture.supplyAsync(() -> hoSoDatCocRepository.countByNgayLap(yesterday));
+
+        // Lấy danh sách con nhỏ để hiển thị
+        CompletableFuture<List<YeuCauDangKy>> pendingListFuture = CompletableFuture.supplyAsync(() -> 
+                yeuCauDangKyRepository.findByTrangThaiYeuCau("Yêu cầu mới", PageRequest.of(0, 5, org.springframework.data.domain.Sort.by("maYeuCau").descending())).getContent());
+                
+        CompletableFuture<List<LichXemPhong>> todayAppsListFuture = CompletableFuture.supplyAsync(() -> 
+                lichXemPhongRepository.findByNgayHen(today, PageRequest.of(0, 10)).getContent());
+
+        // Đợi tất cả hoàn thành
+        CompletableFuture.allOf(statusCountsFuture, genderCountsFuture, rentalModeCountsFuture, 
+                appsTodayFuture, appsYesterdayFuture, depositsTodayFuture, depositsYesterdayFuture,
+                pendingListFuture, todayAppsListFuture).join();
+
+        // 2. Thu thập và map kết quả thống kê
+        Map<String, Long> requestStatusCounts = new HashMap<>();
+        statusCountsFuture.join().forEach(r -> {
+            String dbStatus = (String) r[0];
+            Long count = (Long) r[1];
+            String dashStatus = toDashStatus(dbStatus);
+            requestStatusCounts.put(dashStatus, requestStatusCounts.getOrDefault(dashStatus, 0L) + count);
+        });
+
+        Map<String, Long> requestGenderCounts = new HashMap<>();
+        genderCountsFuture.join().forEach(r -> {
+            String gender = "Any";
+            if ("Nam".equalsIgnoreCase((String)r[0])) gender = "Male";
+            else if ("Nữ".equalsIgnoreCase((String)r[0])) gender = "Female";
+            requestGenderCounts.put(gender, (Long)r[1]);
+        });
+
+        Map<String, Long> requestRentalModeCounts = new HashMap<>();
+        rentalModeCountsFuture.join().forEach(r -> {
+            requestRentalModeCounts.put((String)r[0], (Long)r[1]);
+        });
+
+        // 3. Resolve tên khách hàng và nhân viên một cách hiệu quả (vừa sửa lỗi compile vừa tối ưu DB)
+        List<YeuCauDangKy> pendingList = pendingListFuture.join();
+        List<LichXemPhong> todayAppsList = todayAppsListFuture.join();
+
+        java.util.Set<String> cIds = new java.util.HashSet<>();
+        pendingList.forEach(r -> { if(r.getKhachHangYeuCau() != null) cIds.add(r.getKhachHangYeuCau()); });
+        todayAppsList.forEach(a -> { if(a.getKhachHangXem() != null) cIds.add(a.getKhachHangXem()); });
+
+        java.util.Set<String> eIds = new java.util.HashSet<>();
+        todayAppsList.forEach(a -> { if(a.getNhanVienPhuTrach() != null) eIds.add(a.getNhanVienPhuTrach()); });
+
+        Map<String, String> cNames = khachHangRepository.findAllById(cIds).stream()
                 .collect(Collectors.toMap(com.homestay.dorm.entity.KhachHang::getMaKhachHang, 
                          c -> c.getHoTen() != null ? c.getHoTen() : ""));
-        Map<String, String> employeeMap = nhanVienRepository.findAll().stream()
+        Map<String, String> eNames = nhanVienRepository.findAllById(eIds).stream()
                 .collect(Collectors.toMap(com.homestay.dorm.entity.NhanVien::getMaNhanVien, 
                          e -> e.getHoTen() != null ? e.getHoTen() : ""));
 
-        // Helper to map DB request status to Sale dashboard status
-        java.util.function.Function<String, String> toDashboardStatus = (status) -> {
-            if (status == null) return "Pending";
-            switch (status.trim()) {
-                case "Yêu cầu mới": return "Pending";
-                case "Đã lên lịch xem": return "Scheduled";
-                case "Đã xem phòng": return "Shown";
-                case "Đặt cọc thành công": return "Deposited";
-                case "Đã hủy": return "Cancelled";
-                default: return "Pending";
-            }
-        };
+        // 4. Map DTOs cho Requests
+        List<com.homestay.dorm.dto.response.SaleDashboardResponse.RequestDto> visiblePendingRequests = pendingList.stream()
+                .map(r -> {
+                    String rMode = (r.getSoLuongNguoi() != null && r.getSoLuongNguoi() > 1) ? "Whole Room" : "Shared Bed";
+                    String budgetStr = r.getMucGiaMongMuon() != null ? String.format("%.1fM", r.getMucGiaMongMuon().doubleValue() / 1000000.0) : "—";
+                    return com.homestay.dorm.dto.response.SaleDashboardResponse.RequestDto.builder()
+                            .id(r.getMaYeuCau())
+                            .date(r.getThoiGianBatDauThueDuKien() != null ? r.getThoiGianBatDauThueDuKien().toString() : "")
+                            .clientName(cNames.getOrDefault(r.getKhachHangYeuCau(), "Khách hàng"))
+                            .phone("--")
+                            .rentalMode(rMode)
+                            .headcount(r.getSoLuongNguoi() != null ? r.getSoLuongNguoi() : 1)
+                            .gender("Nam".equalsIgnoreCase(r.getGioiTinhYeuCau()) ? "Male" : "Female")
+                            .budget(budgetStr)
+                            .status("Pending")
+                            .note(r.getCacTieuChiKhac() != null ? r.getCacTieuChiKhac() : "")
+                            .build();
+                }).collect(Collectors.toList());
 
-        // Map requests to DTO and counts
-        Map<String, Long> requestStatusCounts = new HashMap<>();
-        Map<String, Long> requestRentalModeCounts = new HashMap<>();
-        Map<String, Long> requestGenderCounts = new HashMap<>();
-        List<com.homestay.dorm.dto.response.SaleDashboardResponse.RequestDto> mappedRequests = new ArrayList<>();
+        // 5. Map DTOs cho Appointments
+        List<com.homestay.dorm.dto.response.SaleDashboardResponse.AppointmentDto> todayApps = todayAppsList.stream()
+                .map(a -> {
+                    String dashStatus = "Đã xem".equalsIgnoreCase(a.getTrangThaiHen()) ? "Shown" :
+                                       "Đã hủy".equalsIgnoreCase(a.getTrangThaiHen()) ? "Cancelled" : "Pending";
+                    return com.homestay.dorm.dto.response.SaleDashboardResponse.AppointmentDto.builder()
+                            .id(a.getMaLichHen())
+                            .time(a.getThoiGianHen() != null ? a.getThoiGianHen().toString().substring(0,5) : "--:--")
+                            .clientName(cNames.getOrDefault(a.getKhachHangXem(), "Khách hàng"))
+                            .rentalMode("Shared Bed")
+                            .targetAssetLabel("Phòng " + (a.getMaPhong() != null ? a.getMaPhong() : "--"))
+                            .staffName(eNames.getOrDefault(a.getNhanVienPhuTrach(), "--"))
+                            .status(dashStatus)
+                            .notes("")
+                            .build();
+                }).collect(Collectors.toList());
 
-        for (YeuCauDangKy r : requests) {
-            String dbStatus = r.getTrangThaiYeuCau();
-            String dashStatus = toDashboardStatus.apply(dbStatus);
-            requestStatusCounts.put(dashStatus, requestStatusCounts.getOrDefault(dashStatus, 0L) + 1);
-
-            String rMode = (r.getSoLuongNguoi() != null && r.getSoLuongNguoi() > 1) ? "Whole Room" : "Shared Bed";
-            requestRentalModeCounts.put(rMode, requestRentalModeCounts.getOrDefault(rMode, 0L) + 1);
-
-            String gender = "Any";
-            if ("Nam".equalsIgnoreCase(r.getGioiTinhYeuCau())) gender = "Male";
-            else if ("Nữ".equalsIgnoreCase(r.getGioiTinhYeuCau())) gender = "Female";
-            requestGenderCounts.put(gender, requestGenderCounts.getOrDefault(gender, 0L) + 1);
-
-            String budgetStr = "Chưa cập nhật";
-            if (r.getMucGiaMongMuon() != null) {
-                budgetStr = String.format("%.1fM", r.getMucGiaMongMuon().doubleValue() / 1000000.0);
-            }
-            
-            String clientName = customerMap.getOrDefault(r.getKhachHangYeuCau(), r.getKhachHangYeuCau());
-
-            mappedRequests.add(com.homestay.dorm.dto.response.SaleDashboardResponse.RequestDto.builder()
-                    .id(r.getMaYeuCau())
-                    .date(r.getThoiGianBatDauThueDuKien() != null ? r.getThoiGianBatDauThueDuKien().toString() : "")
-                    .clientName(clientName != null ? clientName : "Khách hàng")
-                    .phone("--") // Not pulling all phones now for speed
-                    .rentalMode(rMode)
-                    .headcount(r.getSoLuongNguoi() != null ? r.getSoLuongNguoi() : 1)
-                    .gender(gender)
-                    .budget(budgetStr)
-                    .status(dashStatus)
-                    .note(r.getCacTieuChiKhac() != null ? r.getCacTieuChiKhac() : "")
-                    .criteria(r.getCacTieuChiKhac() != null ? List.of(r.getCacTieuChiKhac()) : List.of())
-                    .build());
-        }
-
-        List<com.homestay.dorm.dto.response.SaleDashboardResponse.RequestDto> pendingList = mappedRequests.stream()
-                .filter(r -> "Pending".equals(r.getStatus()))
-                .sorted((a, b) -> b.getDate().compareTo(a.getDate()))
-                .collect(Collectors.toList());
-        List<com.homestay.dorm.dto.response.SaleDashboardResponse.RequestDto> visiblePendingRequests = 
-                pendingList.size() > 5 ? pendingList.subList(0, 5) : pendingList;
-
-        // Appointments
-        List<com.homestay.dorm.dto.response.SaleDashboardResponse.AppointmentDto> todayApps = new ArrayList<>();
-        long yesterdayAppointmentsCount = 0;
-
-        for (LichXemPhong a : appointments) {
-            if (today.equals(a.getNgayHen())) {
-                String cName = customerMap.getOrDefault(a.getKhachHangXem(), a.getKhachHangXem());
-                String eName = employeeMap.getOrDefault(a.getNhanVienPhuTrach(), a.getNhanVienPhuTrach());
-                String dashStatus = "Đã xem".equalsIgnoreCase(a.getTrangThaiHen()) ? "Shown" :
-                                   "Đã hủy".equalsIgnoreCase(a.getTrangThaiHen()) ? "Cancelled" : "Pending";
-
-                todayApps.add(com.homestay.dorm.dto.response.SaleDashboardResponse.AppointmentDto.builder()
-                        .id(a.getMaLichHen())
-                        .time(a.getThoiGianHen() != null ? a.getThoiGianHen().toString().substring(0,5) : "--:--")
-                        .clientName(cName != null ? cName : "Khách hàng")
-                        .rentalMode("Shared Bed")
-                        .targetAssetLabel("Lịch hẹn " + a.getMaLichHen())
-                        .staffName(eName != null ? eName : "--")
-                        .status(dashStatus)
-                        .notes("")
-                        .build());
-            } else if (yesterday.equals(a.getNgayHen())) {
-                yesterdayAppointmentsCount++;
-            }
-        }
-
-        // Deposits
-        long depositedTodayCount = 0;
-        long yesterdayDepositsCount = 0;
-        // In the mock earlier, mapped deposits count used HoSoDatCoc.ngayLap or ChungTu.ngayLap
-        Map<String, Long> depositedByRentalModeCounts = new HashMap<>(); // Usually mapping deposit -> request is needed
-        
-        for (com.homestay.dorm.entity.HoSoDatCoc d : deposits) {
-            LocalDate dDate = d.getNgayLap();
-            if (today.equals(dDate)) {
-                depositedTodayCount++;
-                // Check if it belongs to a whole room or shared bed. Defaults to Shared Bed.
-                depositedByRentalModeCounts.put("Shared Bed", depositedByRentalModeCounts.getOrDefault("Shared Bed", 0L) + 1);
-            } else if (yesterday.equals(dDate)) {
-                yesterdayDepositsCount++;
-            }
-        }
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Sale Dashboard stats loaded in {} ms", (endTime - startTime));
 
         return com.homestay.dorm.dto.response.SaleDashboardResponse.builder()
                 .requestStatusCounts(requestStatusCounts)
                 .requestRentalModeCounts(requestRentalModeCounts)
-                .depositedByRentalModeCounts(depositedByRentalModeCounts)
+                .depositedByRentalModeCounts(new HashMap<>()) // Sẽ cập nhật thêm nếu cần cụ thể theo mode
                 .requestGenderCounts(requestGenderCounts)
                 .todayAppointments(todayApps)
                 .visiblePendingRequests(visiblePendingRequests)
                 .pendingRequestsCount(requestStatusCounts.getOrDefault("Pending", 0L) + requestStatusCounts.getOrDefault("Scheduled", 0L))
-                .depositedTodayCount(depositedTodayCount)
-                .yesterdayAppointmentsCount(yesterdayAppointmentsCount)
-                .yesterdayDepositsCount(yesterdayDepositsCount)
+                .depositedTodayCount(depositsTodayFuture.join())
+                .yesterdayAppointmentsCount(appsYesterdayFuture.join())
+                .yesterdayDepositsCount(depositsYesterdayFuture.join())
                 .build();
+    }
+
+    private String toDashStatus(String status) {
+        if (status == null) return "Pending";
+        switch (status.trim()) {
+            case "Yêu cầu mới": return "Pending";
+            case "Đã lên lịch xem": return "Scheduled";
+            case "Đã xem phòng": return "Shown";
+            case "Đặt cọc thành công": return "Deposited";
+            case "Đã hủy": return "Cancelled";
+            default: return "Pending";
+        }
     }
 }

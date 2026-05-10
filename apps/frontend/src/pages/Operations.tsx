@@ -6,6 +6,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { getOperations, type OperationAsset, type OperationCheckinItem, type OperationCheckoutItem } from "../services/api";
+import { formatVNDInput } from "../utils/format";
 
 const A = "#4F46E5";
 const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
@@ -815,17 +816,15 @@ function CheckOutTab({
                   className="w-full rounded-xl resize-none outline-none"
                   style={{ padding: "0.65rem 0.85rem", background: "#F8FAFC", border: "1.5px solid #E2E8F0", fontSize: "0.82rem", color: "#374151" }}
                 />
-                <div className="flex items-center gap-3 mt-2">
-                  <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#374151", whiteSpace: "nowrap" }}>Phụ phí ước tính (₫):</label>
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize: "0.82rem", color: "#94A3B8" }}>₫</span>
+                <div className="flex-1">
+                  <div style={{ fontSize: "0.72rem", color: "#94A3B8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Tiền phạt khấu trừ (VNĐ)</div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 font-bold">₫</span>
                     <input
                       value={penalty}
-                      onChange={(event) => setPenalty(event.target.value)}
-                      placeholder="0"
-                      type="text"
-                      className="w-full pl-6 pr-3 rounded-xl outline-none"
-                      style={{ paddingTop: "0.5rem", paddingBottom: "0.5rem", background: "#F8FAFC", border: "1.5px solid #E2E8F0", fontSize: "0.88rem", fontWeight: 700, color: "#1E293B" }}
+                      onChange={(event) => setPenalty(formatVNDInput(event.target.value))}
+                      className="w-full pl-7 pr-3 py-2.5 rounded-xl outline-none"
+                      style={{ border: "1.5px solid #EA580C30", background: "#FFF7ED", fontSize: "1rem", fontWeight: 800, color: "#C2410C" }}
                     />
                   </div>
                 </div>

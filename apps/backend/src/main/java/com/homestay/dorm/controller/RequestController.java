@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/requests")
@@ -26,8 +27,9 @@ public class RequestController {
             @RequestParam(required = false) String nhanVienPhuTrach,
             @RequestParam(required = false) String trangThaiYeuCau,
             @RequestParam(required = false) String ngayTao,
-            @RequestParam(required = false) String thang) {
-        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau, ngayTao, thang);
+            @RequestParam(required = false) String thang,
+            @RequestParam(required = false) String search) {
+        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau, ngayTao, thang, search);
     }
 
     @GetMapping("/{maYeuCau}")
@@ -51,5 +53,10 @@ public class RequestController {
     public ApiResponse<Void> deleteRequest(@PathVariable String maYeuCau) {
         requestService.deleteRequest(maYeuCau);
         return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/stats/counts")
+    public ApiResponse<Map<String, Long>> getRequestStatusCounts() {
+        return ApiResponse.ok(requestService.getRequestStatusCounts());
     }
 }

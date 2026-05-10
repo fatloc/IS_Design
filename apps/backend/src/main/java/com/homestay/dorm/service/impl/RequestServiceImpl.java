@@ -11,23 +11,26 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class RequestServiceImpl implements RequestService {
+    private static final Logger log = LoggerFactory.getLogger(RequestServiceImpl.class);
     private static final String DEFAULT_REQUEST_STATUS = "Yêu cầu mới";
 
     private final YeuCauDangKyRepository yeuCauRepository;
 
     @Override
-    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau, String ngayTao, String thang) {
-        // Sort by ngayTao DESC (newest first)
-        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
-            org.springframework.data.domain.Sort.Direction.DESC, "ngayTao"
-        ));
+    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau, String ngayTao, String thang, String search) {
+        // Sorting is handled inside Repository @Query for ABS(DATEDIFF)
+        Pageable pageable = PageRequest.of(page, size);
         
         Page<YeuCauDangKy> yeuCauPage;
 
@@ -62,24 +65,23 @@ public class RequestServiceImpl implements RequestService {
         // Apply filters based on provided parameters
         if (hasThang) {
             // Filter by month
-            yeuCauPage = yeuCauRepository.findByFiltersAndMonth(
+            yeuCauPage = yeuCauRepository.findByFiltersAndMonthWithSearch(
                 hasNhanVien ? nhanVienPhuTrach : null,
                 hasTrangThai ? trangThaiYeuCau : null,
                 year,
                 month,
-                pageable
-            );
-        } else if (hasNgayTao || hasNhanVien || hasTrangThai) {
-            // Filter by specific date and/or other filters
-            yeuCauPage = yeuCauRepository.findByFilters(
-                hasNhanVien ? nhanVienPhuTrach : null,
-                hasTrangThai ? trangThaiYeuCau : null,
-                ngayTaoDate,
+                search,
                 pageable
             );
         } else {
-            // No filters - return all with sorting
-            yeuCauPage = yeuCauRepository.findAll(pageable);
+            // Filter by specific date and/or other filters and/or search
+            yeuCauPage = yeuCauRepository.findByFiltersWithSearch(
+                hasNhanVien ? nhanVienPhuTrach : null,
+                hasTrangThai ? trangThaiYeuCau : null,
+                ngayTaoDate,
+                search,
+                pageable
+            );
         }
 
         yeuCauPage.forEach(req -> {
@@ -102,7 +104,9 @@ public class RequestServiceImpl implements RequestService {
     }
 
     @Override
+    @Transactional
     public YeuCauDangKy createRequest(CreateYeuCauRequest req) {
+        log.info("Bắt đầu tạo yêu cầu thuê mới cho khách hàng ID: {}", req.getKhachHangYeuCau());
         String newId = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
         
         YeuCauDangKy yeuCau = YeuCauDangKy.builder()
@@ -121,8 +125,11 @@ public class RequestServiceImpl implements RequestService {
                 .nhanVienPhuTrach(req.getNhanVienPhuTrach())
                 .trangThaiYeuCau(req.getTrangThaiYeuCau() != null ? req.getTrangThaiYeuCau() : DEFAULT_REQUEST_STATUS)
                 .build();
-                
-        return yeuCauRepository.save(yeuCau);
+        
+        log.info("Dự kiến lưu yêu cầu với ID: {}", newId);
+        YeuCauDangKy saved = yeuCauRepository.save(yeuCau);
+        log.info("Đã lưu thành công yêu cầu: {} vào database.", saved.getMaYeuCau());
+        return saved;
     }
 
     @Override
@@ -148,5 +155,14 @@ public class RequestServiceImpl implements RequestService {
     public void deleteRequest(String maYeuCau) {
         YeuCauDangKy yeuCau = getRequestById(maYeuCau);
         yeuCauRepository.delete(yeuCau);
+    }
+
+    @Override
+    public Map<String, Long> getRequestStatusCounts() {
+        List<Object[]> results = yeuCauRepository.countByStatus();
+        return results.stream().collect(Collectors.toMap(
+            r -> r[0] != null ? r[0].toString().trim() : "Pending",
+            r -> (Long) r[1]
+        ));
     }
 }

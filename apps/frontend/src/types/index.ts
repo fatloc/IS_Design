@@ -102,6 +102,7 @@ export interface Request {
   coBaiGuiXe: SqlBoolean | null;
   cacTieuChiKhac: string | null;
   khachHangYeuCau: string | null;
+  khachHang?: Customer | null;
   nhanVienPhuTrach: string | null;
   trangThaiYeuCau?: string | null;
   isOverdue?: boolean;
