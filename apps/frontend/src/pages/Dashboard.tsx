@@ -76,7 +76,7 @@ function RoomLegendRow({ seg, total }: { seg: any; total: number }) {
 }
 
 function formatCurrency(value: number) {
-  return "₫" + value.toLocaleString("vi-VN");
+  return value.toLocaleString("vi-VN") + "₫";
 }
 
 export default function Dashboard() {
@@ -112,14 +112,38 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const refreshData = () => {
+    sessionStorage.removeItem("dashboard_stats_cache");
+    loadData(true);
+  };
+
+  const loadData = async (force = false) => {
+    if (!force) {
+      const cached = sessionStorage.getItem("dashboard_stats_cache");
+      if (cached) {
+        try {
+          const { data: cachedData, expiry } = JSON.parse(cached);
+          if (expiry > Date.now()) {
+            setData(cachedData);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          sessionStorage.removeItem("dashboard_stats_cache");
+        }
+      }
+    }
+
     setLoading(true);
     try {
       const stats = await getDashboardStats();
       setData(stats);
       setError(null);
-      setLastUpdated(new Date());
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: stats, timestamp: Date.now() }));
+      // Cache for 30 seconds
+      sessionStorage.setItem("dashboard_stats_cache", JSON.stringify({
+        data: stats,
+        expiry: Date.now() + 30000
+      }));
     } catch (err: any) {
       setError(err.message || "Không thể tải dữ liệu dashboard");
     } finally {
@@ -199,12 +223,16 @@ export default function Dashboard() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2.5">
-          <button onClick={revalidate} disabled={isRefreshing}
-            className="p-2 rounded-xl text-slate-400 cursor-pointer hover:bg-slate-100 transition disabled:opacity-50"
-            title="Làm mới dữ liệu">
-            <RotateCcw size={18} className={isRefreshing ? "animate-spin" : ""} />
-          </button>
+        <button
+          onClick={refreshData}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+        >
+          <RotateCcw size={14} className={loading ? "animate-spin" : ""} />
+          <span>Làm mới dữ liệu</span>
+        </button>
+
+        <div className="flex items-center gap-2.5 ml-3">
           <button onClick={() => navigate("/manager/approvals")}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl cursor-pointer hover:opacity-90 transition"
             style={{ background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#DC2626", fontSize: "0.78rem", fontWeight: 700 }}>
