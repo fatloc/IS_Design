@@ -8,7 +8,10 @@ import com.homestay.dorm.repository.*;
 import com.homestay.dorm.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -32,7 +35,15 @@ public class DashboardServiceImpl implements DashboardService {
     private final KhachHangRepository khachHangRepository;
     private final NhanVienRepository nhanVienRepository;
 
+    // ── Scheduled cache eviction mỗi 30 giây ──────────────────────────────
+    @Scheduled(fixedRate = 30_000)
+    @CacheEvict(value = {"dashboardStats", "saleDashboardStats"}, allEntries = true)
+    public void evictDashboardCaches() {
+        log.debug("♻ Dashboard cache evicted (scheduled every 30s)");
+    }
+
     @Override
+    @Cacheable(value = "dashboardStats")
     public DashboardResponse getDashboardStats() {
         long startTime = System.currentTimeMillis();
         
@@ -115,12 +126,13 @@ public class DashboardServiceImpl implements DashboardService {
                 .build();
                 
         long endTime = System.currentTimeMillis();
-        log.info("⏱ [Performance] Dashboard stats loaded in {} ms", (endTime - startTime));
+        log.info("⏱ [Performance] Dashboard stats loaded in {} ms (will be cached for 30s)", (endTime - startTime));
         
         return response;
     }
 
     @Override
+    @Cacheable(value = "saleDashboardStats")
     public com.homestay.dorm.dto.response.SaleDashboardResponse getSaleDashboardStats() {
         long startTime = System.currentTimeMillis();
         LocalDate today = LocalDate.now();
@@ -226,7 +238,7 @@ public class DashboardServiceImpl implements DashboardService {
                 }).collect(Collectors.toList());
 
         long endTime = System.currentTimeMillis();
-        log.info("⏱ [Performance] Sale Dashboard stats loaded in {} ms", (endTime - startTime));
+        log.info("⏱ [Performance] Sale Dashboard stats loaded in {} ms (will be cached for 30s)", (endTime - startTime));
 
         return com.homestay.dorm.dto.response.SaleDashboardResponse.builder()
                 .requestStatusCounts(requestStatusCounts)

@@ -17,4 +17,5 @@ public class UpdateContractRequest {
     private String hinhThucThue;
     private String kyThanhToan;
     private Integer soLuongThanhVien;
+    private LocalDate ngayKetThuc;
 }

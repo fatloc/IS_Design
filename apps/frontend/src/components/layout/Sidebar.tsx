@@ -19,6 +19,13 @@ const NAV_ITEMS = [
     badgeColor: "",
   },
   {
+    label: "Quản lý phòng",
+    icon:  Building2,
+    path:  "/manager/rooms",
+    badge: null,
+    badgeColor: "",
+  },
+  {
     label: "Trung tâm Phê duyệt",
     icon:  ClipboardCheck,
     path:  "/manager/approvals",

@@ -186,7 +186,29 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public HopDongThue createContract(CreateContractRequest req) {
-        // 1. TẠO HỢP ĐỒNG CHÍNH
+        // 1. KIỂM TRA SỨC CHỨA CỦA PHÒNG
+        if (req.getMaPhong() != null && !req.getMaPhong().trim().isEmpty()) {
+            String targetRoom = req.getMaPhong().trim();
+            Phong phong = phongRepository.findById(targetRoom)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng: " + targetRoom));
+            
+            long currentOccupants = 0;
+            for (Object[] row : phongRepository.countCurrentOccupantsPerRoom()) {
+                if (targetRoom.equals(((String) row[0]).trim())) {
+                    currentOccupants = ((Number) row[1]).longValue();
+                    break;
+                }
+            }
+            
+            int capacity = phong.getSucChuaToiDa() != null ? phong.getSucChuaToiDa() : 0;
+            int requestedOccupants = req.getSoLuongThanhVien() != null ? req.getSoLuongThanhVien() : 1;
+            
+            if (currentOccupants + requestedOccupants > capacity) {
+                throw new RuntimeException("Phòng đã đầy hoặc không đủ chỗ trống! Sức chứa: " + capacity + ", Hiện tại: " + currentOccupants + ", Yêu cầu thêm: " + requestedOccupants);
+            }
+        }
+
+        // 2. TẠO HỢP ĐỒNG CHÍNH
         String newId = "HD" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
 
         HopDongThue hk = new HopDongThue();
@@ -201,8 +223,19 @@ public class ContractServiceImpl implements ContractService {
         hk.setHinhThucThue(req.getHinhThucThue());
         hk.setKyThanhToan(req.getKyThanhToan());
         hk.setSoLuongThanhVien(req.getSoLuongThanhVien() != null ? req.getSoLuongThanhVien() : 1);
+        if (req.getNgayKetThuc() != null) hk.setNgayKetThuc(req.getNgayKetThuc());
 
-        return repository.save(hk);
+        HopDongThue savedContract = repository.save(hk);
+
+        // 3. LƯU CHI TIẾT THUÊ PHÒNG
+        if (req.getMaPhong() != null && !req.getMaPhong().trim().isEmpty()) {
+            ChiTietThuePhong ctp = new ChiTietThuePhong();
+            ctp.setMaHopDongThue(savedContract.getMaVanBan());
+            ctp.setMaPhong(req.getMaPhong().trim());
+            chiTietThuePhongRepository.save(ctp);
+        }
+
+        return savedContract;
     }
 
     @Override
@@ -219,6 +252,7 @@ public class ContractServiceImpl implements ContractService {
         if (req.getHinhThucThue() != null) hk.setHinhThucThue(req.getHinhThucThue());
         if (req.getKyThanhToan() != null) hk.setKyThanhToan(req.getKyThanhToan());
         if (req.getSoLuongThanhVien() != null) hk.setSoLuongThanhVien(req.getSoLuongThanhVien());
+        if (req.getNgayKetThuc() != null) hk.setNgayKetThuc(req.getNgayKetThuc());
 
         return repository.save(hk);
     }
