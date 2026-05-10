@@ -12,6 +12,7 @@ import {
   Search,
   BadgeDollarSign,
 } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 const NAV_GROUPS = [
   {
@@ -42,6 +43,10 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Elemen
 
 function AccountantSidebar() {
   const navigate = useNavigate();
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const initials = currentUser?.hoTen
+    ? currentUser.hoTen.split(" ").map(n => n[0]).join("").toUpperCase().slice(-2)
+    : "??";
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-slate-950 text-slate-200">
@@ -58,10 +63,10 @@ function AccountantSidebar() {
       <div className="mx-4 mt-4 rounded-2xl border border-white/5 bg-white/5 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-sm font-bold text-white">
-            TB
+            {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-white">Trần Thị B</div>
+            <div className="truncate text-sm font-semibold text-white">{currentUser?.hoTen || "Accountant"}</div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-emerald-300">
               <Calculator size={10} /> Kế toán
             </div>

@@ -6,11 +6,13 @@ import com.homestay.dorm.dto.response.ApiResponse;
 import com.homestay.dorm.dto.response.OperationsResponse;
 import com.homestay.dorm.service.OperationsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/operations")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER', 'KETOAN')")
 public class OperationsController {
 
     private final OperationsService operationsService;

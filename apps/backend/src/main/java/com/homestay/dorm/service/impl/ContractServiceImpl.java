@@ -53,12 +53,18 @@ public class ContractServiceImpl implements ContractService {
         // Normalize filters (UI Vietnamese -> Seeded DB plain text)
         String q = (search != null && !search.isBlank()) ? search.trim() : null;
         
-        String type = null;
-        if ("Hợp đồng thuê".equals(loaiVanBan)) type = "Hop dong thue";
-        else if ("Biên bản bàn giao".equals(loaiVanBan)) type = "Ban giao tai san";
-        else if ("Biên bản trả phòng".equals(loaiVanBan)) type = "Bien ban tra phong";
-        else if ("Hồ sơ đặt cọc".equals(loaiVanBan)) type = "Ho so dat coc";
-        else if (loaiVanBan != null && !"Tất cả".equals(loaiVanBan)) type = loaiVanBan;
+        java.util.List<String> types = null;
+        if ("Hợp đồng thuê".equals(loaiVanBan)) {
+            types = java.util.Arrays.asList("Hop dong thue", "CHO_KY", "[STATUS:Active]");
+        } else if ("Biên bản bàn giao".equals(loaiVanBan)) {
+            types = java.util.Arrays.asList("Ban giao tai san");
+        } else if ("Biên bản trả phòng".equals(loaiVanBan)) {
+            types = java.util.Arrays.asList("Bien ban tra phong");
+        } else if ("Hồ sơ đặt cọc".equals(loaiVanBan)) {
+            types = java.util.Arrays.asList("Ho so dat coc");
+        } else if (loaiVanBan != null && !"Tất cả".equals(loaiVanBan)) {
+            types = java.util.Arrays.asList(loaiVanBan);
+        }
 
         String term = null;
         if ("1 Tháng".equals(kyThanhToan)) term = "Thang";
@@ -70,11 +76,11 @@ public class ContractServiceImpl implements ContractService {
                 org.springframework.data.domain.Sort.Direction.DESC, "ngayLap"
         ));
         
-        Page<HopDongThue> pageData = repository.searchContracts(q, type, term, pageable);
+        Page<HopDongThue> pageData = repository.searchContracts(q, types, term, pageable);
         
         ApiListResponse<HopDongThue> response = ApiListResponse.fromPage(pageData);
         long endTime = System.currentTimeMillis();
-        log.info("⏱ [Performance] Contracts loaded in {} ms with search='{}', type='{}'", (endTime - startTime), q, type);
+        log.info("⏱ [Performance] Contracts loaded in {} ms with search='{}', type='{}'", (endTime - startTime), q, types);
         return response;
     }
 
@@ -352,7 +358,8 @@ public class ContractServiceImpl implements ContractService {
     public java.util.Map<String, Long> getContractStats() {
         java.util.Map<String, Long> stats = new java.util.HashMap<>();
         stats.put("total", repository.count());
-        stats.put("contract", repository.countByLoaiVanBan("Hop dong thue"));
+        // Hợp đồng thuê = Hop dong thue + CHO_KY + [STATUS:Active]
+        stats.put("contract", repository.countByLoaiVanBanIn(java.util.Arrays.asList("Hop dong thue", "CHO_KY", "[STATUS:Active]")));
         stats.put("handover", repository.countByLoaiVanBan("Ban giao tai san"));
         stats.put("deposit", repository.countByLoaiVanBan("Ho so dat coc"));
         return stats;

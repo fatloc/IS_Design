@@ -502,7 +502,7 @@ function ContractFormModal({ contract, onClose, onSave }: {
       const roomData = await getRoomById(formData.maPhong);
       // Giả sử Backend trả về roomData có field giaThuePhong
       if (roomData && roomData.giaThuePhong) {
-        setFormData(prev => ({ ...prev, mucTienCoc: roomData.giaThuePhong }));
+        setFormData(prev => ({ ...prev, mucTienCoc: Number(roomData.giaThuePhong) }));
       }
     } catch (error) {
       console.log("Không tìm thấy thông tin phòng để tự điền cọc.");
@@ -845,16 +845,22 @@ export default function AccountantContracts() {
         // BƯỚC PHIÊN DỊCH DỮ LIỆU:
         // Đổi tên biến maVanBan của Java thành chữ id của React
         // Bơm chuỗi rỗng vào các trường bị null để giao diện không lỗi
-        const realData = (response.data as any[]).map(item => ({
-          ...item,
-          id: item.maVanBan || item.maHopDongThue || item.id || "N/A",
-          khachHangSoHuu: item.khachHangSoHuu || "Chưa cập nhật",
-          maPhong: item.maPhong || "Ghép giường", 
-          danhSachMaGiuong: item.danhSachMaGiuong || [],
-          danhSachDichVu: item.danhSachDichVu || [],
-          mucTienCoc: item.mucTienCoc || item.tienCoc || 0,
-          trangThai: item.loaiVanBan?.includes("[STATUS:Terminated]") ? "terminated" : "active"
-        }));
+        const realData = (response.data as any[]).map(item => {
+          let st = "active";
+          if (item.loaiVanBan?.includes("[STATUS:Terminated]")) st = "terminated";
+          else if (item.loaiVanBan === "CHO_KY") st = "pending";
+
+          return {
+            ...item,
+            id: item.maVanBan || item.maHopDongThue || item.id || "N/A",
+            khachHangSoHuu: item.khachHangSoHuu || "Chưa cập nhật",
+            maPhong: item.maPhong || "Ghép giường", 
+            danhSachMaGiuong: item.danhSachMaGiuong || [],
+            danhSachDichVu: item.danhSachDichVu || [],
+            mucTienCoc: item.mucTienCoc || item.tienCoc || 0,
+            trangThai: st
+          };
+        });
 
         setContracts(realData as Contract[]);
       } catch (error) {
@@ -991,7 +997,7 @@ export default function AccountantContracts() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          { label: "Đang hiệu lực", value: contracts.filter(c => c.status === "active").length, color: E, icon: CheckCircle },
+          { label: "Đang hiệu lực", value: contracts.filter(c => c.trangThai === "active").length, color: E, icon: CheckCircle },
           { label: "Đã hết hạn", value: contracts.filter(c => c.trangThai === "expired").length, color: "#DC2626", icon: Clock },
           { label: "Tổng hợp đồng", value: contracts.length, color: "#6366F1", icon: FileText },
         ].map(s => {
@@ -1060,8 +1066,12 @@ export default function AccountantContracts() {
                     fontSize: "0.72rem",
                     fontWeight: 700,
                   }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.trangThai === "active" ? (isManagerRoute ? "#818CF8" : "#10B981") : "#EF4444" }} />
-                    {c.trangThai === "active" ? "Đang hiệu lực" : "Đã hết hạn"}
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ 
+                      background: c.trangThai === "active" ? (isManagerRoute ? "#818CF8" : "#10B981") : 
+                                 c.trangThai === "pending" ? "#F59E0B" : "#EF4444" 
+                    }} />
+                    {c.trangThai === "active" ? "Đang hiệu lực" : 
+                     c.trangThai === "pending" ? "Chờ phê duyệt" : "Đã hết hạn"}
                   </span>
                 </td>
                 <td className="px-4 py-3">
