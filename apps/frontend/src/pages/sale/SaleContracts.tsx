@@ -250,8 +250,8 @@ function DocumentDetailModal({ contract, onClose, onDraft, userMap }: {
     if (k === 'khachHangSoHuu' || k === 'nhanVienLap') {
       return userMap.get(val as string) || val;
     }
-    if (loai === "CHO_KY") return { label: "Hợp đồng (Chờ ký)", color: "amber" };
-    return { label: loai, color: "slate" };
+    if (val === "CHO_KY") return "Hợp đồng (Chờ ký)";
+    return val;
   };
 
   return (
