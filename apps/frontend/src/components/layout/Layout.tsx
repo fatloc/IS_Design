@@ -23,6 +23,7 @@ const PAGE_META: Record<string, {
   "/manager/settings":   { title: "Cài đặt & Quản trị",         sub: "Quản lý phòng, bảng giá và tài khoản nhân sự",           icon: Settings2,       crumbs: ["Manager", "Cài đặt"]        },
   "/manager/approvals":  { title: "Trung tâm Phê duyệt",         sub: "Duyệt thuê phòng, xác nhận cọc và kiểm tra điều kiện",   icon: ClipboardCheck,  crumbs: ["Manager", "Phê duyệt"]      },
   "/manager/operations": { title: "Bàn giao & Thanh lý",          sub: "Check-in biên bản bàn giao và check-out thanh lý cọc",   icon: ArrowLeftRight,  crumbs: ["Manager", "Vận hành"]       },
+  "/manager/contracts":  { title: "Hợp đồng & Văn bản",           sub: "Quản lý hợp đồng thuê và các nghiệp vụ tài chính",       icon: FileText,        crumbs: ["Manager", "Hợp đồng"]       },
 };
 
 const NOTIFS = [
