@@ -254,6 +254,11 @@ export async function createRequest(payload: CreateRequestPayload) {
   return response.data.data;
 }
 
+export async function getRequestStatusCounts() {
+  const response = await api.get<ApiResponse<Record<string, number>>>("/requests/stats/counts");
+  return response.data.data;
+}
+
 export async function updateRequest(maYeuCau: string, payload: UpdateRequestPayload) {
   const response = await api.put<ApiResponse<RoomRequest>>(`/requests/${maYeuCau}`, payload);
   return response.data.data;
@@ -282,6 +287,11 @@ export async function updateAppointment(maLichHen: string, payload: UpdateAppoin
 export async function getContracts(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<ApiContract>>("/contracts", { params });
   return response.data;
+}
+
+export async function getContractStats() {
+  const response = await api.get<ApiResponse<Record<string, number>>>("/contracts/stats");
+  return response.data.data;
 }
 
 export async function getOperationalContracts(params?: Record<string, unknown>) {

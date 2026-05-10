@@ -22,6 +22,11 @@ public class ContractController {
 
     private final ContractService contractService;
 
+    @GetMapping("/stats")
+    public ApiResponse<java.util.Map<String, Long>> getContractStats() {
+        return ApiResponse.ok(contractService.getContractStats());
+    }
+
     @GetMapping("/settlement")
     public ApiResponse<java.util.List<java.util.Map<String, Object>>> getSettlementContracts(
             @RequestParam(required = false) String trangThai) {
@@ -50,8 +55,11 @@ public class ContractController {
     @GetMapping
     public ApiListResponse<HopDongThue> getContracts(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-        return contractService.getContracts(page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String loaiVanBan,
+            @RequestParam(required = false) String hinhThucThue) {
+        return contractService.getContracts(page, size, search, loaiVanBan, hinhThucThue);
     }
 
     @GetMapping("/{maHopDongThue}")

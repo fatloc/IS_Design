@@ -1,9 +1,6 @@
 package com.homestay.dorm.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -55,12 +52,16 @@ public class YeuCauDangKy {
     @Column(name = "KhachHangYeuCau", length = 6)
     private String khachHangYeuCau;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "KhachHangYeuCau", referencedColumnName = "MaKhachHang", insertable = false, updatable = false)
+    private KhachHang khachHang;
+
     @Column(name = "NhanVienPhuTrach", length = 4)
     private String nhanVienPhuTrach;
 
     @Column(name = "TrangThaiYeuCau", length = 30)
     private String trangThaiYeuCau;
 
-    @jakarta.persistence.Transient
+    @Transient
     private Boolean isOverdue;
 }

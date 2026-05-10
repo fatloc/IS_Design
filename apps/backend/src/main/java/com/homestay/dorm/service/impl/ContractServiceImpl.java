@@ -23,8 +23,6 @@ import java.time.temporal.ChronoUnit;
 import com.homestay.dorm.dto.response.DoiSoatResponse;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
 import org.springframework.transaction.annotation.Transactional;
 
 // Kéo toàn bộ Entity và Repository vào để xài cho gọn, khỏi báo lỗi thiếu
@@ -49,15 +47,34 @@ public class ContractServiceImpl implements ContractService {
     private final HoSoDatCocRepository hoSoDatCocRepository;
 
     @Override
-    public ApiListResponse<HopDongThue> getContracts(int page, int size) {
+    public ApiListResponse<HopDongThue> getContracts(int page, int size, String search, String loaiVanBan, String kyThanhToan) {
         long startTime = System.currentTimeMillis();
+        
+        // Normalize filters (UI Vietnamese -> Seeded DB plain text)
+        String q = (search != null && !search.isBlank()) ? search.trim() : null;
+        
+        String type = null;
+        if ("Hợp đồng thuê".equals(loaiVanBan)) type = "Hop dong thue";
+        else if ("Biên bản bàn giao".equals(loaiVanBan)) type = "Ban giao tai san";
+        else if ("Biên bản trả phòng".equals(loaiVanBan)) type = "Bien ban tra phong";
+        else if ("Hồ sơ đặt cọc".equals(loaiVanBan)) type = "Ho so dat coc";
+        else if (loaiVanBan != null && !"Tất cả".equals(loaiVanBan)) type = loaiVanBan;
+
+        String term = null;
+        if ("1 Tháng".equals(kyThanhToan)) term = "Thang";
+        else if ("3 Tháng".equals(kyThanhToan)) term = "Quy";
+        else if ("6 Tháng".equals(kyThanhToan)) term = "6 thang";
+        else if (kyThanhToan != null && !"Tất cả".equals(kyThanhToan)) term = kyThanhToan;
+
         Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
                 org.springframework.data.domain.Sort.Direction.DESC, "ngayLap"
         ));
-        Page<HopDongThue> pageData = repository.findAll(pageable);
+        
+        Page<HopDongThue> pageData = repository.searchContracts(q, type, term, pageable);
+        
         ApiListResponse<HopDongThue> response = ApiListResponse.fromPage(pageData);
         long endTime = System.currentTimeMillis();
-        log.info("⏱ [Performance] Contracts loaded in {} ms", (endTime - startTime));
+        log.info("⏱ [Performance] Contracts loaded in {} ms with search='{}', type='{}'", (endTime - startTime), q, type);
         return response;
     }
 
@@ -296,5 +313,14 @@ public class ContractServiceImpl implements ContractService {
             "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoàn tất', NgayKetThuc = ? WHERE MaHopDongThue = ?",
             java.time.LocalDate.now(), maHopDongThue
         );
+    }
+    @Override
+    public java.util.Map<String, Long> getContractStats() {
+        java.util.Map<String, Long> stats = new java.util.HashMap<>();
+        stats.put("total", repository.count());
+        stats.put("contract", repository.countByLoaiVanBan("Hop dong thue"));
+        stats.put("handover", repository.countByLoaiVanBan("Ban giao tai san"));
+        stats.put("deposit", repository.countByLoaiVanBan("Ho so dat coc"));
+        return stats;
     }
 }
