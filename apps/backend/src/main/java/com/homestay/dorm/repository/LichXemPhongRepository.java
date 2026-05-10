@@ -15,8 +15,5 @@ public interface LichXemPhongRepository extends JpaRepository<LichXemPhong, Stri
     long countByNgayHenAfter(LocalDate date);
     Page<LichXemPhong> findByNgayHenAfter(LocalDate date, Pageable pageable);
 
-    long countByNgayHen(LocalDate ngayHen);
-    Page<LichXemPhong> findByNgayHen(LocalDate ngayHen, Pageable pageable);
-
     java.util.Optional<LichXemPhong> findFirstByMaYeuCau(String maYeuCau);
 }

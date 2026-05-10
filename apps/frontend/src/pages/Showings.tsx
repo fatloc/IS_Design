@@ -1,17 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import {
   ChevronLeft, ChevronRight, Plus, X, Clock, User, Home,
   Phone, FileText, Move, Calendar, CheckCircle2, AlertCircle,
-  XCircle, ChevronsLeft, ChevronsRight, RotateCcw,
+  XCircle, ChevronsLeft, ChevronsRight,
 } from "lucide-react";
-import { ShowingAppointment } from "../data/mockData";
-import {
-  getAppointments, createAppointment, updateAppointment,
-  getCustomers, getUsers,
-} from "../services/api";
-import type { Customer, Employee } from "../types";
+import { showingAppointments, ShowingAppointment } from "../data/mockData";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -824,81 +819,12 @@ function JumpToDatePicker({
 // MAIN CALENDAR PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Showings() {
-  const [baseDate, setBaseDate]         = useState(new Date());
-  const [appointments, setAppointments] = useState<ShowingAppointment[]>([]);
-  const [loading, setLoading]           = useState(true);
+  const [baseDate, setBaseDate]         = useState(new Date("2025-04-21"));
+  const [appointments, setAppointments] = useState<ShowingAppointment[]>(showingAppointments);
   const [filter, setFilter]             = useState("Tất cả");
   const [showNewModal, setShowNewModal] = useState(false);
   const [newPrefill, setNewPrefill]     = useState<{ date: string; time: string } | undefined>();
   const [detail, setDetail]             = useState<{ appt: ShowingAppointment; pos: { x: number; y: number } } | null>(null);
-
-  // ── Load appointments from API ──────────────────────────────────────────
-  const fetchAppointments = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [apptRes, customersRes, usersRes] = await Promise.all([
-        getAppointments({ page: 0, size: 500 }),
-        getCustomers({ page: 0, size: 500 }),
-        getUsers({ page: 0, size: 500 }),
-      ]);
-
-      const customerMap = new Map<string, Customer>(
-        (customersRes.data ?? []).map(c => [(c as Customer).maKhachHang, c as Customer])
-      );
-      const employeeMap = new Map<string, Employee>(
-        (usersRes.data ?? [])
-          .filter((u): u is Employee => "maNhanVien" in u)
-          .map(e => [e.maNhanVien, e])
-      );
-
-      const colorMap: Record<string, string> = {};
-      let colorIdx = 0;
-      const colorKeys = ["indigo", "emerald", "amber", "violet", "rose"];
-
-      const mapped: ShowingAppointment[] = (apptRes.data ?? []).map(a => {
-        const empId = a.nhanVienPhuTrach ?? "";
-        if (!colorMap[empId]) {
-          colorMap[empId] = colorKeys[colorIdx % colorKeys.length];
-          colorIdx++;
-        }
-        const emp = employeeMap.get(empId);
-        const cust = customerMap.get(a.khachHangXem ?? "");
-        const timeStr = a.thoiGianHen
-          ? String(a.thoiGianHen).slice(0, 5)
-          : "09:00";
-        return {
-          id: a.maLichHen,
-          guest: cust?.hoTen ?? a.khachHangXem ?? "Khách hàng",
-          phone: cust?.soDienThoai ?? "",
-          roomType: "Single",
-          targetRoom: "—",
-          salesperson: emp?.hoTen ?? empId ?? "—",
-          date: a.ngayHen ?? new Date().toISOString().slice(0, 10),
-          time: timeStr,
-          duration: 60,
-          notes: "",
-          color: colorMap[empId],
-          status: mapStatus(a.trangThaiHen),
-        };
-      });
-      setAppointments(mapped);
-    } catch (err) {
-      console.error("Lỗi tải lịch hẹn:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
-
-  function mapStatus(s: string | null | undefined): ShowingAppointment["status"] {
-    if (!s) return "Pending";
-    const lower = s.toLowerCase();
-    if (lower.includes("xác nhận") || lower.includes("confirmed")) return "Confirmed";
-    if (lower.includes("hoàn thành") || lower.includes("completed") || lower.includes("đã xem")) return "Completed";
-    if (lower.includes("hủy") || lower.includes("cancelled")) return "Cancelled";
-    return "Pending";
-  }
 
   const weekDates = getWeekDates(baseDate);
   const todayStr  = formatDateStr(new Date());
@@ -923,31 +849,11 @@ export default function Showings() {
     setDetail({ appt, pos: { x: e.clientX, y: e.clientY } });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) =>
     setAppointments(prev => prev.filter(a => a.id !== id));
-    try {
-      await updateAppointment(id, { trangThaiHen: "Đã hủy" });
-    } catch (err) {
-      console.error("Lỗi hủy lịch hẹn:", err);
-    }
-  };
 
-  const handleSave = async (appt: ShowingAppointment) => {
-    // Optimistic update
+  const handleSave = (appt: ShowingAppointment) =>
     setAppointments(prev => [...prev, appt]);
-    try {
-      await createAppointment({
-        maLichHen: appt.id,
-        thoiGianHen: appt.time as any,
-        trangThaiHen: appt.status,
-        ngayHen: appt.date as any,
-        khachHangXem: null,
-        nhanVienPhuTrach: null,
-      });
-    } catch (err) {
-      console.error("Lỗi tạo lịch hẹn:", err);
-    }
-  };
 
   const weekLabel = `${weekDates[0].getDate()}/${weekDates[0].getMonth() + 1} – ${weekDates[6].getDate()}/${weekDates[6].getMonth() + 1}/${weekDates[6].getFullYear()}`;
 
@@ -1004,14 +910,6 @@ export default function Showings() {
               style={{ fontSize: "0.78rem", fontWeight: 600, color: "#475569" }}
             >
               Hôm nay
-            </button>
-
-            {/* Refresh */}
-            <button
-              onClick={fetchAppointments}
-              className="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 transition"
-              title="Làm mới dữ liệu">
-              <RotateCcw size={14} className={`text-slate-500 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
 

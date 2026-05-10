@@ -11,88 +11,33 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class RequestServiceImpl implements RequestService {
-    private static final Logger log = LoggerFactory.getLogger(RequestServiceImpl.class);
     private static final String DEFAULT_REQUEST_STATUS = "Yêu cầu mới";
 
     private final YeuCauDangKyRepository yeuCauRepository;
 
     @Override
-    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau, String ngayTao, String thang, String search) {
-        // Sorting is handled inside Repository @Query for ABS(DATEDIFF)
+    public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau) {
         Pageable pageable = PageRequest.of(page, size);
-        
         Page<YeuCauDangKy> yeuCauPage;
 
         boolean hasNhanVien = nhanVienPhuTrach != null && !nhanVienPhuTrach.isEmpty();
         boolean hasTrangThai = trangThaiYeuCau != null && !trangThaiYeuCau.isEmpty();
-        boolean hasNgayTao = ngayTao != null && !ngayTao.isEmpty();
-        boolean hasThang = thang != null && !thang.isEmpty();
 
-        // Parse ngayTao if provided (format: YYYY-MM-DD)
-        LocalDate ngayTaoDate = null;
-        if (hasNgayTao) {
-            try {
-                ngayTaoDate = LocalDate.parse(ngayTao);
-            } catch (Exception e) {
-                throw new RuntimeException("Invalid date format for ngayTao. Expected: YYYY-MM-DD");
-            }
-        }
-
-        // Parse thang if provided (format: YYYY-MM)
-        Integer year = null;
-        Integer month = null;
-        if (hasThang) {
-            try {
-                String[] parts = thang.split("-");
-                year = Integer.parseInt(parts[0]);
-                month = Integer.parseInt(parts[1]);
-            } catch (Exception e) {
-                throw new RuntimeException("Invalid month format. Expected: YYYY-MM");
-            }
-        }
-
-        // Apply filters based on provided parameters
-        if (hasThang) {
-            // Filter by month
-            yeuCauPage = yeuCauRepository.findByFiltersAndMonthWithSearch(
-                hasNhanVien ? nhanVienPhuTrach : null,
-                hasTrangThai ? trangThaiYeuCau : null,
-                year,
-                month,
-                search,
-                pageable
-            );
+        if (hasNhanVien && hasTrangThai) {
+            yeuCauPage = yeuCauRepository.findByNhanVienPhuTrachAndTrangThaiYeuCau(nhanVienPhuTrach, trangThaiYeuCau, pageable);
+        } else if (hasNhanVien) {
+            yeuCauPage = yeuCauRepository.findByNhanVienPhuTrach(nhanVienPhuTrach, pageable);
+        } else if (hasTrangThai) {
+            yeuCauPage = yeuCauRepository.findByTrangThaiYeuCau(trangThaiYeuCau, pageable);
         } else {
-            // Filter by specific date and/or other filters and/or search
-            yeuCauPage = yeuCauRepository.findByFiltersWithSearch(
-                hasNhanVien ? nhanVienPhuTrach : null,
-                hasTrangThai ? trangThaiYeuCau : null,
-                ngayTaoDate,
-                search,
-                pageable
-            );
+            yeuCauPage = yeuCauRepository.findAll(pageable);
         }
-
-        yeuCauPage.forEach(req -> {
-            boolean overdue = false;
-            if ("Yêu cầu mới".equals(req.getTrangThaiYeuCau()) && req.getThoiGianBatDauThueDuKien() != null) {
-                if (req.getThoiGianBatDauThueDuKien().isBefore(LocalDate.now())) {
-                    overdue = true;
-                }
-            }
-            req.setIsOverdue(overdue);
-        });
 
         return ApiListResponse.fromPage(yeuCauPage);
     }
@@ -104,14 +49,11 @@ public class RequestServiceImpl implements RequestService {
     }
 
     @Override
-    @Transactional
     public YeuCauDangKy createRequest(CreateYeuCauRequest req) {
-        log.info("Bắt đầu tạo yêu cầu thuê mới cho khách hàng ID: {}", req.getKhachHangYeuCau());
         String newId = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
         
         YeuCauDangKy yeuCau = YeuCauDangKy.builder()
                 .maYeuCau(newId)
-                .ngayTao(LocalDate.now()) // Auto-set creation date
                 .soLuongNguoi(req.getSoLuongNguoi())
                 .gioiTinhYeuCau(req.getGioiTinhYeuCau())
                 .thoiGianBatDauThueDuKien(req.getThoiGianBatDauThueDuKien())
@@ -125,11 +67,8 @@ public class RequestServiceImpl implements RequestService {
                 .nhanVienPhuTrach(req.getNhanVienPhuTrach())
                 .trangThaiYeuCau(req.getTrangThaiYeuCau() != null ? req.getTrangThaiYeuCau() : DEFAULT_REQUEST_STATUS)
                 .build();
-        
-        log.info("Dự kiến lưu yêu cầu với ID: {}", newId);
-        YeuCauDangKy saved = yeuCauRepository.save(yeuCau);
-        log.info("Đã lưu thành công yêu cầu: {} vào database.", saved.getMaYeuCau());
-        return saved;
+                
+        return yeuCauRepository.save(yeuCau);
     }
 
     @Override
@@ -155,14 +94,5 @@ public class RequestServiceImpl implements RequestService {
     public void deleteRequest(String maYeuCau) {
         YeuCauDangKy yeuCau = getRequestById(maYeuCau);
         yeuCauRepository.delete(yeuCau);
-    }
-
-    @Override
-    public Map<String, Long> getRequestStatusCounts() {
-        List<Object[]> results = yeuCauRepository.countByStatus();
-        return results.stream().collect(Collectors.toMap(
-            r -> r[0] != null ? r[0].toString().trim() : "Pending",
-            r -> (Long) r[1]
-        ));
     }
 }

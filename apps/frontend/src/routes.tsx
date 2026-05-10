@@ -22,7 +22,6 @@ import AccountantDashboard from "./pages/accountant/AccountantDashboard";
 import AccountantTransactions from "./pages/accountant/AccountantTransactions";
 import AccountantInvoices from "./pages/accountant/AccountantInvoices";
 import AccountantReconciliation from "./pages/accountant/AccountantReconciliation";
-import AccountantContracts from "./pages/accountant/AccountantContracts";
 import RentalRequests from "./pages/accountant_v2/RentalRequests";
 import OperationalPayments from "./pages/accountant_v2/OperationalPayments";
 import CheckoutSettlement from "./pages/accountant_v2/CheckoutSettlement";
@@ -53,7 +52,6 @@ export const router = createBrowserRouter([
       { path: "settings", Component: Settings },
       { path: "approvals", Component: ApprovalHub },
       { path: "operations", Component: Operations },
-      { path: "contracts", Component: AccountantContracts },
     ],
   },
   {
@@ -81,7 +79,6 @@ export const router = createBrowserRouter([
       { path: "transactions", Component: AccountantTransactions },
       { path: "invoices", Component: AccountantInvoices },
       { path: "reconciliation", Component: AccountantReconciliation },
-      { path: "contracts", Component: AccountantContracts },
     ],
   },
   {

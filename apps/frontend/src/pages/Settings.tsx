@@ -49,7 +49,7 @@ const INIT_PRICES: PriceState = {
   wholePrimary: "3,500,000",  wholeDeluxe: "4,800,000",
   bedBasic: "1,200,000",      bedPremium: "1,800,000",
   floorSurcharge: "200,000",
-  electricity: "3,500",       water: "20,000",  
+  electricity: "3,500",       water: "abc123",   // ← error state
   motorbike: "150,000",       bicycle: "50,000", car: "300,000",
 };
 

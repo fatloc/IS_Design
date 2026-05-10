@@ -76,7 +76,7 @@ function RoomLegendRow({ seg, total }: { seg: any; total: number }) {
 }
 
 function formatCurrency(value: number) {
-  return value.toLocaleString("vi-VN") + "₫";
+  return "₫" + value.toLocaleString("vi-VN");
 }
 
 export default function Dashboard() {
@@ -84,83 +84,22 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  const CACHE_KEY = "dashboard_cache";
-  const CACHE_TTL = 30_000; // 30 giây
 
   useEffect(() => {
-    // Stale-While-Revalidate: hiển thị data cũ ngay lập tức, rồi fetch mới ngầm
-    const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached) {
-      try {
-        const { data: cachedData, timestamp } = JSON.parse(cached);
-        const age = Date.now() - timestamp;
-        if (age < CACHE_TTL * 10) { // Dùng cached data nếu < 5 phút
-          setData(cachedData);
-          setLastUpdated(new Date(timestamp));
-          setLoading(false);
-          // Vẫn fetch mới ngầm (revalidate)
-          if (age > CACHE_TTL) {
-            revalidate();
-          }
-          return;
-        }
-      } catch { /* ignore corrupt cache */ }
-    }
     loadData();
   }, []);
 
-  const refreshData = () => {
-    sessionStorage.removeItem("dashboard_stats_cache");
-    loadData(true);
-  };
-
-  const loadData = async (force = false) => {
-    if (!force) {
-      const cached = sessionStorage.getItem("dashboard_stats_cache");
-      if (cached) {
-        try {
-          const { data: cachedData, expiry } = JSON.parse(cached);
-          if (expiry > Date.now()) {
-            setData(cachedData);
-            setLoading(false);
-            return;
-          }
-        } catch (e) {
-          sessionStorage.removeItem("dashboard_stats_cache");
-        }
-      }
-    }
-
+  const loadData = async () => {
     setLoading(true);
     try {
       const stats = await getDashboardStats();
       setData(stats);
       setError(null);
-      // Cache for 30 seconds
-      sessionStorage.setItem("dashboard_stats_cache", JSON.stringify({
-        data: stats,
-        expiry: Date.now() + 30000
-      }));
     } catch (err: any) {
       setError(err.message || "Không thể tải dữ liệu dashboard");
     } finally {
       setLoading(false);
     }
-  };
-
-  const revalidate = async () => {
-    setIsRefreshing(true);
-    try {
-      const stats = await getDashboardStats();
-      setData(stats);
-      setError(null);
-      setLastUpdated(new Date());
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: stats, timestamp: Date.now() }));
-    } catch { /* silently fail - we still have cached data */ }
-    finally { setIsRefreshing(false); }
   };
 
   const now = new Date();
@@ -216,25 +155,17 @@ export default function Dashboard() {
             <span>{dateStr}</span>
             <span className="mx-1 text-slate-300">·</span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: isRefreshing ? "#F59E0B" : "#22C55E" }} />
-              <span style={{ color: isRefreshing ? "#D97706" : "#059669", fontWeight: 600 }}>
-                {isRefreshing ? "Đang cập nhật..." : lastUpdated ? `Cập nhật lúc ${lastUpdated.toLocaleTimeString("vi-VN")}` : "Dữ liệu thời gian thực"}
-              </span>
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#22C55E" }} />
+              <span style={{ color: "#059669", fontWeight: 600 }}>Dữ liệu thời gian thực</span>
             </span>
           </div>
         </div>
-        <button
-          onClick={refreshData}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-        >
-          <RotateCcw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Làm mới dữ liệu</span>
-        </button>
-
-        <div className="flex items-center gap-2.5 ml-3">
+        <div className="flex items-center gap-2.5">
+          <button onClick={loadData} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition">
+            <RotateCcw size={18} />
+          </button>
           <button onClick={() => navigate("/manager/approvals")}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl cursor-pointer hover:opacity-90 transition"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl transition"
             style={{ background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#DC2626", fontSize: "0.78rem", fontWeight: 700 }}>
             <AlertCircle size={13} /> {criticalCount} việc khẩn cấp
           </button>
@@ -345,7 +276,7 @@ export default function Dashboard() {
                     <div style={{ fontSize: "0.75rem", color: "#64748B" }}>{task.desc}</div>
                   </div>
                   <button onClick={() => navigate(task.source === "approvals" ? "/manager/approvals" : "/manager/operations")}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white font-extrabold text-[0.72rem] cursor-pointer hover:scale-105 transition opacity-0 group-hover:opacity-100"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white font-extrabold text-[0.72rem] transition opacity-0 group-hover:opacity-100"
                     style={{ background: `linear-gradient(135deg,${cfg.text},${cfg.dot})` }}>
                     Xử lý <ChevronRight size={12} />
                   </button>

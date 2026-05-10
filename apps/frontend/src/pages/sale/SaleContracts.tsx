@@ -1,17 +1,27 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import {
-  FileText, ChevronLeft, DollarSign, Shield, AlertTriangle,
+  FileText, Check, ChevronLeft, DollarSign, Shield, AlertTriangle,
   CheckCircle, Calendar, Zap, Droplets, Car, Bike,
-  BadgeCheck, Clock, Send, RotateCcw, Search, X, Pencil
+  BadgeCheck, Clock, X, Send, RotateCcw, Search,
 } from "lucide-react";
-import { formatVNDInput } from "../../utils/format";
 import { usePagedList } from "../../hooks/usePagedList";
-import { updateContract, getUsers, getContractStats, getContracts } from "../../services/api";
+import { getContracts, updateContract } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
-import { useToast } from "../../components/ToastProvider";
 import type { ApiContract } from "../../services/api";
 
 const O = "#EA580C";
+
+const CONTRACT_STATUS_CFG: Record<string, { bg:string; color:string; dot:string; border:string }> = {
+  "Chưa soạn":   { bg:"#F1F5F9", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" },
+  "Đang soạn":   { bg:"#FFF7ED", color:"#C2410C", dot:O,          border:"#FED7AA" },
+  "Đã trình ký": { bg:"#EEF2FF", color:"#4338CA", dot:"#6366F1",   border:"#C7D2FE" },
+  "Đã ký":       { bg:"#ECFDF5", color:"#065F46", dot:"#10B981",   border:"#6EE7B7" },
+};
+const DEFAULT_CS = { bg:"#F1F5F9", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" };
+
+function getContractStatus(c: ApiContract): string {
+  return (c as any).trangThaiHopDong ?? "Chưa soạn";
+}
 
 function fmtDate(d: string | null) {
   if (!d) return "--";
@@ -35,29 +45,14 @@ function ContractDraft({ contract, onBack, onSubmit }: {
   );
   const [submitting, setSubmitting] = useState(false);
   const [done,       setDone]       = useState(false);
-  const { addToast } = useToast();
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      // Cập nhật trạng thái sang "CHO_KY" để đẩy sang luồng Manager
-      const id = contract.maHopDongThue || contract.maVanBan;
-      if (!id) throw new Error("Không xác định được mã văn bản");
-
-      await updateContract(id, { 
-        ...contract, 
-        loaiVanBan: "CHO_KY" 
-      });
-
-      addToast({ message: "Đã lưu và trình ký thành công! Hợp đồng đã được chuyển sang luồng phê duyệt.", type: "success" });
+      await updateContract(contract.maHopDongThue, { ...contract, trangThaiHopDong:"Đã trình ký" } as any);
       setDone(true);
-      setTimeout(onSubmit, 1500);
-    } catch (err: any) {
-      console.error(err);
-      addToast({ message: err?.message || "Lỗi khi lưu hợp đồng", type: "error" });
-    } finally { 
-      setSubmitting(false); 
-    }
+      setTimeout(onSubmit, 1200);
+    } finally { setSubmitting(false); }
   };
 
   return (
@@ -127,7 +122,7 @@ function ContractDraft({ contract, onBack, onSubmit }: {
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize:"0.78rem", color:O, fontWeight:700 }}>₫</span>
-                    <input value={rent} onChange={e=>setRent(formatVNDInput(e.target.value))}
+                    <input value={rent} onChange={e=>setRent(e.target.value)}
                       className="w-full pl-6 pr-3 rounded-xl outline-none"
                       style={{ paddingTop:"0.6rem", paddingBottom:"0.6rem", border:`1.5px solid ${O}30`, background:"#FFF7ED", fontSize:"0.88rem", fontWeight:700 }}/>
                   </div>
@@ -172,7 +167,7 @@ function ContractDraft({ contract, onBack, onSubmit }: {
                       <div className="flex items-center justify-center px-2 flex-shrink-0" style={{ background:fee.iconBg, borderRight:"1px solid #E2E8F0", height:"2.2rem" }}>
                         <span style={{ fontSize:"0.72rem", fontWeight:700, color:fee.iconColor }}>₫</span>
                       </div>
-                      <input value={fee.value} onChange={e=>fee.set(formatVNDInput(e.target.value))}
+                      <input value={fee.value} onChange={e=>fee.set(e.target.value)}
                         className="flex-1 px-2 outline-none"
                         style={{ paddingTop:"0.5rem", paddingBottom:"0.5rem", background:"white", fontSize:"0.82rem", fontWeight:600, minWidth:0 }}/>
                     </div>
@@ -215,141 +210,33 @@ function ContractDraft({ contract, onBack, onSubmit }: {
   );
 }
 
-// ── Document Viewer Modal ──────────────────────────────────────────────────
-function DocumentDetailModal({ contract, onClose, onDraft, userMap }: {
-  contract: ApiContract;
-  onClose: () => void;
-  onDraft: () => void;
-  userMap: Map<string, string>;
-}) {
-  const loai = contract.loaiVanBan || "Chưa rõ";
-  const isDraftable = (loai.includes("Hop dong") || loai.includes("Hợp đồng") || loai === "Chưa rõ");
-
-  const FIELDS = [
-    { key: "maHopDongThue", label: "Mã VB/HĐ" },
-    { key: "loaiVanBan", label: "Loại văn bản" },
-    { key: "ngayLap", label: "Ngày lập" },
-    { key: "chiNhanh", label: "Chi nhánh" },
-    { key: "nhanVienLap", label: "Nhân viên lập" },
-    { key: "khachHangSoHuu", label: "Khách hàng" },
-    { key: "hinhThucThue", label: "Hình thức thuê" },
-    { key: "kyThanhToan", label: "Kỳ thanh toán" },
-    { key: "soLuongThanhVien", label: "Số lượng thành viên" },
-  ];
-
-  let bg = "#F1F5F9", color = "#64748B", dot = "#94A3B8";
-  if (loai.includes("Hop dong") || loai.includes("Hợp đồng")) { bg="#EEF2FF"; color="#4338CA"; dot="#6366F1"; }
-  else if (loai.includes("Ban giao") || loai.includes("Bàn giao")) { bg="#ECFEFF"; color="#0891B2"; dot="#06B6D4"; }
-  else if (loai.includes("Dat coc") || loai.includes("đặt cọc")) { bg="#FFFBEB"; color="#D97706"; dot="#F59E0B"; }
-  else if (loai.includes("Tra phong") || loai.includes("trả phòng")) { bg="#FEE2E2"; color="#DC2626"; dot="#EF4444"; }
-
-  const renderVal = (k:string, val:any) => {
-    if (k === 'ngayLap') return fmtDate(val);
-    if (k === 'maHopDongThue') return contract.maHopDongThue || contract.maVanBan || "--";
-    if (!val) return "--";
-    if (k === 'khachHangSoHuu' || k === 'nhanVienLap') {
-      return userMap.get(val as string) || val;
-    }
-    if (val === "CHO_KY") return "Hợp đồng (Chờ ký)";
-    return val;
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ background:"rgba(15,23,42,0.55)", backdropFilter:"blur(5px)" }} onClick={onClose}>
-      <div className="relative w-full bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" style={{ maxWidth:680, margin:"0 1rem", border:"1px solid #E0E7FF" }} onClick={e=>e.stopPropagation()}>
-        <div className="flex items-center gap-3 px-6 py-4" style={{ background:"linear-gradient(135deg,#EEF2FF,#F5F3FF)", borderBottom:"1px solid #E0E7FF" }}>
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: bg }}>
-            <FileText size={18} style={{ color }}/>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div style={{ fontWeight:800, fontSize:"1rem", color:"#1E293B" }}>Chi tiết văn bản</div>
-            <div className="flex items-center gap-2 mt-1">
-               <span className="font-mono text-[0.7rem] font-bold text-slate-500 bg-white px-2 py-0.5 rounded shadow-sm">{contract.maHopDongThue || contract.maVanBan || "---"}</span>
-               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.7rem] font-bold" style={{ background:bg, color }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background:dot }}/>
-                  {loai}
-               </span>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{ background:"#F1F5F9", color:"#64748B" }} onMouseEnter={e=>{e.currentTarget.style.background="#FEE2E2";e.currentTarget.style.color="#DC2626";}} onMouseLeave={e=>{e.currentTarget.style.background="#F1F5F9";e.currentTarget.style.color="#64748B";}}>
-            <X size={15}/>
-          </button>
-        </div>
-
-        <div className="p-6">
-           <div className="grid grid-cols-2 gap-3 mb-5">
-              {FIELDS.map(f => (
-                <div key={f.key} className="rounded-xl p-3" style={{ background:"#F8FAFC", border:"1px solid #E2E8F0" }}>
-                  <div style={{ fontSize:"0.65rem", color:"#94A3B8", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>{f.label}</div>
-                  <div style={{ fontSize:"0.88rem", color:"#1E293B", fontWeight:700 }}>
-                    {renderVal(f.key, (contract as any)[f.key])}
-                  </div>
-                </div>
-              ))}
-           </div>
-           
-           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-             <button onClick={onClose} className="py-2.5 px-6 rounded-xl hover:bg-slate-50 transition" style={{ border:"1.5px solid #E2E8F0", background:"white", color:"#64748B", fontSize:"0.82rem", fontWeight:700 }}>
-                Đóng
-             </button>
-             {isDraftable && (
-               <button onClick={() => { onClose(); onDraft(); }}
-                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white transition hover:brightness-110"
-                 style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontSize:"0.82rem", fontWeight:800, boxShadow:`0 4px 14px ${O}40` }}>
-                 <Pencil size={14}/>
-                 Soạn hợp đồng
-               </button>
-             )}
-           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function SaleContracts() {
-  const [drafting,  setDrafting]  = useState<ApiContract|null>(null);
-  const [viewing,   setViewing]   = useState<ApiContract|null>(null);
-  const [search,    setSearch]    = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [actionFilter, setActionFilter] = useState("Tất cả");
-  const [stats, setStats] = useState<Record<string, number>>({ total: 0, contract: 0, handover: 0, deposit: 0 });
-
-  // Fetch stats on reload or filter change
-  useEffect(() => {
-    getContractStats().then(data => data && setStats(data)).catch(console.error);
-  }, [debouncedSearch, actionFilter]);
-
-  // Debounce search input
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedSearch(search), 500);
-    return () => clearTimeout(handler);
-  }, [search]);
-
   const {
     items: contracts, loading, error,
     totalElements, totalPages,
     page, size, setPage, setSize,
     reload,
-  } = usePagedList<ApiContract>(getContracts, 20, { 
-    search: debouncedSearch,
-    loaiVanBan: actionFilter,
-  });
+  } = usePagedList<ApiContract>(getContracts, 10);
 
-  const { items: rawUsers } = usePagedList<any>(getUsers, 1000);
-  const userMap = useMemo(() => new Map((rawUsers as any[]).map(u => [u.maKhachHang || u.maNhanVien, u.hoTen])), [rawUsers]);
-
-  // Reset to page 0 when filters change
-  useEffect(() => {
-    setPage(0);
-  }, [debouncedSearch, actionFilter, setPage]);
+  const [drafting,  setDrafting]  = useState<string|null>(null);
+  const [search,    setSearch]    = useState("");
 
   const handleSubmit = () => { reload(); setDrafting(null); };
 
-  if (drafting) {
-    return <ContractDraft contract={drafting} onBack={()=>setDrafting(null)} onSubmit={handleSubmit}/>;
+  const draftingContract = contracts.find(c=>c.maHopDongThue===drafting);
+
+  if (drafting && draftingContract) {
+    return <ContractDraft contract={draftingContract} onBack={()=>setDrafting(null)} onSubmit={handleSubmit}/>;
   }
+
+  const filtered = search
+    ? contracts.filter(c =>
+        (c.maHopDongThue??'').toLowerCase().includes(search.toLowerCase()) ||
+        (c.khachHangSoHuu??'').toLowerCase().includes(search.toLowerCase()) ||
+        ((c as any).trangThaiHopDong??'').toLowerCase().includes(search.toLowerCase())
+      )
+    : contracts;
 
   return (
     <div>
@@ -362,27 +249,14 @@ export default function SaleContracts() {
                 <FileText size={14} style={{ color:O }}/>
               </div>
               <h2 style={{ fontWeight:900, fontSize:"1.35rem", color:"#1E293B", letterSpacing:"-0.02em" }}>
-                Hợp đồng & Văn bản
+                Hợp đồng thuê
               </h2>
             </div>
             <p style={{ fontSize:"0.85rem", color:"#64748B", paddingLeft:"2.25rem" }}>
-              {totalElements.toLocaleString()} văn bản trong hệ thống
+              {totalElements.toLocaleString()} hợp đồng trong hệ thống
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <select
-                value={actionFilter}
-                onChange={e => setActionFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none bg-white text-slate-700"
-              >
-                <option value="Tất cả">Tất cả loại VB</option>
-                <option value="Hợp đồng thuê">Hợp đồng thuê</option>
-                <option value="Biên bản bàn giao">Bàn giao tài sản</option>
-                <option value="Hồ sơ đặt cọc">Hồ sơ đặt cọc</option>
-                <option value="Biên bản trả phòng">Biên bản trả phòng</option>
-              </select>
-            </div>
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
               <input value={search} onChange={e=>setSearch(e.target.value)}
@@ -402,10 +276,10 @@ export default function SaleContracts() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { label:`Số lượng kết quả`, value:totalElements, color:O, bg:"#FFF7ED" },
-          { label:"Chứng từ chính", value:stats.contract || 0, color:"#4338CA", bg:"#EEF2FF" },
-          { label:"Văn bản bàn giao", value:stats.handover || 0, color:"#0891B2", bg:"#ECFEFF" },
-          { label:"Hồ sơ đặt cọc", value:stats.deposit || 0, color:"#D97706", bg:"#FFFBEB" },
+          { label:"Chờ soạn HĐ",  value:contracts.filter(c=>!getContractStatus(c)||getContractStatus(c)==="Chưa soạn").length, color:O,          bg:"#FFF7ED" },
+          { label:"Đang soạn",    value:contracts.filter(c=>getContractStatus(c)==="Đang soạn").length,   color:"#4338CA", bg:"#EEF2FF" },
+          { label:"Chờ ký",       value:contracts.filter(c=>getContractStatus(c)==="Đã trình ký").length, color:"#6366F1", bg:"#EEF2FF" },
+          { label:"Hoàn tất",     value:contracts.filter(c=>getContractStatus(c)==="Đã ký").length,       color:"#059669", bg:"#ECFDF5" },
         ].map(s=>(
           <div key={s.label} className="flex items-center gap-3 px-4 py-3 rounded-2xl"
             style={{ background:"white", border:"1px solid #F1F5F9", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
@@ -441,67 +315,67 @@ export default function SaleContracts() {
             <table className="w-full">
               <thead>
                 <tr style={{ background:"#F8FAFC", borderBottom:"1px solid #E8EEF4" }}>
-                  {["Mã VB/HĐ","Khách hàng","Hình thức","Kỳ Thanh Toán","Ngày lập","Loại văn bản","Hành động"].map(h=>(
+                  {["Mã HĐ","Khách hàng","Hình thức","Ngày lập","Chi nhánh","Trạng thái","Hành động"].map(h=>(
                     <th key={h} className="text-left px-4 py-3" style={{ fontSize:"0.7rem", fontWeight:800, color:"#94A3B8", letterSpacing:"0.06em", textTransform:"uppercase" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {contracts.map((c: ApiContract, i: number) => {
-                  const loai = c.loaiVanBan || "Chưa rõ";
-                  let bg = "#F1F5F9", color = "#64748B", dot = "#94A3B8", border = "#E2E8F0";
-                  if (loai.includes("Hop dong") || loai.includes("Hợp đồng")) { bg="#EEF2FF"; color="#4338CA"; dot="#6366F1"; border="#C7D2FE"; }
-                  else if (loai.includes("Ban giao") || loai.includes("Bàn giao")) { bg="#ECFEFF"; color="#0891B2"; dot="#06B6D4"; border="#A5F3FC"; }
-                  else if (loai.includes("Dat coc") || loai.includes("đặt cọc")) { bg="#FFFBEB"; color="#D97706"; dot="#F59E0B"; border="#FDE68A"; }
-                  else if (loai.includes("Tra phong") || loai.includes("trả phòng")) { bg="#FEE2E2"; color="#DC2626"; dot="#EF4444"; border="#FECACA"; }
-                  else if (loai === "CHO_KY") { bg="#FFF7ED"; color="#C2410C"; dot="#F97316"; border="#FFEDD5"; }
-
+                {filtered.map((c,i)=>{
+                  const status = getContractStatus(c);
+                  const cs = CONTRACT_STATUS_CFG[status] ?? DEFAULT_CS;
                   return (
-                    <tr key={c.maVanBan || `doc-${i}`}
+                    <tr key={c.maHopDongThue}
                       style={{ background:i%2===0?"white":"#FAFBFD", borderBottom:"1px solid #F1F5F9" }}
                       className="hover:bg-orange-50/15 transition-colors">
                       <td className="px-4 py-3">
-                        <span style={{ fontFamily:"monospace", fontWeight:700, fontSize:"0.82rem", color:"#1E293B" }}>{c.maHopDongThue || c.maVanBan || "--"}</span>
+                        <span style={{ fontFamily:"monospace", fontWeight:700, fontSize:"0.82rem", color:"#1E293B" }}>{c.maHopDongThue}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <div style={{ fontWeight:700, fontSize:"0.88rem", color:"#1E293B" }}>
-                          {c.khachHangSoHuu ? userMap.get(c.khachHangSoHuu) || c.khachHangSoHuu : "--"}
-                        </div>
-                        <div style={{ fontSize:"0.68rem", color:"#94A3B8" }}>
-                          NV: {c.nhanVienLap ? userMap.get(c.nhanVienLap) || c.nhanVienLap : "--"}
-                        </div>
+                        <div style={{ fontWeight:700, fontSize:"0.88rem", color:"#1E293B" }}>{c.khachHangSoHuu ?? "--"}</div>
+                        <div style={{ fontSize:"0.68rem", color:"#94A3B8" }}>NV: {c.nhanVienLap ?? "--"}</div>
                       </td>
                       <td className="px-4 py-3">
                         <span style={{ fontSize:"0.82rem", color:"#64748B" }}>{c.hinhThucThue ?? "--"}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span style={{ fontSize:"0.82rem", color:"#64748B" }}>{c.kyThanhToan ?? "--"}</span>
-                      </td>
-                      <td className="px-4 py-3">
                         <span style={{ fontSize:"0.82rem", color:"#64748B" }}>{fmtDate(c.ngayLap)}</span>
                       </td>
                       <td className="px-4 py-3">
+                        <span style={{ fontSize:"0.82rem", color:"#64748B" }}>{c.chiNhanh ?? "--"}</span>
+                      </td>
+                      <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                          style={{ background:bg, color:color, border:`1px solid ${border}`, fontSize:"0.72rem", fontWeight:700 }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ background:dot }}/>
-                          {loai}
+                          style={{ background:cs.bg, color:cs.color, border:`1px solid ${cs.border}`, fontSize:"0.72rem", fontWeight:700 }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background:cs.dot }}/>
+                          {status || "Chưa soạn"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <button onClick={(e) => { e.stopPropagation(); setViewing(c); }}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white transition"
-                          style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontSize:"0.78rem", fontWeight:800, boxShadow:`0 2px 10px ${O}40` }}
-                          onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.filter="brightness(1.08)"}
-                          onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.filter=""}>
-                          <FileText size={12}/> Xem Nội dung
-                        </button>
+                        {(!status || status==="Chưa soạn" || status==="Đang soạn") ? (
+                          <button onClick={()=>setDrafting(c.maHopDongThue)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white transition"
+                            style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontSize:"0.78rem", fontWeight:800, boxShadow:`0 2px 10px ${O}40` }}
+                            onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.filter="brightness(1.08)"}
+                            onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.filter=""}>
+                            <FileText size={12}/> Soạn HĐ
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                            style={{ background:status==="Đã ký"?"#ECFDF5":"#EEF2FF" }}>
+                            <CheckCircle size={12} style={{ color:status==="Đã ký"?"#059669":"#6366F1" }}/>
+                            <span style={{ fontSize:"0.75rem", fontWeight:700, color:status==="Đã ký"?"#059669":"#4338CA" }}>
+                              {status==="Đã trình ký"?"Chờ ký xác nhận":"Hoàn tất"}
+                            </span>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            {contracts.length === 0 && (
+            {filtered.length === 0 && (
               <div className="flex flex-col items-center py-12" style={{ background:"white" }}>
                 <FileText size={32} className="text-slate-300 mb-3"/>
                 <div className="text-slate-500 text-sm font-medium">Không tìm thấy hợp đồng nào</div>
@@ -520,18 +394,6 @@ export default function SaleContracts() {
           </>
         )}
       </div>
-
-      {/* Modal View Details */}
-      {viewing && (
-        <DocumentDetailModal
-          contract={viewing}
-          userMap={userMap}
-          onClose={() => setViewing(null)}
-          onDraft={() => {
-            setDrafting(viewing);
-          }}
-        />
-      )}
     </div>
   );
 }

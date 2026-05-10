@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import {
@@ -6,137 +6,51 @@ import {
   Bell, Key, FileSignature, Plus, Eye, ChevronRight, Calendar,
   DollarSign, Home, User, ArrowRight, MoreHorizontal,
   Phone, Clock, Upload, CreditCard, FileText, AlertOctagon,
-  CheckCircle, ChevronDown, RotateCcw,
+  CheckCircle, ChevronDown
 } from "lucide-react";
 import { KanbanCard, KanbanColumnId } from "../data/mockData";
-import {
-  getAppointments, getDeposits, getContracts, getTransactions,
-  getCustomers, getUsers,
-} from "../services/api";
-import type { Appointment, Customer, Employee } from "../types";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS — map API data → KanbanCard
+// DATA
 // ─────────────────────────────────────────────────────────────────────────────
-function guessPriority(date: string | null | undefined): "High" | "Medium" | "Low" {
-  if (!date) return "Medium";
-  const diff = (new Date(date).getTime() - Date.now()) / 86400000;
-  if (diff < 2) return "High";
-  if (diff < 7) return "Medium";
-  return "Low";
-}
-
-function customerName(
-  id: string | null | undefined,
-  customerMap: Map<string, Customer>,
-  employeeMap: Map<string, Employee>,
-): string {
-  if (!id) return "Khách hàng";
-  return customerMap.get(id)?.hoTen ?? employeeMap.get(id)?.hoTen ?? id;
-}
-
-function customerPhone(
-  id: string | null | undefined,
-  customerMap: Map<string, Customer>,
-): string {
-  if (!id) return "";
-  return customerMap.get(id)?.soDienThoai ?? "";
-}
-
-function employeeName(
-  id: string | null | undefined,
-  employeeMap: Map<string, Employee>,
-): string {
-  if (!id) return "—";
-  return employeeMap.get(id)?.hoTen ?? id;
-}
-
-async function loadKanbanData(
-  customerMap: Map<string, Customer>,
-  employeeMap: Map<string, Employee>,
-): Promise<Record<KanbanColumnId, KanbanCard[]>> {
-  const [apptRes, depositRes, contractRes, txRes] = await Promise.all([
-    getAppointments({ page: 0, size: 200 }),
-    getDeposits({ page: 0, size: 200 }),
-    getContracts({ page: 0, size: 200 }),
-    getTransactions({ page: 0, size: 200 }),
-  ]);
-
-  // showing — appointments with status Pending / Scheduled / Shown
-  const showing: KanbanCard[] = (apptRes.data ?? [])
-    .filter(a => ["Chờ xác nhận", "Đã lên lịch", "Đã xem", "Pending", "Scheduled", "Shown"].includes(a.trangThaiHen ?? ""))
-    .map(a => ({
-      id: a.maLichHen,
-      guestName: customerName(a.khachHangXem, customerMap, employeeMap),
-      room: "—",
-      amount: 0,
-      priority: guessPriority(a.ngayHen),
-      status: a.trangThaiHen ?? "Chờ xác nhận",
-      date: a.ngayHen ?? new Date().toISOString().slice(0, 10),
-      salesperson: employeeName(a.nhanVienPhuTrach, employeeMap),
-      phone: customerPhone(a.khachHangXem, customerMap),
-    }));
-
-  // deposit — hồ sơ đặt cọc chưa duyệt
-  const deposit: KanbanCard[] = (depositRes.data ?? [])
-    .map(d => ({
-      id: d.maHoSoDatCoc ?? d.maVanBan,
-      guestName: customerName(d.khachHangSoHuu, customerMap, employeeMap),
-      room: "—",
-      amount: Number(d.mucTienCoc ?? 0),
-      priority: guessPriority(d.ngayLap),
-      status: "Chờ duyệt",
-      date: d.ngayLap ?? new Date().toISOString().slice(0, 10),
-      salesperson: employeeName(d.nhanVienLap, employeeMap),
-      phone: customerPhone(d.khachHangSoHuu, customerMap),
-    }));
-
-  // lease — hợp đồng đang hiệu lực
-  const lease: KanbanCard[] = (contractRes.data ?? [])
-    .map(c => ({
-      id: c.maHopDongThue ?? c.maVanBan,
-      guestName: customerName(c.khachHangSoHuu, customerMap, employeeMap),
-      room: "—",
-      amount: 0,
-      priority: guessPriority(c.ngayLap),
-      status: c.hinhThucThue ?? "Đang ký",
-      date: c.ngayLap ?? new Date().toISOString().slice(0, 10),
-      salesperson: employeeName(c.nhanVienLap, employeeMap),
-      phone: customerPhone(c.khachHangSoHuu, customerMap),
-    }));
-
-  // payment — phiếu thanh toán chờ xử lý
-  const payment: KanbanCard[] = (txRes.data ?? [])
-    .filter(t => ["Cho xu ly", "Chờ xử lý", "Pending"].includes(t.trangThai ?? ""))
-    .map(t => ({
-      id: t.maPhieuThanhToan,
-      guestName: "Khách hàng",
-      room: "—",
-      amount: 0,
-      priority: guessPriority(t.ngayGiaoDich),
-      status: t.trangThai ?? "Chờ TT",
-      date: t.ngayGiaoDich ?? new Date().toISOString().slice(0, 10),
-      salesperson: employeeName(t.keToanLapPhieu, employeeMap),
-      phone: "",
-    }));
-
-  // checkout — phiếu thanh toán hoàn trả / thanh lý
-  const checkout: KanbanCard[] = (txRes.data ?? [])
-    .filter(t => ["Hoan tra", "Thanh ly", "Checkout"].includes(t.loaiGiaoDich ?? ""))
-    .map(t => ({
-      id: `co-${t.maPhieuThanhToan}`,
-      guestName: "Khách hàng",
-      room: "—",
-      amount: 0,
-      priority: guessPriority(t.ngayGiaoDich),
-      status: "Chờ CK",
-      date: t.ngayGiaoDich ?? new Date().toISOString().slice(0, 10),
-      salesperson: employeeName(t.keToanLapPhieu, employeeMap),
-      phone: "",
-    }));
-
-  return { showing, deposit, lease, payment, checkout };
-}
+const ALL_KANBAN_DATA: Record<KanbanColumnId, KanbanCard[]> = {
+  showing: [
+    { id: "K001", guestName: "Nguyễn Thái Sơn",  room: "A103", amount: 3500000, priority: "High",   status: "Confirmed",  date: "2025-04-21", salesperson: "Minh Tuấn",  phone: "0901 111 222" },
+    { id: "K002", guestName: "Lưu Thị Phương",   room: "B102", amount: 4200000, priority: "Medium", status: "Scheduled",  date: "2025-04-22", salesperson: "Thu Hương",  phone: "0902 333 444" },
+    { id: "K003", guestName: "Trương Công Đạt",  room: "C102", amount: 4000000, priority: "Low",    status: "Pending",    date: "2025-04-23", salesperson: "Minh Tuấn",  phone: "0903 555 666" },
+    { id: "K011", guestName: "Đỗ Thanh Hà",      room: "A205", amount: 4800000, priority: "High",   status: "Confirmed",  date: "2025-04-21", salesperson: "Quang Vinh", phone: "0911 222 333" },
+    { id: "K012", guestName: "Bùi Minh Long",    room: "B301", amount: 3800000, priority: "Medium", status: "Scheduled",  date: "2025-04-24", salesperson: "Thu Hương",  phone: "0922 444 555" },
+    { id: "K013", guestName: "Phan Quỳnh Như",   room: "C201", amount: 5200000, priority: "Low",    status: "Pending",    date: "2025-04-25", salesperson: "Minh Tuấn",  phone: "0933 666 777" },
+    { id: "K014", guestName: "Vũ Hoàng Giang",   room: "A401", amount: 4500000, priority: "High",   status: "Confirmed",  date: "2025-04-22", salesperson: "Quang Vinh", phone: "0944 888 999" },
+  ],
+  deposit: [
+    { id: "K004", guestName: "Hồ Ngọc Hà",      room: "A201", amount: 7600000, priority: "High",   status: "Chờ duyệt",  date: "2025-04-19", salesperson: "Thu Hương",  phone: "0904 777 888" },
+    { id: "K005", guestName: "Đinh Công Thành",  room: "B301", amount: 7200000, priority: "Medium", status: "Chờ duyệt",  date: "2025-04-18", salesperson: "Quang Vinh", phone: "0905 999 000" },
+    { id: "K015", guestName: "Lê Bảo Châu",     room: "C303", amount: 8400000, priority: "High",   status: "Đang xét",   date: "2025-04-20", salesperson: "Minh Tuấn",  phone: "0915 100 200" },
+    { id: "K016", guestName: "Tôn Thất Bình",   room: "A104", amount: 6000000, priority: "Low",    status: "Chờ duyệt",  date: "2025-04-17", salesperson: "Thu Hương",  phone: "0926 300 400" },
+    { id: "K017", guestName: "Ngô Thị Lan",     room: "B202", amount: 9000000, priority: "Medium", status: "Chờ xử lý",  date: "2025-04-21", salesperson: "Quang Vinh", phone: "0937 500 600" },
+  ],
+  lease: [
+    { id: "K006", guestName: "Phan Thị Loan",   room: "A405", amount: 8000000, priority: "High",   status: "Đang ký",    date: "2025-04-17", salesperson: "Minh Tuấn",  phone: "0906 111 333" },
+    { id: "K007", guestName: "Cao Văn Lâm",     room: "B304", amount: 7200000, priority: "Medium", status: "Xử lý",      date: "2025-04-16", salesperson: "Thu Hương",  phone: "0907 222 444" },
+    { id: "K018", guestName: "Trịnh Hoài Nam",  room: "C104", amount: 5600000, priority: "High",   status: "Đang ký",    date: "2025-04-20", salesperson: "Quang Vinh", phone: "0918 400 500" },
+    { id: "K019", guestName: "Hoàng Kiều Anh",  room: "A302", amount: 7800000, priority: "Low",    status: "Xem xét",    date: "2025-04-18", salesperson: "Minh Tuấn",  phone: "0929 600 700" },
+    { id: "K020", guestName: "Dương Thành Đạt", room: "B103", amount: 4800000, priority: "Medium", status: "Xử lý",      date: "2025-04-15", salesperson: "Thu Hương",  phone: "0930 800 900" },
+  ],
+  payment: [
+    { id: "K008", guestName: "Lý Thị Mai",      room: "C201", amount: 6400000, priority: "High",   status: "Chờ TT",     date: "2025-04-15", salesperson: "Quang Vinh", phone: "0908 333 555" },
+    { id: "K009", guestName: "Dương Văn Nam",   room: "A205", amount: 9600000, priority: "Low",    status: "Xử lý",      date: "2025-04-14", salesperson: "Minh Tuấn",  phone: "0909 444 666" },
+    { id: "K021", guestName: "Võ Thị Hoa",      room: "B401", amount: 5200000, priority: "High",   status: "Chờ TT",     date: "2025-04-19", salesperson: "Thu Hương",  phone: "0921 700 800" },
+    { id: "K022", guestName: "Huỳnh Bá Thông",  room: "C302", amount: 7800000, priority: "Medium", status: "Xử lý",      date: "2025-04-18", salesperson: "Quang Vinh", phone: "0932 900 001" },
+    { id: "K023", guestName: "Lâm Quốc Việt",   room: "A101", amount: 3500000, priority: "Low",    status: "Chờ xử lý",  date: "2025-04-17", salesperson: "Minh Tuấn",  phone: "0943 002 003" },
+  ],
+  checkout: [
+    { id: "K010", guestName: "Tô Thị Oanh",     room: "A102", amount: 4500000, priority: "High",   status: "Chờ CK",     date: "2025-04-20", salesperson: "Thu Hương",  phone: "0910 555 777" },
+    { id: "K024", guestName: "Phùng Văn Tú",    room: "B202", amount: 6600000, priority: "Medium", status: "Đã trả khóa",date: "2025-04-19", salesperson: "Quang Vinh", phone: "0924 110 220" },
+    { id: "K025", guestName: "Trần Mỹ Linh",    room: "C303", amount: 8800000, priority: "High",   status: "Thanh lý",   date: "2025-04-18", salesperson: "Minh Tuấn",  phone: "0935 330 440" },
+    { id: "K026", guestName: "Nguyễn Đức Cường", room: "A304", amount: 5800000, priority: "Low",   status: "Chờ CK",     date: "2025-04-17", salesperson: "Thu Hương",  phone: "0946 550 660" },
+  ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLUMN CONFIG
@@ -838,21 +752,21 @@ function SlimCard({
 
         {col.id === "deposit" && (
           <button onClick={e => { e.stopPropagation(); onDepositApprove(card); }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white cursor-pointer hover:opacity-90 transition"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white transition"
             style={{ background: col.accent, fontSize: "0.7rem", fontWeight: 700 }}>
             <AlertCircle size={9} /> Duyệt cọc
           </button>
         )}
         {col.id === "lease" && (
           <button onClick={e => { e.stopPropagation(); onCheckin(card); }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white cursor-pointer hover:opacity-90 transition"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white transition"
             style={{ background: col.accent, fontSize: "0.7rem", fontWeight: 700 }}>
             <CheckSquare size={9} /> Check-in
           </button>
         )}
         {col.id === "checkout" && (
           <button onClick={e => { e.stopPropagation(); onCheckout(card); }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white cursor-pointer hover:opacity-90 transition"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white transition"
             style={{ background: col.accent, fontSize: "0.7rem", fontWeight: 700 }}>
             <Key size={9} /> Check-out
           </button>
@@ -865,12 +779,12 @@ function SlimCard({
         {col.id === "payment" && (
           <div className="flex items-center gap-1.5">
             <button onClick={e => { e.stopPropagation(); onViewInvoice?.(card); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg border transition"
               style={{ borderColor: col.accent + "40", color: col.text, background: col.light, fontSize: "0.68rem", fontWeight: 600 }}>
               <Eye size={9} /> Hóa đơn
             </button>
             <button onClick={e => { e.stopPropagation(); onConfirmPayment?.(card); }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white cursor-pointer hover:opacity-90 transition"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-white transition"
               style={{ background: col.accent, fontSize: "0.68rem", fontWeight: 700 }}>
               <CheckCircle2 size={9} /> Xác nhận TT
             </button>
@@ -1676,14 +1590,8 @@ function GroupLabel({ label, color, count }: { label: string; color: string; cou
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
-const EMPTY_KANBAN: Record<KanbanColumnId, KanbanCard[]> = {
-  showing: [], deposit: [], lease: [], payment: [], checkout: [],
-};
-
 export default function Workflows() {
-  const [columns, setColumns] = useState<Record<KanbanColumnId, KanbanCard[]>>(EMPTY_KANBAN);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [columns, setColumns] = useState(ALL_KANBAN_DATA);
   const [view, setView] = useState<ViewMode>("all");
   const [activeStep, setActiveStep] = useState<KanbanColumnId | null>(null);
   const [depositModal, setDepositModal]   = useState<KanbanCard | null>(null);
@@ -1694,34 +1602,6 @@ export default function Workflows() {
   const [newCardIds, setNewCardIds]       = useState<string[]>([]);
   const [toast, setToast]                 = useState<string | null>(null);
   const [detailCard, setDetailCard]       = useState<KanbanCard | null>(null);
-
-  // ── Load real data from API ──────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const [customersRes, usersRes] = await Promise.all([
-        getCustomers({ page: 0, size: 500 }),
-        getUsers({ page: 0, size: 500 }),
-      ]);
-      const customerMap = new Map<string, Customer>(
-        (customersRes.data ?? []).map(c => [(c as Customer).maKhachHang, c as Customer])
-      );
-      const employeeMap = new Map<string, Employee>(
-        (usersRes.data ?? [])
-          .filter((u): u is Employee => "maNhanVien" in u)
-          .map(e => [e.maNhanVien, e])
-      );
-      const data = await loadKanbanData(customerMap, employeeMap);
-      setColumns(data);
-    } catch (err: any) {
-      setLoadError(err?.message ?? "Không thể tải dữ liệu Kanban");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const addCardToCol = (colId: KanbanColumnId, card: KanbanCard) => {
     setColumns(prev => ({ ...prev, [colId]: [card, ...prev[colId]] }));
@@ -1780,29 +1660,6 @@ export default function Workflows() {
   const opsCols = visibleCols.filter(c => c.group === "ops");
   const showBothGroups = view === "all" && !activeStep && preCols.length > 0 && opsCols.length > 0;
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <RotateCcw size={32} className="animate-spin text-indigo-500" />
-        <div className="text-slate-500 font-medium">Đang tải dữ liệu Kanban từ hệ thống...</div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <AlertCircle size={40} className="text-red-400" />
-        <div className="text-red-700 font-bold">Không thể tải dữ liệu</div>
-        <div className="text-slate-500 text-sm">{loadError}</div>
-        <button onClick={fetchData}
-          className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition">
-          Thử lại
-        </button>
-      </div>
-    );
-  }
-
   return (
     <DndProvider backend={HTML5Backend}>
       <style>{`.no-scrollbar::-webkit-scrollbar{display:none}`}</style>
@@ -1827,10 +1684,6 @@ export default function Workflows() {
                 <X size={11} /> Bỏ lọc
               </button>
             )}
-            <button onClick={fetchData}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs hover:bg-slate-100 transition" style={{ fontWeight: 600 }}>
-              <RotateCcw size={11} /> Làm mới
-            </button>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400">

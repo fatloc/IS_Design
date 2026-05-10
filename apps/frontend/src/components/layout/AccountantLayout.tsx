@@ -12,7 +12,6 @@ import {
   Search,
   BadgeDollarSign,
 } from "lucide-react";
-import { useAuthStore } from "@/store/authStore";
 
 const NAV_GROUPS = [
   {
@@ -30,22 +29,14 @@ const NAV_GROUPS = [
 ];
 
 const PAGE_META: Record<string, { title: string; sub: string; icon: React.ElementType; crumbs: string[] }> = {
-  "/accountant/dashboard":            { title: "Dashboard Kế toán",       sub: "Tổng quan 3 luồng kế toán",                    icon: LayoutDashboard, crumbs: ["Kế toán", "Dashboard"] },
-  "/accountant/rental-requests":      { title: "Yêu cầu thu cọc",         sub: "Kiểm tra và phát phiếu thu cọc từ sale",        icon: ArrowLeftRight,  crumbs: ["Kế toán", "Yêu cầu thu cọc"] },
-  "/accountant/operational-payments": { title: "Thu tiền định kỳ",        sub: "Thu tiền từ hợp đồng đang hoạt động",           icon: FileText,        crumbs: ["Kế toán", "Thu tiền định kỳ"] },
-  "/accountant/checkout-settlement":  { title: "Đối soát thanh lý",       sub: "Tính hoàn cọc, khấu trừ và xác nhận thanh lý", icon: Scale,           crumbs: ["Kế toán", "Đối soát thanh lý"] },
-  "/accountant/transactions":         { title: "Thanh toán tiền cọc",     sub: "Nhận yêu cầu thuê và sinh phiếu thu cọc",      icon: ArrowLeftRight,  crumbs: ["Kế toán", "Thanh toán tiền cọc"] },
-  "/accountant/invoices":             { title: "Thanh toán đầu kỳ",       sub: "Thu tiền khi vào ở dựa trên hợp đồng đã ký",   icon: FileText,        crumbs: ["Kế toán", "Thanh toán đầu kỳ"] },
-  "/accountant/reconciliation":       { title: "Đối soát & trả phòng",    sub: "Tính hoàn cọc, khấu trừ và xác nhận thanh lý", icon: Scale,           crumbs: ["Kế toán", "Đối soát & trả phòng"] },
-  "/accountant/contracts":            { title: "Quản lý Hợp đồng",        sub: "Danh sách hợp đồng thuê đang hoạt động",       icon: FileText,        crumbs: ["Kế toán", "Hợp đồng"] },
+  "/accountant/dashboard": { title: "Dashboard Kế toán", sub: "Tổng quan 4 luồng kế toán bám dữ liệu DB", icon: LayoutDashboard, crumbs: ["Kế toán", "Dashboard"] },
+  "/accountant/transactions": { title: "Thanh toán tiền cọc", sub: "Nhận yêu cầu thuê và sinh phiếu thu cọc từ sale", icon: ArrowLeftRight, crumbs: ["Kế toán", "Thanh toán tiền cọc"] },
+  "/accountant/invoices": { title: "Thanh toán đầu kỳ", sub: "Thu tiền khi vào ở dựa trên hợp đồng đã ký", icon: FileText, crumbs: ["Kế toán", "Thanh toán đầu kỳ"] },
+  "/accountant/reconciliation": { title: "Đối soát & trả phòng", sub: "Tính hoàn cọc, khấu trừ và xác nhận thanh lý", icon: Scale, crumbs: ["Kế toán", "Đối soát & trả phòng"] },
 };
 
 function AccountantSidebar() {
   const navigate = useNavigate();
-  const currentUser = useAuthStore((state) => state.currentUser);
-  const initials = currentUser?.hoTen
-    ? currentUser.hoTen.split(" ").map(n => n[0]).join("").toUpperCase().slice(-2)
-    : "??";
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-slate-950 text-slate-200">
@@ -62,10 +53,10 @@ function AccountantSidebar() {
       <div className="mx-4 mt-4 rounded-2xl border border-white/5 bg-white/5 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-sm font-bold text-white">
-            {initials}
+            TB
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-white">{currentUser?.hoTen || "Accountant"}</div>
+            <div className="truncate text-sm font-semibold text-white">Trần Thị B</div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-emerald-300">
               <Calculator size={10} /> Kế toán
             </div>
