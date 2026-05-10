@@ -5,7 +5,6 @@ import com.homestay.dorm.dto.response.ApiResponse;
 import com.homestay.dorm.entity.BangDoiSoat;
 import com.homestay.dorm.service.SettlementService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,7 +12,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/settlements")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('KETOAN', 'MANAGER')")
 public class SettlementController {
 
     private final SettlementService settlementService;

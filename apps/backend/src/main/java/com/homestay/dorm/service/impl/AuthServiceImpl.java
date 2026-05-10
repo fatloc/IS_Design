@@ -126,14 +126,14 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (normalized.contains("accountant") || normalized.contains("ketoan")) {
-            return "Ketoan";
+            return "Accountant";
         }
 
         if (normalized.contains("sale") || normalized.contains("tuvan") || normalized.contains("letan")) {
             return "Sale";
         }
 
-        return "Customer";
+        return "Sale";
     }
 
     private String generateUniqueUsername(String email) {
