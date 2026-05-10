@@ -39,6 +39,13 @@ const NAV_ITEMS = [
     badge: null,
     badgeColor: "",
   },
+  {
+    label: "Hợp đồng & Văn bản",
+    icon:  ClipboardCheck,
+    path:  "/manager/contracts",
+    badge: null,
+    badgeColor: "",
+  },
 ];
 
 export default function Sidebar() {

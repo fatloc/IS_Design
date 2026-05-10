@@ -53,6 +53,7 @@ export const router = createBrowserRouter([
       { path: "settings", Component: Settings },
       { path: "approvals", Component: ApprovalHub },
       { path: "operations", Component: Operations },
+      { path: "contracts", Component: AccountantContracts },
     ],
   },
   {

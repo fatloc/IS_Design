@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router";
 import {
   FileText, Search, Plus, Eye, Edit2, Trash2, X, Save,
   Calendar, User, Home, DollarSign, Clock, CheckCircle,
@@ -7,7 +8,9 @@ import {
 } from "lucide-react";
 import { getTienKyDau, calculateDoiSoat, thanhLyHopDong, getContracts, createContract, updateContract, deleteContract, getRoomById} from "../../services/api";
 
-const E = "#059669"; // Emerald accent
+const E_ACCOUNTANT = "#059669"; // Emerald accent for accountant
+const E_MANAGER = "#4F46E5";    // Indigo accent for manager
+const E = E_ACCOUNTANT;         // Default for sub-components (modals)
 
 // ── Types (matching backend API) ───────────────────────────────────────────
 interface Contract {
@@ -264,9 +267,9 @@ function ContractDetailModal({
               <button
                 onClick={() => onCalculateTienKyDau(contract.id)}
                 className="flex flex-col items-center gap-2 px-4 py-3.5 rounded-xl transition"
-                style={{ background: "#FFFBEB", border: "1.5px solid #FDE68A" }}
-                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px rgba(217,119,6,0.25)"}
-                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"}
+                style={{ background: "#FFFBEB", border: "1.5px solid #FDE68A", cursor: "pointer" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px rgba(217,119,6,0.25)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FEF3C7" }}>
                   <Calculator size={16} style={{ color: "#D97706" }} />
@@ -277,9 +280,9 @@ function ContractDetailModal({
               <button
                 onClick={() => onCalculateDoiSoat(contract.id)}
                 className="flex flex-col items-center gap-2 px-4 py-3.5 rounded-xl transition"
-                style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE" }}
-                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px rgba(99,102,241,0.25)"}
-                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"}
+                style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE", cursor: "pointer" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px rgba(99,102,241,0.25)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#DDD6FE" }}>
                   <Scale size={16} style={{ color: "#6366F1" }} />
@@ -827,6 +830,10 @@ function DeleteConfirmModal({ contract, onClose, onConfirm }: {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function AccountantContracts() {
+  const location = useLocation();
+  const isManagerRoute = location.pathname.startsWith("/manager");
+  const E = isManagerRoute ? E_MANAGER : E_ACCOUNTANT;
+  const E2 = isManagerRoute ? "#7C3AED" : "#0891B2"; // Secondary gradient color
   // TODO: Replace mock data with API call: GET /api/contracts
   const [contracts, setContracts] = useState<Contract[]>([]);
 // Tự động Load danh sách hợp đồng khi mở trang
@@ -979,7 +986,9 @@ export default function AccountantContracts() {
         <button
           onClick={() => setFormModal({ mode: "create" })}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white transition"
-          style={{ background: `linear-gradient(135deg,${E},#0891B2)`, fontSize: "0.85rem", fontWeight: 700, boxShadow: `0 4px 14px ${E}40` }}
+          style={{ background: `linear-gradient(135deg,${E},${E2})`, fontSize: "0.85rem", fontWeight: 700, boxShadow: `0 4px 14px ${E}40`, cursor: "pointer" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.1)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.filter = ""; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
         >
           <Plus size={15} /> Tạo hợp đồng mới
         </button>
@@ -1034,7 +1043,7 @@ export default function AccountantContracts() {
           </thead>
           <tbody>
             {paginatedContracts.map((c, i) => (
-              <tr key={c.id} style={{ background: i % 2 === 0 ? "white" : "#FAFBFD", borderBottom: "1px solid #F1F5F9" }} className="hover:bg-emerald-50/20 transition-colors">
+              <tr key={c.id} style={{ background: i % 2 === 0 ? "white" : "#FAFBFD", borderBottom: "1px solid #F1F5F9" }} className={`${isManagerRoute ? "hover:bg-indigo-50/20" : "hover:bg-emerald-50/20"} transition-colors`}>
                 <td className="px-4 py-3">
                   <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#1E293B" }}>{c.id}</span>
                 </td>
@@ -1052,13 +1061,13 @@ export default function AccountantContracts() {
                 </td>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{
-                    background: c.trangThai === "active" ? "#ECFDF5" : "#FEF2F2",
+                    background: c.trangThai === "active" ? (isManagerRoute ? "#EEF2FF" : "#ECFDF5") : "#FEF2F2",
                     color: c.trangThai === "active" ? E : "#DC2626",
                     fontSize: "0.72rem",
                     fontWeight: 700,
                   }}>
                     <span className="w-1.5 h-1.5 rounded-full" style={{ 
-                      background: c.trangThai === "active" ? "#10B981" : 
+                      background: c.trangThai === "active" ? (isManagerRoute ? "#818CF8" : "#10B981") : 
                                  c.trangThai === "pending" ? "#F59E0B" : "#EF4444" 
                     }} />
                     {c.trangThai === "active" ? "Đang hiệu lực" : 
@@ -1070,24 +1079,30 @@ export default function AccountantContracts() {
                     <button
                       onClick={() => setDetailModal(c)}
                       className="p-2 rounded-lg transition"
-                      style={{ background: "#EEF2FF", color: "#6366F1" }}
+                      style={{ background: "#EEF2FF", color: "#6366F1", cursor: "pointer" }}
                       title="Xem chi tiết"
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#E0E7FF"; (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#EEF2FF"; (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
                     >
                       <Eye size={14} />
                     </button>
                     <button
                       onClick={() => setFormModal({ mode: "edit", contract: c })}
                       className="p-2 rounded-lg transition"
-                      style={{ background: "#FFFBEB", color: "#D97706" }}
+                      style={{ background: "#FFFBEB", color: "#D97706", cursor: "pointer" }}
                       title="Chỉnh sửa"
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF3C7"; (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#FFFBEB"; (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
                     >
                       <Edit2 size={14} />
                     </button>
                     <button
                       onClick={() => setDeleteModal(c)}
                       className="p-2 rounded-lg transition"
-                      style={{ background: "#FEF2F2", color: "#DC2626" }}
+                      style={{ background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}
                       title="Xoá"
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#FEE2E2"; (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1120,11 +1135,12 @@ export default function AccountantContracts() {
                 onClick={() => setPage(p)}
                 className="w-8 h-8 rounded-lg transition"
                 style={{
-                  background: p === page ? `linear-gradient(135deg,${E},#0891B2)` : "white",
+                  background: p === page ? `linear-gradient(135deg,${E},${E2})` : "white",
                   border: `1px solid ${p === page ? E : "#E2E8F0"}`,
                   color: p === page ? "white" : "#64748B",
                   fontSize: "0.8rem",
                   fontWeight: p === page ? 700 : 500,
+                  cursor: "pointer",
                 }}
               >
                 {p}
