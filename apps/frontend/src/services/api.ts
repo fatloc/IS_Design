@@ -244,6 +244,21 @@ export async function deleteRoom(maPhong: string) {
   return response.data;
 }
 
+export type RoomAvailability = {
+  maPhong: string;
+  sucChuaToiDa: number;
+  soNguoiHienTai: number;
+  slotsTrong: number;
+  giaThuePhong: string | null;
+  trangThai: string | null;
+  chiNhanh: string | null;
+};
+
+export async function getRoomAvailability(): Promise<RoomAvailability[]> {
+  const response = await api.get<ApiResponse<RoomAvailability[]>>("/rooms/availability");
+  return response.data.data;
+}
+
 export async function getRequests(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<RoomRequest>>("/requests", { params });
   return response.data;
@@ -429,7 +444,7 @@ export default api;
 export type DoiSoatResponse = {
   maHopDong: string;
   tienCocBanDau: number;
-  tyLeHoanCoc: string; 
+  tyLeHoanCoc: string;
   tienCocDuocHoanCoBan: number;
   tongTienKhauTru: number;
   soTienThucTe: number;
