@@ -9,7 +9,8 @@ import type {
   Transaction,
   User,
   Document,
-  DepositFile
+  DepositFile,
+  Deposit
 } from "../types";
 
 const API_BASE_URL = "http://localhost:8888/api";
@@ -61,7 +62,7 @@ export type UpdateContractPayload = Partial<ApiContract>;
 export type CreateTransactionPayload = Omit<Transaction, "maPhieuThanhToan">;
 export type UpdateTransactionPayload = Partial<Transaction>;
 
-export type Deposit = Document & DepositFile;
+
 export type CreateDepositPayload = Omit<Deposit, "maVanBan" | "maHoSoDatCoc">;
 export type UpdateDepositPayload = Partial<Deposit>;
 
@@ -208,13 +209,13 @@ export async function getCustomers(params?: Record<string, unknown>) {
   return response.data;
 }
 
-export async function createCustomer(data: Partial<Customer>) {
-  const response = await api.post<ApiResponse<Customer>>("/customers", data);
+export async function updateCustomer(maKhachHang: string, data: Partial<Customer>) {
+  const response = await api.put<ApiResponse<Customer>>(`/customers/${maKhachHang}`, data);
   return response.data.data;
 }
 
-export async function updateCustomer(maKhachHang: string, data: Partial<Customer>) {
-  const response = await api.put<ApiResponse<Customer>>(`/customers/${maKhachHang}`, data);
+export async function createCustomer(data: Partial<Customer>) {
+  const response = await api.post<ApiResponse<Customer>>("/customers", data);
   return response.data.data;
 }
 
@@ -244,33 +245,18 @@ export async function deleteRoom(maPhong: string) {
   return response.data;
 }
 
-export type RoomAvailability = {
-  maPhong: string;
-  sucChuaToiDa: number;
-  soNguoiHienTai: number;
-  slotsTrong: number;
-  giaThuePhong: string | null;
-  trangThai: string | null;
-  chiNhanh: string | null;
-};
-
-export async function getRoomAvailability(): Promise<RoomAvailability[]> {
-  const response = await api.get<ApiResponse<RoomAvailability[]>>("/rooms/availability");
-  return response.data.data;
-}
-
 export async function getRequests(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<RoomRequest>>("/requests", { params });
   return response.data;
 }
 
-export async function createRequest(payload: CreateRequestPayload) {
-  const response = await api.post<ApiResponse<RoomRequest>>("/requests", payload);
+export async function getRequestStatusCounts() {
+  const response = await api.get<ApiResponse<Record<string, number>>>("/requests/status-counts");
   return response.data.data;
 }
 
-export async function getRequestStatusCounts() {
-  const response = await api.get<ApiResponse<Record<string, number>>>("/requests/stats/counts");
+export async function createRequest(payload: CreateRequestPayload) {
+  const response = await api.post<ApiResponse<RoomRequest>>("/requests", payload);
   return response.data.data;
 }
 
@@ -325,45 +311,6 @@ export async function updateContractSettlementStatus(maHopDongThue: string, tran
   return response.data.data;
 }
 
-export interface SaleDashboardResponse {
-  requestStatusCounts: Record<string, number>;
-  requestRentalModeCounts: Record<string, number>;
-  depositedByRentalModeCounts: Record<string, number>;
-  requestGenderCounts: Record<string, number>;
-  todayAppointments: {
-    id: string;
-    time: string;
-    clientName: string;
-    rentalMode: "Whole Room" | "Shared Bed";
-    targetAssetLabel: string;
-    staffName: string;
-    status: string;
-    notes: string;
-  }[];
-  visiblePendingRequests: {
-    id: string;
-    date: string;
-    clientName: string;
-    phone: string;
-    rentalMode: "Whole Room" | "Shared Bed";
-    headcount: number;
-    gender: string;
-    budget: string;
-    status: string;
-    criteria: string[];
-    note: string;
-  }[];
-  pendingRequestsCount: number;
-  depositedTodayCount: number;
-  yesterdayAppointmentsCount: number;
-  yesterdayDepositsCount: number;
-}
-
-export async function getSaleDashboardStats(): Promise<SaleDashboardResponse> {
-  const response = await api.get<ApiResponse<SaleDashboardResponse>>("/dashboard/sale/stats");
-  return response.data.data;
-}
-
 export async function createContract(payload: CreateContractPayload) {
   const response = await api.post<ApiResponse<ApiContract>>("/contracts", payload);
   return response.data.data;
@@ -372,11 +319,6 @@ export async function createContract(payload: CreateContractPayload) {
 export async function updateContract(maHopDongThue: string, payload: UpdateContractPayload) {
   const response = await api.put<ApiResponse<ApiContract>>(`/contracts/${maHopDongThue}`, payload);
   return response.data.data;
-}
-
-export async function deleteContract(maHopDongThue: string) {
-  const response = await api.delete(`/contracts/${maHopDongThue}`);
-  return response.data;
 }
 
 export async function getTransactions(params?: Record<string, unknown>) {
@@ -436,36 +378,3 @@ export function hasAuthToken() {
 }
 
 export default api;
-
-// =================================================================
-// CÁC API NGHIỆP VỤ KẾ TOÁN (Hợp đồng, Đối soát, Thanh lý)
-// =================================================================
-
-export type DoiSoatResponse = {
-  maHopDong: string;
-  tienCocBanDau: number;
-  tyLeHoanCoc: string;
-  tienCocDuocHoanCoBan: number;
-  tongTienKhauTru: number;
-  soTienThucTe: number;
-  loaiGiaoDich: string;
-};
-
-export async function getTienKyDau(maHopDongThue: string) {
-  // Trả về thẳng cục số BigDecimal
-  const response = await api.get<ApiResponse<number>>(`/contracts/${maHopDongThue}/tien-ky-dau`);
-  return response.data.data;
-}
-
-export async function calculateDoiSoat(maHopDongThue: string, tongTienKhauTru: number = 0, laHetHanHopDong: boolean = false) {
-  // Axios tự động gắn params lên URL thành: ?tongTienKhauTru=...&laHetHanHopDong=...
-  const response = await api.get<ApiResponse<DoiSoatResponse>>(`/contracts/${maHopDongThue}/doi-soat`, {
-    params: { tongTienKhauTru, laHetHanHopDong }
-  });
-  return response.data.data;
-}
-
-export async function thanhLyHopDong(maHopDongThue: string) {
-  const response = await api.post<ApiResponse<string>>(`/contracts/${maHopDongThue}/thanh-ly`);
-  return response.data.data;
-}
