@@ -46,9 +46,13 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         if (normalized.contains("accountant") || normalized.contains("ketoan")) {
-            return "Accountant";
+            return "Ketoan";
         }
 
-        return "Sale";
+        if (normalized.contains("sale") || normalized.contains("tuvan") || normalized.contains("letan")) {
+            return "Sale";
+        }
+
+        return "Customer";
     }
 }

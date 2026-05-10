@@ -35,6 +35,7 @@ public class DepositController {
     }
 
     @PutMapping("/{maHoSoDatCoc}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('MANAGER', 'KETOAN')")
     public ApiResponse<HoSoDatCoc> updateDeposit(
             @PathVariable String maHoSoDatCoc,
             @Valid @RequestBody UpdateDepositRequest request) {
@@ -42,6 +43,7 @@ public class DepositController {
     }
 
     @DeleteMapping("/{maHoSoDatCoc}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('MANAGER', 'KETOAN')")
     public ApiResponse<Void> deleteDeposit(@PathVariable String maHoSoDatCoc) {
         depositService.deleteDeposit(maHoSoDatCoc);
         return ApiResponse.ok(null);

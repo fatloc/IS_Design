@@ -15,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -38,7 +40,10 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year) {
-        Pageable pageable = PageRequest.of(page, size);
+        long startTime = System.currentTimeMillis();
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
+                org.springframework.data.domain.Sort.Direction.DESC, "ngayHen"
+        ));
         Page<LichXemPhong> appointmentPage;
         if (month != null && year != null) {
             // month is 1-indexed (January=1)
@@ -48,8 +53,20 @@ public class AppointmentServiceImpl implements AppointmentService {
         } else {
             appointmentPage = lichXemPhongRepository.findAll(pageable);
         }
-        appointmentPage.getContent().forEach(this::populateMaPhong);
-        return ApiListResponse.fromPage(appointmentPage);
+        appointmentPage.getContent().forEach(apt -> {
+            this.populateMaPhong(apt);
+            boolean overdue = false;
+            if (("Pending".equalsIgnoreCase(apt.getTrangThaiHen()) || "Chờ xử lý".equalsIgnoreCase(apt.getTrangThaiHen())) && apt.getNgayHen() != null) {
+                if (apt.getNgayHen().isBefore(LocalDate.now())) {
+                    overdue = true;
+                }
+            }
+            apt.setIsOverdue(overdue);
+        });
+        ApiListResponse<LichXemPhong> response = ApiListResponse.fromPage(appointmentPage);
+        long endTime = System.currentTimeMillis();
+        log.info("⏱ [Performance] Appointments loaded in {} ms", (endTime - startTime));
+        return response;
     }
 
     @Override

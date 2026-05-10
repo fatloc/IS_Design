@@ -102,8 +102,10 @@ export interface Request {
   coBaiGuiXe: SqlBoolean | null;
   cacTieuChiKhac: string | null;
   khachHangYeuCau: string | null;
+  khachHang?: Customer | null;
   nhanVienPhuTrach: string | null;
   trangThaiYeuCau?: string | null;
+  isOverdue?: boolean;
 }
 
 export interface Appointment {
@@ -115,6 +117,7 @@ export interface Appointment {
   maYeuCau: string | null;
   nhanVienPhuTrach: string | null;
   maPhong: string | null;
+  isOverdue?: boolean;
 }
 
 export interface AppointmentRoom {

@@ -3,6 +3,7 @@ package com.homestay.dorm.service.impl;
 import com.homestay.dorm.dto.request.CreateRoomRequest;
 import com.homestay.dorm.dto.request.UpdateRoomRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
+import com.homestay.dorm.dto.response.RoomAvailabilityResponse;
 import com.homestay.dorm.entity.Phong;
 import com.homestay.dorm.repository.PhongRepository;
 import com.homestay.dorm.service.RoomService;
@@ -11,6 +12,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -67,4 +73,36 @@ public class RoomServiceImpl implements RoomService {
         Phong phong = getRoomById(id);
         phongRepository.delete(phong);
     }
+
+    @Override
+    public List<RoomAvailabilityResponse> getRoomAvailability() {
+        // 1. Lấy tất cả phòng
+        List<Phong> allRooms = phongRepository.findAll();
+
+        // 2. Lấy số người đang ở mỗi phòng
+        Map<String, Long> occupancyMap = new HashMap<>();
+        phongRepository.countCurrentOccupantsPerRoom().forEach(row -> {
+            String maPhong = (String) row[0];
+            Long soNguoi = ((Number) row[1]).longValue();
+            occupancyMap.put(maPhong.trim(), soNguoi);
+        });
+
+        // 3. Map thành DTO kèm slot trống
+        return allRooms.stream().map(room -> {
+            int capacity = room.getSucChuaToiDa() != null ? room.getSucChuaToiDa() : 0;
+            int currentOccupants = occupancyMap.getOrDefault(room.getMaPhong().trim(), 0L).intValue();
+            int availableSlots = Math.max(0, capacity - currentOccupants);
+
+            return RoomAvailabilityResponse.builder()
+                    .maPhong(room.getMaPhong())
+                    .sucChuaToiDa(capacity)
+                    .soNguoiHienTai(currentOccupants)
+                    .slotsTrong(availableSlots)
+                    .giaThuePhong(room.getGiaThuePhong())
+                    .trangThai(room.getTrangThai())
+                    .chiNhanh(room.getChiNhanh())
+                    .build();
+        }).collect(Collectors.toList());
+    }
 }
+

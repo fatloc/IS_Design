@@ -219,8 +219,8 @@ def generate_data():
     chungtu_ids = [id_code(i, 6) for i in range(1, ROW_PLAN["CHUNGTU"] + 1)]
     loai_van_ban_pool = ["Hop dong thue", "Ho so dat coc", "Ban giao tai san", "Bien ban tra phong", "Chung tu khac"]
     chungtu_rows = []
-    start_d = date(2023, 1, 1)
-    end_d = date(2026, 3, 31)
+    start_d = date(2026, 5, 1)
+    end_d = date(2026, 6, 10)
     for cid in chungtu_ids:
         loai = random.choices(loai_van_ban_pool, weights=[35, 23, 12, 12, 18], k=1)[0]
         d = random_date(start_d, end_d)
@@ -261,7 +261,8 @@ def generate_data():
             random.choice(hinh_thuc_thue),
             random.choice(ky_thanh_toan),
             random.randint(1, 8),
-            random_date(date(2023, 1, 1), date(2026, 12, 31)),  # NgayKetThuc
+            random_date(date(2026, 6, 11), date(2027, 12, 31)),  # NgayKetThuc (luon sau khi seed dải ngày)
+            random.choice(["Chua thanh ly", "Dang doi soat", "Da thanh ly"])
         )
         for hid in contract_ids
     ]
@@ -293,11 +294,14 @@ def generate_data():
     ]
     for i in range(1, ROW_PLAN["YEUCAUDANGKY"] + 1):
         yid = id_code(i, 6)
-        start_rent = random_date(start_d, end_d)
-        handover_date = start_rent + timedelta(days=random.randint(1, 15))
+        # NgayTao phải trước ThoiGianBatDauThueDuKien
+        ngay_tao = random_date(start_d, end_d - timedelta(days=5))
+        start_rent = random_date(ngay_tao + timedelta(days=1), ngay_tao + timedelta(days=30))
+        handover_date = start_rent + timedelta(days=random.randint(0, 7))
         yeu_cau_rows.append(
             (
                 yid,
+                ngay_tao,
                 random.randint(1, 6),
                 random.choice(["Nam", "Nữ", "" ]),
                 start_rent,
@@ -320,7 +324,7 @@ def generate_data():
         )
 
     lichxem_ids = [id_code(i, 6) for i in range(1, ROW_PLAN["LICHXEMPHONG"] + 1)]
-    linked_request_ids = [row[0] for row in yeu_cau_rows if row[12] != "Mới tạo"]
+    linked_request_ids = [row[0] for row in yeu_cau_rows if row[13] != "Mới tạo"]
     if len(linked_request_ids) < len(lichxem_ids):
         used_ids = set(linked_request_ids)
         linked_request_ids.extend(row[0] for row in yeu_cau_rows if row[0] not in used_ids)
@@ -328,14 +332,15 @@ def generate_data():
     lich_xem_rows = []
     for lid, req_id in zip(lichxem_ids, linked_request_ids):
         request_row = next(row for row in yeu_cau_rows if row[0] == req_id)
-        d = random_date(start_d, end_d)
+        # Lịch xem phải sau hoặc cùng ngày với ngày tạo yêu cầu
+        d = random_date(request_row[1], end_d)
         lich_xem_rows.append(
             (
                 lid,
                 random_time(),
                 random.choice(["Da xac nhan", "Cho xac nhan", "Da huy", "Da xem"]),
                 d,
-                request_row[10],
+                request_row[11],
                 req_id,
                 random.choice(nhanvien_ids),
             )
@@ -355,9 +360,15 @@ def generate_data():
     trang_thai_tt = ["Thanh cong", "Cho xu ly", "That bai", "Hoan tien"]
     loai_giao_dich = ["Thu tien coc", "Thu tien thue", "Phu thu", "Hoan coc"]
     phieu_rows = []
+    # Tạo map để tra cứu ngày của chứng từ
+    chungtu_date_map = {row[0]: row[2] for row in chungtu_rows}
     for i in range(1, ROW_PLAN["PHIEUTHANHTOAN"] + 1):
         pid = id_code(i, 7)
-        d = random_date(start_d, end_d)
+        target_chungtu = random.choice(chungtu_ids)
+        ct_date = chungtu_date_map[target_chungtu]
+        
+        # Ngày thanh toán thường là sau hoặc cùng ngày với chứng từ
+        d = random_date(ct_date, end_d)
         phieu_rows.append(
             (
                 pid,
@@ -369,7 +380,7 @@ def generate_data():
                 random.choice(loai_giao_dich),
                 random.choice(nhanvien_ids),
                 random.choice(nhanvien_ids),
-                random.choice(chungtu_ids),
+                target_chungtu,
             )
         )
 
@@ -476,9 +487,9 @@ def insert_all(connection, data):
         "KHACHHANG": "INSERT INTO KHACHHANG (MaKhachHang, HoTen, SoDienThoai, Email, Phai, CCCD, QuocTich) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         "NHANVIEN": "INSERT INTO NHANVIEN (MaNhanVien, HoTen, SoDienThoai, Email, TenDangNhap, MatKhau, Phai, CCCD, LoaiNhanVien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "CHUNGTU": "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap, ChiNhanh, NhanVienLap, KhachHangSoHuu) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        "HOPDONGTHUE": "INSERT INTO HOPDONGTHUE (MaHopDongThue, HinhThucThue, KyThanhToan, SoLuongThanhVien, NgayKetThuc) VALUES (%s, %s, %s, %s, %s)",
+        "HOPDONGTHUE": "INSERT INTO HOPDONGTHUE (MaHopDongThue, HinhThucThue, KyThanhToan, SoLuongThanhVien, NgayKetThuc, TrangThaiThanhLy) VALUES (%s, %s, %s, %s, %s, %s)",
         "THANHVIENNHOM": "INSERT INTO THANHVIENNHOM (MaThanhVien, HoTen, CCCD, SoDienThoai, Phai, QuocTich, MaHopDongThue, NguoiDaiDien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-        "YEUCAUDANGKY": "INSERT INTO YEUCAUDANGKY (MaYeuCau, SoLuongNguoi, GioiTinhYeuCau, ThoiGianBatDauThueDuKien, ThoiGianBanGiaoPhongDuKien, CoDieuHoa, KhuVuc, MucGiaMongMuon, CoBaiGuiXe, CacTieuChiKhac, KhachHangYeuCau, NhanVienPhuTrach, TrangThaiYeuCau) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "YEUCAUDANGKY": "INSERT INTO YEUCAUDANGKY (MaYeuCau, NgayTao, SoLuongNguoi, GioiTinhYeuCau, ThoiGianBatDauThueDuKien, ThoiGianBanGiaoPhongDuKien, CoDieuHoa, KhuVuc, MucGiaMongMuon, CoBaiGuiXe, CacTieuChiKhac, KhachHangYeuCau, NhanVienPhuTrach, TrangThaiYeuCau) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "LICHXEMPHONG": "INSERT INTO LICHXEMPHONG (MaLichHen, ThoiGianHen, TrangThaiHen, NgayHen, KhachHangXem, MaYeuCau, NhanVienPhuTrach) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         "CHITIETLICHXEM": "INSERT INTO CHITIETLICHXEM (LichXemPhong, MaPhongDuocXem) VALUES (%s, %s)",
         "HOSODATCOC": "INSERT INTO HOSODATCOC (MaHoSoDatCoc, MucTienCoc) VALUES (%s, %s)",

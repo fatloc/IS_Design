@@ -1,16 +1,18 @@
 import { useMemo, useState, useEffect } from "react";
 import {
-  Plus, Search, Filter, ChevronRight, Home, MapPin, DollarSign,
-  Calendar, CheckCircle, Clock, AlertTriangle, X, ArrowRight,
-  Flame, BedDouble, SlidersHorizontal, User, Phone, Mail,
+  Plus, Search, Filter, ChevronRight, Home, MapPin,
+  CheckCircle, AlertTriangle, X,
+  Flame, BedDouble, Phone,
 } from "lucide-react";
 import { usePagedList } from "../../hooks/usePagedList";
-import { getCustomers, getRequests, updateRequest, createRequest, getUsers, getAppointments, getAppointmentByRequest } from "../../services/api";
+import { useToast } from "../../components/ToastProvider";
+import { formatVNDInput, parseVNDInput } from "../../utils/format";
+import { getCustomers, getRequests, updateRequest, createRequest, getAppointments, getAppointmentByRequest, getRequestStatusCounts, createCustomer } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
-import type { Appointment, Customer, Request, Employee } from "../../types";
+import type { Appointment, Customer, Request, Gender } from "../../types";
+
 
 const O = "#EA580C"; // orange accent
-const OL = "#FB923C";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type ReqStatus =
@@ -23,28 +25,13 @@ type ReqStatus =
 interface RentalRequest {
   id: string; customer: string; avatar: string; phone: string;
   roomType: string; area: string; budget: string;
-  status: ReqStatus; created: string;
+  status: ReqStatus;
+  isOverdue?: boolean;
+  created: string;
   room: string | null; showingDate: string | null;
   note?: string | null;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────────
-const INIT_REQUESTS: RentalRequest[] = [
-  { id: "rq1", customer: "Trần Minh Khôi", avatar: "MK", phone: "0912 345 678", roomType: "Ghép giường", area: "Q.7", budget: "1.5 – 2.0M", status: "Đã xem phòng", created: "24/04/2026", room: "A102", showingDate: "26/04/2026" },
-  { id: "rq2", customer: "Nguyễn Thị Hoa", avatar: "TH", phone: "0918 765 432", roomType: "Toàn phòng", area: "Q.1", budget: "3.0 – 4.0M", status: "Đã lên lịch xem", created: "25/04/2026", room: "B203", showingDate: "29/04/2026" },
-  { id: "rq3", customer: "Lê Văn Phú", avatar: "VP", phone: "0905 123 456", roomType: "Ghép giường", area: "Q.7", budget: "1.2 – 1.8M", status: "Yêu cầu mới", created: "27/04/2026", room: null, showingDate: null },
-  { id: "rq4", customer: "Phạm Thị Ngân", avatar: "TN", phone: "0901 234 567", roomType: "Toàn phòng", area: "Q.3", budget: "2.5 – 3.5M", status: "Đã xem phòng", created: "22/04/2026", room: "A103", showingDate: "25/04/2026" },
-  { id: "rq5", customer: "Hoàng Văn Dũng", avatar: "VD", phone: "0908 654 321", roomType: "Ghép giường", area: "Q.7", budget: "1.0 – 1.5M", status: "Chờ phê duyệt", created: "20/04/2026", room: "C301", showingDate: "23/04/2026" },
-  { id: "rq6", customer: "Vũ Minh Anh", avatar: "MA", phone: "0916 789 012", roomType: "Toàn phòng", area: "Q.1", budget: "3.5 – 4.5M", status: "Đặt cọc thành công", created: "18/04/2026", room: "B201", showingDate: "21/04/2026" },
-  { id: "rq7", customer: "Đỗ Thị Thanh", avatar: "TT", phone: "0903 456 789", roomType: "Ghép giường", area: "Q.7", budget: "1.2 – 1.6M", status: "Yêu cầu mới", created: "28/04/2026", room: null, showingDate: null },
-];
-
-const AVAILABLE_ROOMS = [
-  { code: "A102", type: "Ghép giường", floor: 1, price: "1,800,000", area: "22m²", status: "Trống" },
-  { code: "B204", type: "Ghép giường", floor: 2, price: "1,600,000", area: "20m²", status: "Trống" },
-  { code: "C301", type: "Toàn phòng", floor: 3, price: "3,200,000", area: "28m²", status: "Trống" },
-  { code: "A105", type: "Toàn phòng", floor: 1, price: "2,900,000", area: "25m²", status: "Trống" },
-];
 
 const STATUS_CFG: Record<ReqStatus, { bg: string; color: string; dot: string; border: string }> = {
   "Yêu cầu mới": { bg: "#EEF2FF", color: "#4338CA", dot: "#6366F1", border: "#C7D2FE" },
@@ -54,7 +41,13 @@ const STATUS_CFG: Record<ReqStatus, { bg: string; color: string; dot: string; bo
   "Đặt cọc thành công": { bg: "#ECFDF5", color: "#065F46", dot: "#10B981", border: "#6EE7B7" },
 };
 
-const STATUS_STEPS: ReqStatus[] = ["Đã lên lịch xem", "Đã xem phòng"];
+const STATUS_STEPS: ReqStatus[] = [
+  "Yêu cầu mới",
+  "Đã lên lịch xem",
+  "Đã xem phòng",
+  "Chờ phê duyệt",
+  "Đặt cọc thành công"
+];
 const VALID_STATUS_SET = new Set<ReqStatus>(STATUS_STEPS);
 
 function Avatar({ initials, size = 9 }: { initials: string; size?: number }) {
@@ -175,21 +168,118 @@ function RequestDetailModal({
   );
 }
 
+function CreateCustomerModal({
+  onClose,
+  onSuccess
+}: {
+  onClose: () => void;
+  onSuccess: (customer: Customer) => void;
+}) {
+  const [hoTen, setHoTen] = useState("");
+  const [soDienThoai, setSoDienThoai] = useState("");
+  const [phai, setPhai] = useState<Gender>("Nam");
+  const [cccd, setCccd] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { addToast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hoTen || !soDienThoai) {
+      addToast({ message: "Vui lòng điền họ tên và số điện thoại.", type: "error" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await createCustomer({
+        hoTen,
+        soDienThoai,
+        phai,
+        cccd: cccd || null
+      });
+      addToast({ message: "Khách hàng đã được tạo thành công!", type: "success" });
+      onSuccess(res as Customer);
+    } catch (err: any) {
+      addToast({ message: "Lỗi khi tạo: " + err.message, type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Thêm Khách hàng mới</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Hồ sơ sẽ được ghi vào cơ sở dữ liệu chung.</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 rounded-xl transition">
+            <X size={18} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">Họ và tên *</label>
+              <input value={hoTen} onChange={e => setHoTen(e.target.value)} required maxLength={50} placeholder="Nguyễn Văn A" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Số điện thoại *</label>
+                <input value={soDienThoai} onChange={e => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  if (val.length <= 10) setSoDienThoai(val);
+                }} required maxLength={10} placeholder="09xxxxxxx" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Giới tính</label>
+                <select value={phai} onChange={e => setPhai(e.target.value as Gender)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition">
+                  <option value="Nam">Nam</option>
+                  <option value="Nữ">Nữ</option>
+                  <option value="Khác">Khác</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">CCCD / CMND (Không bắt buộc)</label>
+              <input value={cccd} onChange={e => {
+                const val = e.target.value.replace(/[^0-9]/g, '');
+                if (val.length <= 12) setCccd(val);
+              }} maxLength={12} placeholder="01234..." className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition" />
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end gap-3">
+            <button type="button" onClick={onClose} disabled={loading} className="px-5 py-2.5 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">Hủy</button>
+            <button type="submit" disabled={loading} className="px-8 py-2.5 font-bold text-white bg-gradient-to-r from-orange-500 to-red-600 rounded-xl shadow-lg shadow-orange-500/30 hover:brightness-110 transition disabled:opacity-50">
+              {loading ? "Đang lưu..." : "Lưu hồ sơ"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
 
 
 function CreateRequestTab({
+
   customers,
-  onSuccess
+  onSuccess,
+  reloadCustomers
 }: {
   customers: Customer[];
   onSuccess: () => void;
+  reloadCustomers: () => void;
 }) {
   const [searchCustomer, setSearchCustomer] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [roomType, setRoomType] = useState("Ghép giường");
   const [soLuongNguoi, setSoLuongNguoi] = useState(1);
   const [gioiTinh, setGioiTinh] = useState("Nam");
   const [area, setArea] = useState("Q.7");
-  const [budget, setBudget] = useState("1500000");
+  const [budget, setBudget] = useState(formatVNDInput("1500000"));
   const [note, setNote] = useState("");
   
   const [thoiGianBatDauThue, setThoiGianBatDauThue] = useState(() => new Date().toISOString().split('T')[0]);
@@ -198,11 +288,77 @@ function CreateRequestTab({
   const [coBaiGuiXe, setCoBaiGuiXe] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
+  const { addToast } = useToast();
+
+  const [debouncedSearchCustomer, setDebouncedSearchCustomer] = useState("");
+  const [customerOptions, setCustomerOptions] = useState<Customer[]>([]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearchCustomer(searchCustomer), 400);
+    return () => clearTimeout(handler);
+  }, [searchCustomer]);
+
+  useEffect(() => {
+    if (!debouncedSearchCustomer || debouncedSearchCustomer.includes(" - ")) {
+      setCustomerOptions([]);
+      return;
+    }
+    
+    let isMounted = true;
+    setSearching(true);
+    getCustomers({ page: 0, size: 10, search: debouncedSearchCustomer })
+      .then(res => {
+        if (isMounted) {
+          setCustomerOptions(res.data || []);
+        }
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (isMounted) setSearching(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [debouncedSearchCustomer]);
+
+  // Đã chuyển sang search backend
+
+  const renderHighlightedText = (text: string, query: string) => {
+    if (!query) return text;
+    // Escape special regex characters to avoid crashes
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escapedQuery})`, "gi"));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() 
+            ? <span key={i} className="text-orange-600 font-bold">{part}</span>
+            : part
+        )}
+      </span>
+    );
+  };
 
   const handleCreate = async () => {
-    const cid = searchCustomer.split(" - ")[0]?.trim();
-    if (!cid || !customers.some(c => c.maKhachHang === cid)) {
-      return alert("Vui lòng chọn khách hàng hợp lệ từ danh sách");
+    // Ưu tiên dùng ID đã lưu nếu có, nếu không thì parse từ chuỗi
+    let cid = selectedCustomerId;
+    if (!cid && searchCustomer.includes(" - ")) {
+      cid = searchCustomer.split(" - ")[0]?.trim();
+    }
+
+    if (!cid) {
+      addToast({ message: "Vui lòng chọn khách hàng hợp lệ từ danh sách", type: "error" });
+      return;
+    }
+    
+    // Nếu cid không có trong danh sách prop, có thể nó vừa được tạo. 
+    // Chúng ta sẽ tin tưởng ID nếu nó bắt đầu bằng KH (prefix của backend)
+    const existsInList = customers.some(c => c.maKhachHang === cid);
+    if (!existsInList && !cid.startsWith("KH")) {
+      addToast({ message: "Khách hàng không hợp lệ. Vui lòng chọn lại.", type: "error" });
+      return;
     }
     
     try {
@@ -216,15 +372,15 @@ function CreateRequestTab({
         thoiGianBanGiaoPhongDuKien: thoiGianBanGiao,
         coDieuHoa,
         khuVuc: area,
-        mucGiaMongMuon: Number(budget),
+        mucGiaMongMuon: Number(parseVNDInput(budget)),
         coBaiGuiXe,
         cacTieuChiKhac: note,
         trangThaiYeuCau: "Mới tạo",
       } as any);
-      alert("Tạo yêu cầu thuê thành công!");
+      addToast({ message: "Tạo yêu cầu thuê thành công!", type: "success" });
       onSuccess();
     } catch (e: any) {
-      alert("Lỗi khi tạo: " + e.message);
+      addToast({ message: "Lỗi khi tạo yêu cầu: " + e.message, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -232,6 +388,18 @@ function CreateRequestTab({
 
   return (
     <div className="flex justify-center w-full">
+      {showCreateCustomerModal && (
+        <CreateCustomerModal 
+          onClose={() => setShowCreateCustomerModal(false)}
+          onSuccess={(newCus) => {
+            setShowCreateCustomerModal(false);
+            const fullText = `${newCus.maKhachHang} - ${newCus.hoTen} - ${newCus.soDienThoai}`;
+            setSearchCustomer(fullText);
+            setSelectedCustomerId(newCus.maKhachHang);
+            reloadCustomers();
+          }}
+        />
+      )}
       <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm w-full max-w-3xl">
       <div className="mb-6">
         <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -244,24 +412,97 @@ function CreateRequestTab({
       </div>
 
       <div className="space-y-5">
-        <div>
+        <div className="relative">
           <label className="block text-sm font-bold text-slate-700 mb-1.5">Khách hàng yêu cầu *</label>
-          {customers.length === 0 ? (
-            <div className="text-sm text-slate-500 italic px-3 py-2 border rounded-xl bg-slate-50">Đang tải danh sách khách hàng...</div>
-          ) : (
-            <>
+          <div className="relative">
+            <div className="relative group">
               <input 
-                list="customers-list"
                 value={searchCustomer} 
-                onChange={e => setSearchCustomer(e.target.value)} 
-                placeholder="Ví dụ: KH-001 - Nguyễn Văn A"
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
+                onChange={e => {
+                  const val = e.target.value;
+                  setSearchCustomer(val);
+                  // Nếu người dùng xóa bớt hoặc gõ mới (làm mất định dạng " - "), 
+                  // reset ID đã chọn để ép họ phải chọn lại từ dropdown hoặc tạo mới
+                  if (!val.includes(" - ")) {
+                    setSelectedCustomerId(null);
+                  }
+                  setShowDropdown(true);
+                }} 
+                onFocus={() => setShowDropdown(true)}
+                placeholder={customers.length === 0 ? "Đang tải danh sách khách hàng..." : "Tìm theo Tên, Mã hoặc SĐT... (VD: KH-001)"}
+                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
               />
-              <datalist id="customers-list">
-                {customers.map(c => <option key={c.maKhachHang} value={`${c.maKhachHang} - ${c.hoTen} - ${c.soDienThoai}`} />)}
-              </datalist>
-            </>
-          )}
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+              {searching && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </div>
+
+            {showDropdown && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowDropdown(false)} 
+                />
+                <div className="absolute top-full left-0 right-0 mt-2 z-20 overflow-hidden bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="max-h-64 overflow-y-auto p-1.5 flex flex-col">
+                    {/* Danh sách kết quả */}
+                    {customerOptions.map(c => (
+                      <button
+                        key={c.maKhachHang}
+                          onClick={() => {
+                            const fullText = `${c.maKhachHang} - ${c.hoTen} - ${c.soDienThoai}`;
+                            setSearchCustomer(fullText);
+                            setSelectedCustomerId(c.maKhachHang);
+                            setShowDropdown(false);
+                          }}
+                        className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-orange-50 transition-all text-left group border border-transparent hover:border-orange-100"
+                      >
+                        <Avatar initials={c.hoTen?.split(" ").pop()?.charAt(0) || "K"} size={8} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-slate-800 truncate group-hover:text-orange-600">
+                            {renderHighlightedText(c.hoTen || "---", searchCustomer)}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[0.7rem] text-slate-500">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 font-mono">
+                              {renderHighlightedText(c.maKhachHang || "---", searchCustomer)}
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              <Phone size={10} />
+                              {renderHighlightedText(c.soDienThoai || "---", searchCustomer)}
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-300 group-hover:text-orange-400 transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    ))}
+                    {/* Thông báo khi không tìm thấy */}
+                    {!searching && customerOptions.length === 0 && searchCustomer && !searchCustomer.includes(" - ") && (
+                      <div className="p-4 text-center">
+                        <div className="text-sm text-slate-500 mb-3">Không tìm thấy khách hàng "{searchCustomer}"</div>
+                        <button
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setShowCreateCustomerModal(true);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-orange-50 text-orange-600 font-bold hover:bg-orange-100 hover:text-orange-700 transition-colors border border-dashed border-orange-300"
+                        >
+                          <Plus size={16} /> Thêm khách hàng mới
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Nếu đang gõ mà chưa ra kết quả và cũng chưa báo trống (ví dụ searchCustomer rỗng) */}
+                    {!searchCustomer && customers.length > 0 && (
+                      <div className="p-4 text-center text-xs text-slate-400 italic">
+                        Nhập thông tin khách hàng để tìm kiếm...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -306,7 +547,7 @@ function CreateRequestTab({
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">Ngân sách dự kiến (VNĐ)</label>
-            <input type="number" value={budget} onChange={e => setBudget(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition" />
+            <input type="text" value={budget} onChange={e => setBudget(formatVNDInput(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition" />
           </div>
         </div>
         
@@ -339,32 +580,42 @@ function CreateRequestTab({
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function SaleRequests() {
   const [activeTab, setActiveTab] = useState<"list" | "create">("list");
+  const { addToast } = useToast();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"Tất cả" | ReqStatus>("Tất cả");
   const [tooltipId, setTooltipId] = useState<string | null>(null);
   const [chotDoneId, setChotDoneId] = useState<string | null>(null);
   const [detailRequest, setDetailRequest] = useState<RentalRequest | null>(null);
+  const [statusCountsMap, setStatusCountsMap] = useState<Record<string, number>>({});
 
-  const [localPage, setLocalPage] = useState(0);
-  const [localSize, setLocalSize] = useState(10);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const {
     items: rawRequests,
     loading: loadingRequests,
     error: requestsError,
     reload: reloadRequests,
-  } = usePagedList<Request>(getRequests, 10000, {
+    page, setPage,
+    size, setSize,
+    totalElements, totalPages
+  } = usePagedList<Request>(getRequests, 10, {
     trangThaiYeuCau: statusFilter === "Tất cả" ? undefined : statusFilter,
+    search: debouncedSearch || undefined
   });
+
+  useEffect(() => {
+    getRequestStatusCounts().then(data => setStatusCountsMap(data || {}));
+  }, [reloadRequests]);
 
   const {
     items: customers,
     loading: loadingCustomers,
     reload: reloadCustomers,
   } = usePagedList<Customer>(getCustomers, 500);
-
-  const { items: rawEmployees } = usePagedList<any>(getUsers, 500);
-  const employees = rawEmployees as Employee[];
 
   const { items: appointments } = usePagedList<any>(getAppointments, 10000);
 
@@ -436,12 +687,8 @@ export default function SaleRequests() {
     };
 
     return rawRequests
-      .filter((request) => {
-        const status = request.trangThaiYeuCau?.trim() as ReqStatus | undefined;
-        return status && VALID_STATUS_SET.has(status);
-      })
       .map((request) => {
-      const customer = request.khachHangYeuCau ? customerMap.get(request.khachHangYeuCau) : undefined;
+      const customer = request.khachHang || (request.khachHangYeuCau ? customerMap.get(request.khachHangYeuCau) : undefined);
       const customerName = customer?.hoTen ?? request.khachHangYeuCau ?? "Khách chưa rõ";
       const appointment = request.maYeuCau ? appointmentMap.get(request.maYeuCau) : undefined;
       const matchedAppointment = appointment ?? undefined;
@@ -455,6 +702,7 @@ export default function SaleRequests() {
         area: request.khuVuc ?? "Chưa rõ khu vực",
         budget: formatBudget(request.mucGiaMongMuon),
         status: toStatus(request),
+        isOverdue: request.isOverdue,
         created: formatDate(request.thoiGianBatDauThueDuKien ?? request.thoiGianBanGiaoPhongDuKien),
         room: matchedAppointment?.maPhong ?? null,
         showingDate: matchedAppointment ? formatSchedule(matchedAppointment.ngayHen, matchedAppointment.thoiGianHen) : null,
@@ -463,28 +711,21 @@ export default function SaleRequests() {
     });
   }, [rawRequests, customerMap, appointmentMap]);
 
-  const filtered = requests.filter((r) => {
-    const matchesStatus = statusFilter === "Tất cả" ? true : r.status === statusFilter;
-    const matchesSearch =
-      r.customer.toLowerCase().includes(search.toLowerCase()) ||
-      r.id.toLowerCase().includes(search.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
-
-  const totalElements = filtered.length;
-  const totalPages = Math.ceil(totalElements / localSize);
-  const paginatedData = filtered.slice(localPage * localSize, (localPage + 1) * localSize);
+  const paginatedData = requests;
 
   const handleChot = async (id: string) => {
     try {
       await updateRequest(id, { trangThaiYeuCau: "Yêu cầu mới" });
       setChotDoneId(id);
+      addToast({ message: "Ghi nhận chốt phòng thành công!", type: "success" });
       reloadRequests();
       setTimeout(() => setChotDoneId(null), 2000);
-    } catch {}
+    } catch (e: any) {
+      addToast({ message: "Lỗi khi chốt phòng: " + e.message, type: "error" });
+    }
   };
 
-  const statusCounts = STATUS_STEPS.map(s => ({ status: s, count: requests.filter(r => r.status === s).length }));
+  const statusCounts = STATUS_STEPS.map(s => ({ status: s, count: statusCountsMap[s] || 0 }));
 
   return (
     <div>
@@ -543,6 +784,7 @@ export default function SaleRequests() {
       {activeTab === "create" ? (
         <CreateRequestTab 
           customers={customers} 
+          reloadCustomers={reloadCustomers}
           onSuccess={() => {
             reloadRequests();
             setActiveTab("list");
@@ -587,7 +829,7 @@ export default function SaleRequests() {
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value as "Tất cả" | ReqStatus);
-                    setLocalPage(0);
+                    setPage(0);
                   }}
                   className="px-3 py-2 rounded-xl outline-none"
                   style={{ border: "1.5px solid #E2E8F0", background: "white", fontSize: "0.82rem", color: "#374151", minWidth: 180 }}
@@ -598,19 +840,6 @@ export default function SaleRequests() {
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="mt-2">
-              <Pagination
-                currentPage={localPage}
-                totalPages={totalPages}
-                totalElements={totalElements}
-                pageSize={localSize}
-                onPageChange={setLocalPage}
-                onPageSizeChange={(newSize) => {
-                  setLocalSize(newSize);
-                  setLocalPage(0);
-                }}
-              />
             </div>
           </div>
 
@@ -670,11 +899,18 @@ export default function SaleRequests() {
                       </td>
                       {/* Status */}
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                          style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: "0.72rem", fontWeight: 700 }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
-                          {req.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                            style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: "0.72rem", fontWeight: 700 }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+                            {req.status}
+                          </span>
+                          {req.isOverdue && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-red-600" style={{ fontSize: "0.68rem", fontWeight: 700 }}>
+                              <AlertTriangle size={10} /> Quá hạn ưu tiên xử lý
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {/* Actions */}
                       <td className="px-4 py-3">
@@ -721,7 +957,7 @@ export default function SaleRequests() {
                 })}
               </tbody>
             </table>
-            {filtered.length === 0 && (
+            {paginatedData.length === 0 && (
               <div className="flex flex-col items-center py-12">
                 <Search size={28} style={{ color: "#CBD5E1" }} className="mb-2" />
                 <div style={{ color: "#64748B", fontSize: "0.88rem" }}>
@@ -731,6 +967,20 @@ export default function SaleRequests() {
                 </div>
               </div>
             )}
+          </div>
+          
+          <div className="mt-4 flex justify-end">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalElements={totalElements}
+              pageSize={size}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setSize(newSize);
+                setPage(0);
+              }}
+            />
           </div>
         </>
       )}

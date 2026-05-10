@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Users, Search, Phone, Mail, AlertTriangle, CheckCircle,
   Shield, X, Save, Clock, RotateCcw,
@@ -124,22 +124,28 @@ function ProfilePanel({ customer }: { customer: Customer }) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function SaleCustomers() {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
   const {
     items: customers, loading, error,
     totalElements, totalPages,
     page, size, setPage, setSize,
     reload,
-  } = usePagedList<Customer>(getCustomers, 10);
+  } = usePagedList<Customer>(getCustomers, 10, { search: debouncedSearch });
+
+  // Reset to page 0 when searching
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch, setPage]);
 
   const [selectedId, setSelectedId] = useState<string|null>(null);
-  const [search, setSearch] = useState("");
-
-  const filtered = customers.filter(c =>
-    (c.hoTen ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.soDienThoai ?? "").includes(search) ||
-    (c.cccd ?? "").includes(search) ||
-    (c.maKhachHang ?? "").toLowerCase().includes(search.toLowerCase())
-  );
 
   const selected = customers.find(c=>c.maKhachHang===selectedId);
   const completePct = customers.length
@@ -186,26 +192,11 @@ export default function SaleCustomers() {
         </div>
       </div>
 
-      {/* Pagination – outside the panels to avoid layout issues */}
-      <div className="flex items-center justify-between px-1 mb-3">
-        <span style={{ fontSize:"0.75rem", color:"#94A3B8" }}>
-          Trang <strong style={{ color:"#475569" }}>{page + 1}</strong> / {totalPages || 1} &nbsp;·&nbsp; {totalElements.toLocaleString()} khách hàng
-        </span>
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          totalElements={totalElements}
-          pageSize={size}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => { setSize(s); setPage(0); }}
-        />
-      </div>
-
       <div className="grid gap-5" style={{ gridTemplateColumns:"320px 1fr" }}>
         {/* Left – Customer list */}
-        <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
+        <div className="rounded-2xl overflow-hidden flex flex-col" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
           {/* Search */}
-          <div className="px-3 py-3" style={{ borderBottom:"1px solid #F1F5F9" }}>
+          <div className="px-3 py-3 flex-shrink-0" style={{ borderBottom:"1px solid #F1F5F9" }}>
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
               <input value={search} onChange={e=>setSearch(e.target.value)}
@@ -216,7 +207,7 @@ export default function SaleCustomers() {
           </div>
 
           {/* List */}
-          <div className="overflow-y-auto no-scrollbar" style={{ maxHeight:"calc(100vh - 320px)" }}>
+          <div className="overflow-y-auto no-scrollbar flex-1" style={{ maxHeight:"calc(100vh - 330px)" }}>
             {loading ? (
               <div className="p-4 space-y-2">
                 {Array.from({length:8}).map((_,i)=>(
@@ -229,13 +220,13 @@ export default function SaleCustomers() {
                 <div className="text-sm text-slate-600 mt-2">Lỗi tải dữ liệu</div>
                 <button onClick={reload} className="mt-2 text-xs font-bold" style={{ color:O }}>Thử lại</button>
               </div>
-            ) : filtered.length === 0 ? (
+            ) : customers.length === 0 ? (
               <div className="flex flex-col items-center py-8">
                 <Users size={28} style={{ color:"#CBD5E1" }} className="mb-2"/>
                 <div style={{ fontSize:"0.82rem", color:"#94A3B8" }}>Không tìm thấy khách hàng</div>
               </div>
             ) : (
-              filtered.map(c => {
+              customers.map(c => {
                 const status = calcStatus(c);
                 const cfg    = STATUS_CFG[status];
                 const isSelected = c.maKhachHang === selectedId;
@@ -264,7 +255,7 @@ export default function SaleCustomers() {
         </div>
 
         {/* Right – Profile */}
-        <div className="rounded-2xl overflow-hidden" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)", minHeight:500 }}>
+        <div className="rounded-2xl overflow-hidden bg-white" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)", minHeight:500 }}>
           {selected ? (
             <ProfilePanel customer={selected}/>
           ) : (
@@ -272,11 +263,22 @@ export default function SaleCustomers() {
               <Users size={32} style={{ color:"#CBD5E1" }} className="mb-3"/>
               <div style={{ fontSize:"0.9rem", color:"#64748B" }}>Chọn khách hàng để xem hồ sơ</div>
               <div style={{ fontSize:"0.78rem", color:"#94A3B8", marginTop:4 }}>
-                Hiển thị {filtered.length} / {totalElements.toLocaleString()} khách hàng
+                Hiển thị {customers.length} / {totalElements.toLocaleString()} khách hàng
               </div>
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements}
+          pageSize={size}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setSize(s); setPage(0); }}
+        />
       </div>
     </div>
   );

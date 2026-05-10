@@ -5,11 +5,14 @@ import com.homestay.dorm.dto.response.ApiResponse;
 import com.homestay.dorm.entity.KhachHang;
 import com.homestay.dorm.service.CustomerService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/customers")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER')")
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -30,7 +33,12 @@ public class CustomerController {
     @PutMapping("/{maKhachHang}")
     public ApiResponse<KhachHang> updateCustomer(
             @PathVariable String maKhachHang,
-            @RequestBody KhachHang data) {
+            @Valid @RequestBody KhachHang data) {
         return ApiResponse.ok(customerService.updateCustomer(maKhachHang, data));
+    }
+
+    @PostMapping
+    public ApiResponse<KhachHang> createCustomer(@Valid @RequestBody KhachHang data) {
+        return ApiResponse.ok(customerService.createCustomer(data));
     }
 }
