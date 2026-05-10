@@ -3,7 +3,7 @@ import {
   ClipboardCheck, DollarSign, Users, Check, X, AlertTriangle,
   ChevronRight, Clock, Calendar, Home, CheckCircle, XCircle,
   FileText, ShieldCheck, Send, MessageSquare, BadgeCheck,
-  Building2, Info, BedDouble, MapPin, Fingerprint, Loader2,
+  Building2, Info, BedDouble, MapPin, Fingerprint, Loader2, Search,
 } from "lucide-react";
 import { usePagedList } from "../hooks/usePagedList";
 import { 
@@ -28,6 +28,7 @@ interface RentalReq {
   id: string; tenant: string; avatar: string; room: string; roomType: string;
   period: string; fromDate: string; submitted: string; note: string; source: string;
   status: RS; rejectReason?: string;
+  rawDate: string; isOverdue: boolean;
 }
 interface DepositReq {
   id: string; tenant: string; avatar: string; room: string; amount: number;
@@ -58,6 +59,9 @@ function Avatar({ initials, gradient, size = 9 }: { initials: string; gradient: 
 
 // ── Section A: Rental Approvals ────────────────────────────────────────────
 function RentalSection({ customers }: { customers: Map<string, Customer> }) {
+  const [filterMode, setFilterMode] = useState<"all" | "newest" | "overdue">("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectText, setRejectText] = useState("");
@@ -75,6 +79,7 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
     setSize,
   } = usePagedList<Request>(getRequests, 10, {
     trangThaiYeuCau: "Chờ phê duyệt",
+    ...(submittedSearch ? { search: submittedSearch } : {}),
   });
 
   const showToast = (msg: string, type: "ok" | "err" = "ok") => {
@@ -111,8 +116,8 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
   };
 
   const items = useMemo<RentalReq[]>(() => {
-    return rawItems.map(r => {
-      const customer = r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null;
+    let result = rawItems.map(r => {
+      const customer = r.khachHang ?? (r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null);
       const tenantName = customer?.hoTen ?? "Khách chưa rõ";
       return {
         id: r.maYeuCau,
@@ -126,9 +131,28 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
         note: r.cacTieuChiKhac ?? "",
         source: r.khuVuc ?? "Website",
         status: "pending",
+        rawDate: r.ngayTao ?? r.thoiGianBatDauThueDuKien ?? "",
+        isOverdue: !!r.isOverdue,
       };
     });
-  }, [rawItems, customers]);
+
+    if (filterMode === "overdue") {
+      result = result.filter(r => r.isOverdue);
+    }
+
+    result.sort((a, b) => {
+      if (filterMode === "newest" || filterMode === "all") {
+        if (!a.isOverdue && b.isOverdue) return -1;
+        if (a.isOverdue && !b.isOverdue) return 1;
+        const timeA = new Date(a.rawDate || a.fromDate || 0).getTime();
+        const timeB = new Date(b.rawDate || b.fromDate || 0).getTime();
+        return timeB - timeA;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [rawItems, customers, filterMode]);
 
   return (
     <div>
@@ -147,10 +171,33 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
             {totalElements} yêu cầu đang chờ phê duyệt · Xem xét kỹ trước khi xác nhận
           </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-          style={{ background: `${A}10`, border: `1px solid ${A}25` }}>
-          <Clock size={13} style={{ color: A }} />
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: A }}>SLA: 24h/yêu cầu</span>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Tìm tên khách, mã..." 
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { setSubmittedSearch(searchInput); setPage(0); } }}
+              onBlur={() => { setSubmittedSearch(searchInput); setPage(0); }}
+              className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-sm font-medium outline-none w-48 focus:border-indigo-500 transition"
+            />
+          </div>
+          <select 
+            value={filterMode} 
+            onChange={(e) => setFilterMode(e.target.value as any)}
+            className="px-3 py-1.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none"
+          >
+            <option value="all">Tất cả</option>
+            <option value="newest">Mới nhất trước</option>
+            <option value="overdue">Chỉ hiện quá hạn</option>
+          </select>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+            style={{ background: `${A}10`, border: `1px solid ${A}25` }}>
+            <Clock size={13} style={{ color: A }} />
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: A }}>SLA: 24h/yêu cầu</span>
+          </div>
         </div>
       </div>
 
@@ -172,9 +219,19 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
       {!loading && items.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 rounded-2xl"
           style={{ background: "#F8FAFC", border: "1px dashed #CBD5E1" }}>
-          <CheckCircle size={36} className="mb-3" style={{ color: "#86EFAC" }} />
-          <div style={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>Tất cả đã được xử lý!</div>
-          <div style={{ color: "#94A3B8", fontSize: "0.8rem", marginTop: 4 }}>Không còn yêu cầu nào đang chờ duyệt</div>
+          {submittedSearch ? (
+            <>
+              <Search size={36} className="mb-3" style={{ color: "#94A3B8" }} />
+              <div style={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>Không tìm thấy kết quả!</div>
+              <div style={{ color: "#94A3B8", fontSize: "0.8rem", marginTop: 4 }}>Không có yêu cầu nào khớp với "{submittedSearch}"</div>
+            </>
+          ) : (
+            <>
+              <CheckCircle size={36} className="mb-3" style={{ color: "#86EFAC" }} />
+              <div style={{ fontWeight: 700, color: "#374151", fontSize: "0.95rem" }}>Tất cả đã được xử lý!</div>
+              <div style={{ color: "#94A3B8", fontSize: "0.8rem", marginTop: 4 }}>Không còn yêu cầu nào đang chờ duyệt</div>
+            </>
+          )}
         </div>
       )}
 
@@ -195,7 +252,9 @@ function RentalSection({ customers }: { customers: Map<string, Customer> }) {
                 <Avatar initials={req.avatar} gradient={`linear-gradient(135deg,${A},#7C3AED)`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span style={{ fontWeight: 800, fontSize: "0.92rem", color: "#1E293B" }}>{req.tenant}</span>
+                    <span style={{ fontWeight: 800, fontSize: "0.92rem", color: req.isOverdue ? "#DC2626" : "#1E293B" }}>
+                      {req.tenant} {req.isOverdue && <span className="text-red-500 text-xs ml-1">(Quá hạn)</span>}
+                    </span>
                     <span className="px-2 py-0.5 rounded-md" style={{ background: srcStyle.bg, color: srcStyle.color, fontSize: "0.68rem", fontWeight: 700 }}>{req.source}</span>
                   </div>
                   <div className="flex items-center gap-4 flex-wrap">
@@ -397,7 +456,7 @@ function ConditionSection({ customers }: { customers: Map<string, Customer> }) {
 
   const items = useMemo<ConditionReq[]>(() => {
     return rawItems.map(r => {
-      const customer = r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null;
+      const customer = r.khachHang ?? (r.khachHangYeuCau ? customers.get(r.khachHangYeuCau) : null);
       const tenantName = customer?.hoTen ?? "Khách chưa rõ";
       return {
         id: r.maYeuCau,
