@@ -12,7 +12,7 @@ import type {
   DepositFile
 } from "../types";
 
-const API_BASE_URL = "http://localhost:8081/api";
+const API_BASE_URL = "http://localhost:8888/api";
 const AUTH_TOKEN_KEY = "token";
 
 export type ApiListResponse<T> = {

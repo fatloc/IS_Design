@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/appointments")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('SALE', 'MANAGER')")
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER', 'KETOAN')")
 public class AppointmentController {
 
     private final AppointmentService appointmentService;

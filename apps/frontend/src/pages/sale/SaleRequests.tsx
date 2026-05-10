@@ -262,6 +262,7 @@ function CreateCustomerModal({
 
 
 
+
 function CreateRequestTab({
 
   customers,
@@ -287,19 +288,42 @@ function CreateRequestTab({
   const [coBaiGuiXe, setCoBaiGuiXe] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
   const { addToast } = useToast();
 
-  const filteredCustomers = useMemo(() => {
-    if (!searchCustomer || searchCustomer.includes(" - ")) return [];
-    const q = searchCustomer.toLowerCase();
-    return customers.filter(c => 
-      (c.maKhachHang && c.maKhachHang.toLowerCase().includes(q)) ||
-      (c.hoTen && c.hoTen.toLowerCase().includes(q)) ||
-      (c.soDienThoai && c.soDienThoai.includes(q))
-    ).slice(0, 8);
-  }, [customers, searchCustomer]);
+  const [debouncedSearchCustomer, setDebouncedSearchCustomer] = useState("");
+  const [customerOptions, setCustomerOptions] = useState<Customer[]>([]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearchCustomer(searchCustomer), 400);
+    return () => clearTimeout(handler);
+  }, [searchCustomer]);
+
+  useEffect(() => {
+    if (!debouncedSearchCustomer || debouncedSearchCustomer.includes(" - ")) {
+      setCustomerOptions([]);
+      return;
+    }
+    
+    let isMounted = true;
+    setSearching(true);
+    getCustomers({ page: 0, size: 10, search: debouncedSearchCustomer })
+      .then(res => {
+        if (isMounted) {
+          setCustomerOptions(res.data || []);
+        }
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (isMounted) setSearching(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [debouncedSearchCustomer]);
+
+  // Đã chuyển sang search backend
 
   const renderHighlightedText = (text: string, query: string) => {
     if (!query) return text;
@@ -409,6 +433,9 @@ function CreateRequestTab({
                 className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
               />
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+              {searching && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
             </div>
 
             {showDropdown && (
@@ -420,7 +447,7 @@ function CreateRequestTab({
                 <div className="absolute top-full left-0 right-0 mt-2 z-20 overflow-hidden bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="max-h-64 overflow-y-auto p-1.5 flex flex-col">
                     {/* Danh sách kết quả */}
-                    {filteredCustomers.map(c => (
+                    {customerOptions.map(c => (
                       <button
                         key={c.maKhachHang}
                           onClick={() => {
@@ -449,9 +476,8 @@ function CreateRequestTab({
                         <ChevronRight size={14} className="text-slate-300 group-hover:text-orange-400 transition-transform group-hover:translate-x-0.5" />
                       </button>
                     ))}
-                    
                     {/* Thông báo khi không tìm thấy */}
-                    {filteredCustomers.length === 0 && searchCustomer && !searchCustomer.includes(" - ") && (
+                    {!searching && customerOptions.length === 0 && searchCustomer && !searchCustomer.includes(" - ") && (
                       <div className="p-4 text-center">
                         <div className="text-sm text-slate-500 mb-3">Không tìm thấy khách hàng "{searchCustomer}"</div>
                         <button

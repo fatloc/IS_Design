@@ -8,11 +8,13 @@ import com.homestay.dorm.entity.PhieuThanhToan;
 import com.homestay.dorm.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/transactions")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SALE', 'MANAGER', 'KETOAN')")
 public class TransactionController {
 
     private final TransactionService transactionService;
