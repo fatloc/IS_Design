@@ -141,7 +141,10 @@ function CheckInTab({ rooms, onRefresh }: { rooms: OperationCheckinItem[]; onRef
       await confirmHandover({ id: open.id, room: open.room, assets: checklist, notes: note });
       setDone(true);
       setTimeout(() => { onRefresh(); setOpen(null); }, 1400);
-    } catch { alert("Lỗi khi lưu biên bản!"); }
+    } catch (e: any) {
+      const msg = e.response?.data?.message || "Lỗi khi lưu biên bản!";
+      alert(msg);
+    }
   }
 
   return (
@@ -394,7 +397,10 @@ function CheckOutTab({ rooms, onRefresh }: { rooms: OperationCheckoutItem[]; onR
       await confirmCheckout({ id: open.id, room: open.room, assets, cleanState: clean, damages, penalty });
       setSent(true);
       onRefresh();
-    } catch { alert("Lỗi khi gửi biên bản!"); }
+    } catch (e: any) {
+      const msg = e.response?.data?.message || "Lỗi khi gửi biên bản!";
+      alert(msg);
+    }
   }
 
   async function handleFinish(id: string) {
@@ -679,7 +685,8 @@ export default function Operations() {
       setCheckins(data.checkins ?? []);
       setCheckouts(data.checkouts ?? []);
     } catch (e: any) {
-      setError(e.message ?? "Không tải được dữ liệu");
+      const msg = e.response?.data?.message || e.message || "Không tải được dữ liệu";
+      setError(msg);
     } finally {
       setLoading(false);
     }

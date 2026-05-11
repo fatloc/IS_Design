@@ -47,27 +47,43 @@ public class OperationsServiceImpl implements OperationsService {
     public void confirmHandover(HandoverRequest request) {
         String bbId = "BB" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
 
+        // Lấy thông tin từ hồ sơ đặt cọc nguồn
+        Map<String, Object> source = jdbcTemplate.queryForMap(
+                "SELECT ChiNhanh, KhachHangSoHuu FROM CHUNGTU WHERE MaVanBan = ?",
+                request.getId());
+        String chiNhanh = (String) source.get("ChiNhanh");
+        String customerId = (String) source.get("KhachHangSoHuu");
+
         // 1. Tạo CHUNGTU
         jdbcTemplate.update(
-                "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap) VALUES (?, ?, ?, ?)",
-                bbId, "Biên bản bàn giao", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()));
+                "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap, ChiNhanh, KhachHangSoHuu) VALUES (?, ?, ?, ?, ?, ?)",
+                bbId, "Biên bản bàn giao", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()), chiNhanh, customerId);
 
         // 2. Tạo BIENBANBANGIAOTAISAN
         jdbcTemplate.update("INSERT INTO BIENBANBANGIAOTAISAN (MaBienBanBanGiao) VALUES (?)", bbId);
 
         // 3. Tạo CHITIETBANGIAO cho từng tài sản
-        for (OperationAssetResponse asset : request.getAssets()) {
-            List<String> assetIds = jdbcTemplate.queryForList(
-                    "SELECT MaTaiSan FROM TAISAN WHERE TenTaiSan = ? LIMIT 1",
-                    String.class, asset.getAsset());
-            String assetId = assetIds.isEmpty() ? "TS0001" : assetIds.get(0);
-            jdbcTemplate.update(
-                    "INSERT INTO CHITIETBANGIAO (MaBienBanBanGiao, MaTaiSanBanGiao, SoLuong) VALUES (?, ?, ?)",
-                    bbId, assetId, 1);
+        if (request.getAssets() != null) {
+            for (OperationAssetResponse asset : request.getAssets()) {
+                List<String> assetIds = jdbcTemplate.queryForList(
+                        "SELECT MaTaiSan FROM TAISAN WHERE TenTaiSan = ? LIMIT 1",
+                        String.class, asset.getAsset());
+                String assetId = assetIds.isEmpty() ? "TS0001" : assetIds.get(0);
+                jdbcTemplate.update(
+                        "INSERT INTO CHITIETBANGIAO (MaBienBanBanGiao, MaTaiSanBanGiao, SoLuong) VALUES (?, ?, ?)",
+                        bbId, assetId, 1);
+            }
         }
 
-        // 4. Cập nhật trạng thái phòng
-        jdbcTemplate.update("UPDATE PHONG SET TrangThai = 'Da thue' WHERE MaPhong = ?", request.getRoom());
+        // 4. Cập nhật trạng thái phòng/giường
+        String roomStr = request.getRoom();
+        if (roomStr != null && roomStr.contains(" / ")) {
+            String[] parts = roomStr.split(" / ");
+            String bedId = parts[parts.length - 1].trim();
+            jdbcTemplate.update("UPDATE GIUONG SET TrangThai = 'Da thue' WHERE MaGiuong = ?", bedId);
+        } else {
+            jdbcTemplate.update("UPDATE PHONG SET TrangThai = 'Da thue' WHERE MaPhong = ?", roomStr);
+        }
     }
 
     @Override
@@ -75,10 +91,17 @@ public class OperationsServiceImpl implements OperationsService {
     public void confirmCheckout(CheckoutRequest request) {
         String bbId = "BT" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
 
+        // Lấy thông tin từ hợp đồng nguồn
+        Map<String, Object> source = jdbcTemplate.queryForMap(
+                "SELECT ChiNhanh, KhachHangSoHuu FROM CHUNGTU WHERE MaVanBan = ?",
+                request.getId());
+        String chiNhanh = (String) source.get("ChiNhanh");
+        String customerId = (String) source.get("KhachHangSoHuu");
+
         // 1. Tạo CHUNGTU
         jdbcTemplate.update(
-                "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap) VALUES (?, ?, ?, ?)",
-                bbId, "Biên bản trả phòng", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()));
+                "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap, ChiNhanh, KhachHangSoHuu) VALUES (?, ?, ?, ?, ?, ?)",
+                bbId, "Biên bản trả phòng", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()), chiNhanh, customerId);
 
         // 2. Tạo BIENBANTRAPHONG liên kết với hợp đồng
         jdbcTemplate.update(
