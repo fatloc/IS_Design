@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface ThanhVienNhomRepository extends JpaRepository<ThanhVienNhom, String> {
     List<ThanhVienNhom> findByMaYeuCau(String maYeuCau);
+    List<ThanhVienNhom> findByMaHopDongThue(String maHopDongThue);
 }

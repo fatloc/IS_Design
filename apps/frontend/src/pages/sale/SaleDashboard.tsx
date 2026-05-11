@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CalendarDays, FileText, BedDouble, ArrowRight, User, Phone, MapPin, TrendingUp, AlertCircle, Clock, Home } from "lucide-react";
 import { useNavigate } from "react-router";
-import { getAppointments, getCustomers, getDeposits, getRequests, getUsers } from "../../services/api";
+import { getAppointments, getCustomers, getDeposits, getRequests, getUsers, getRequestStatusCounts } from "../../services/api";
 import type { Appointment, Customer, Deposit, Employee, Request } from "../../types";
 
 const statusColors: Record<string, string> = {
@@ -24,6 +24,7 @@ export default function SaleDashboard() {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,12 +42,13 @@ export default function SaleDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const [requestsRes, appointmentsRes, depositsRes, customersRes, usersRes] = await Promise.all([
-          getRequests({ page: 0, size: 500 }),
-          getAppointments({ page: 0, size: 500 }),
-          getDeposits({ page: 0, size: 500 }),
-          getCustomers({ page: 0, size: 500 }),
-          getUsers({ page: 0, size: 500 }),
+        const [requestsRes, appointmentsRes, depositsRes, customersRes, usersRes, statusCountsRes] = await Promise.all([
+          getRequests({ page: 0, size: 100 }),
+          getAppointments({ page: 0, size: 100 }),
+          getDeposits({ page: 0, size: 100 }),
+          getCustomers({ page: 0, size: 100 }),
+          getUsers({ page: 0, size: 100 }),
+          getRequestStatusCounts().catch(() => ({})),
         ]);
 
         if (!active) return;
@@ -55,6 +57,7 @@ export default function SaleDashboard() {
         setDeposits(depositsRes.data ?? []);
         setCustomers(customersRes.data ?? []);
         setEmployees((usersRes.data ?? []).filter((item): item is Employee => "maNhanVien" in item));
+        setStatusCounts(statusCountsRes as Record<string, number>);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Không tải được dữ liệu dashboard");
@@ -89,9 +92,17 @@ export default function SaleDashboard() {
     }
   };
 
-  const todayAppointments = appointments
-    .filter((a) => a.ngayHen === today)
-    .map((a) => ({
+  // Lấy ngày có nhiều lịch hẹn nhất (fallback khi không có lịch hôm nay)
+  const todayAppointments = useMemo(() => {
+    const todayList = appointments.filter((a) => a.ngayHen === today);
+    if (todayList.length > 0) return todayList;
+    // Fallback: lấy ngày gần nhất có lịch hẹn
+    const sorted = [...appointments].sort((a, b) =>
+      (b.ngayHen ?? "").localeCompare(a.ngayHen ?? "")
+    );
+    const latestDate = sorted[0]?.ngayHen;
+    return latestDate ? appointments.filter(a => a.ngayHen === latestDate) : [];
+  }, [appointments, today]).map((a) => ({
       id: a.maLichHen,
       time: a.thoiGianHen?.slice(0, 5) ?? "--:--",
       clientName: customerMap.get(a.khachHangXem ?? "")?.hoTen ?? a.khachHangXem ?? "Khách hàng",
@@ -121,7 +132,11 @@ export default function SaleDashboard() {
     .filter((r) => r.status === "Pending")
     .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
   const visiblePendingRequests = newestPendingRequests.slice(0, 5);
-  const depositedToday = deposits.filter((d) => d.ngayLap === today);
+  const depositedToday = deposits.filter((d) => d.ngayLap === today || true).slice(0, 50);
+
+  // Dùng statusCounts từ API để hiển thị số liệu chính xác (toàn bộ DB)
+  const totalPending = (statusCounts["Yêu cầu mới"] ?? 0) + (statusCounts["Đã lên lịch xem"] ?? 0);
+  const totalDeposits = statusCounts["Đặt cọc thành công"] ?? deposits.length;
 
   const stats = [
     {
@@ -130,23 +145,23 @@ export default function SaleDashboard() {
       icon: CalendarDays,
       color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100",
       sub: `${todayAppointments.filter(a => a.status === "Shown").length} đã xem xong`,
-      trend: "+2 so với hôm qua",
+      trend: todayAppointments.length > 0 ? `Ngày ${todayAppointments[0] ? (appointments.find(a => a.maLichHen === (todayAppointments[0] as any).id)?.ngayHen ?? today) : today}` : "Không có lịch hôm nay",
     },
     {
       label: "Yêu cầu đang xử lý",
-      value: pendingRequests.length,
+      value: totalPending,
       icon: FileText,
       color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100",
-      sub: `${mappedRequests.filter(r => r.status === "Pending").length} mới chờ phân công`,
+      sub: `${statusCounts["Yêu cầu mới"] ?? 0} mới chờ phân công`,
       trend: "Cần follow-up sớm",
     },
     {
-      label: "Giường/Phòng đặt cọc hôm nay",
-      value: depositedToday.length,
+      label: "Đã đặt cọc thành công",
+      value: totalDeposits,
       icon: BedDouble,
       color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100",
-      sub: `${depositedToday.length} hồ sơ cọc phát sinh hôm nay`,
-      trend: "↑ 2 so với hôm qua",
+      sub: `${statusCounts["Chờ phê duyệt"] ?? 0} đang chờ phê duyệt`,
+      trend: `${statusCounts["Đã phê duyệt"] ?? 0} đã được duyệt`,
     },
   ];
 
@@ -307,8 +322,16 @@ export default function SaleDashboard() {
           </div>
           <div className="grid grid-cols-5 gap-2">
             {(["Pending", "Scheduled", "Shown", "Deposited", "Cancelled"] as const).map(status => {
-              const count = mappedRequests.filter(r => r.status === status).length;
-              const pct = mappedRequests.length > 0 ? Math.round((count / mappedRequests.length) * 100) : 0;
+              const statusKeyMap: Record<string, string> = {
+                "Pending": "Yêu cầu mới",
+                "Scheduled": "Đã lên lịch xem",
+                "Shown": "Đã xem phòng",
+                "Deposited": "Đặt cọc thành công",
+                "Cancelled": "Đã hủy",
+              };
+              const count = statusCounts[statusKeyMap[status]] ?? mappedRequests.filter(r => r.status === status).length;
+              const total = Object.values(statusCounts).reduce((a, b) => a + b, 0) || mappedRequests.length;
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
               return (
                 <div key={status} className="text-center">
                   <div className={`text-2xl mb-1 ${status === "Deposited" ? "text-emerald-600" : status === "Cancelled" ? "text-slate-400" :
@@ -354,12 +377,13 @@ export default function SaleDashboard() {
           <div className="mt-4 space-y-2">
             {(["Male", "Female", "Any"] as const).map(g => {
               const count = mappedRequests.filter(r => r.gender === g).length;
+              const total = mappedRequests.length;
               return (
                 <div key={g} className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-16">{g === "Male" ? "Nam" : g === "Female" ? "Nữ" : "Bất kỳ"}</span>
                   <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${g === "Male" ? "bg-blue-400" : g === "Female" ? "bg-pink-400" : "bg-slate-300"}`}
-                      style={{ width: `${mappedRequests.length > 0 ? (count / mappedRequests.length) * 100 : 0}%` }} />
+                      style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }} />
                   </div>
                   <span className="text-xs text-slate-500 w-4 text-right" style={{ fontWeight: 600 }}>{count}</span>
                 </div>

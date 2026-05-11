@@ -5,6 +5,7 @@ import com.homestay.dorm.repository.*;
 import com.homestay.dorm.service.DashboardService;
 import com.homestay.dorm.repository.HopDongThueRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -27,82 +28,96 @@ public class DashboardServiceImpl implements DashboardService {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
+    @Cacheable(value = "dashboardStats", unless = "#result == null")
     public DashboardResponse getDashboardStats() {
-        long totalRooms = phongRepository.count();
+        // Gộp tất cả các thống kê phòng vào 1 query duy nhất
+        Map<String, Object> roomStats = jdbcTemplate.queryForMap(
+                "SELECT " +
+                "COUNT(*) as totalRooms, " +
+                "SUM(CASE WHEN TrangThai LIKE '%rong%' AND TrangThai NOT LIKE '%thue%' AND TrangThai NOT LIKE '%dat%' AND TrangThai NOT LIKE '%tri%' THEN 1 ELSE 0 END) as emptyRooms, " +
+                "SUM(CASE WHEN TrangThai LIKE '%thue%' THEN 1 ELSE 0 END) as occupiedRooms, " +
+                "SUM(CASE WHEN TrangThai LIKE '%dat%' THEN 1 ELSE 0 END) as depositedRooms, " +
+                "SUM(CASE WHEN TrangThai LIKE '%tri%' THEN 1 ELSE 0 END) as maintenanceRooms, " +
+                "COALESCE(SUM(SucChuaToiDa), 0) as totalCapacity " +
+                "FROM PHONG"
+        );
+
+        long totalRooms = ((Number) roomStats.get("totalRooms")).longValue();
+        long fullRooms = ((Number) roomStats.get("occupiedRooms")).longValue();
+        long totalCapacity = ((Number) roomStats.get("totalCapacity")).longValue();
 
         Map<String, Long> roomStatusCounts = new HashMap<>();
-        // Dùng LIKE để bắt cả giá trị có dấu ("Trống") lẫn không dấu ("Trong")
-        // vì DB có thể có cả hai tùy nguồn tạo dữ liệu
-        roomStatusCounts.put("Trống", jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM PHONG WHERE TrangThai LIKE '%rong%' AND TrangThai NOT LIKE '%thue%' AND TrangThai NOT LIKE '%dat%' AND TrangThai NOT LIKE '%tri%'",
-                Long.class));
-        roomStatusCounts.put("Đang có người", jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM PHONG WHERE TrangThai LIKE '%thue%'",
-                Long.class));
-        roomStatusCounts.put("Đã đặt cọc", jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM PHONG WHERE TrangThai LIKE '%dat%'",
-                Long.class));
-        roomStatusCounts.put("Đang bảo trì", jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM PHONG WHERE TrangThai LIKE '%tri%'",
-                Long.class));
+        roomStatusCounts.put("Trống", ((Number) roomStats.get("emptyRooms")).longValue());
+        roomStatusCounts.put("Đang có người", fullRooms);
+        roomStatusCounts.put("Đã đặt cọc", ((Number) roomStats.get("depositedRooms")).longValue());
+        roomStatusCounts.put("Đang bảo trì", ((Number) roomStats.get("maintenanceRooms")).longValue());
 
-        long pendingRequests = yeuCauDangKyRepository
-                .findByTrangThaiYeuCau("Chờ phê duyệt", PageRequest.of(0, 1))
-                .getTotalElements();
-
-        long pendingAppointments = lichXemPhongRepository
-                .countByNgayHenAfter(LocalDate.now().minusDays(1));
-
-        long pendingTransactions = phieuThanhToanRepository.count();
-
-        // Tổng sức chứa tất cả phòng
-        Long totalCapacity = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(SUM(SucChuaToiDa), 0) FROM PHONG", Long.class);
-        if (totalCapacity == null) totalCapacity = 0L;
-
-        // Số phòng đầy = phòng có trạng thái "Da thue" hoặc "Dang thue"
-        // (tức là phòng đã được bàn giao, không quan tâm số người vì SoLuongThanhVien không tin được)
-        long fullRooms = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM PHONG WHERE TrangThai LIKE '%thue%'", Long.class);
-
-        // activeTenants = số phòng đang có người (dùng để hiển thị, không dùng SoLuongThanhVien)
-        // Dùng số phòng đang thuê × sức chứa trung bình để ước tính hợp lý hơn
-        // Hoặc đơn giản: đếm số hợp đồng active có phòng
-        Long activeTenants = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT ct.MaHopDongThue) " +
-                "FROM CHITIETTHUEPHONG ct " +
+        // Gộp các thống kê đếm vào 1 query
+        Map<String, Object> countStats = jdbcTemplate.queryForMap(
+                "SELECT " +
+                "(SELECT COUNT(*) FROM YEUCAUDANGKY WHERE TrangThaiYeuCau = 'Chờ phê duyệt') as pendingRequests, " +
+                "(SELECT COUNT(*) FROM LICHXEMPHONG WHERE NgayHen > ?) as pendingAppointments, " +
+                "(SELECT COUNT(*) FROM PHIEUTHANHTOAN) as pendingTransactions, " +
+                "(SELECT COUNT(DISTINCT ct.MaHopDongThue) FROM CHITIETTHUEPHONG ct " +
                 "JOIN HOPDONGTHUE h ON h.MaHopDongThue = ct.MaHopDongThue " +
-                "WHERE (h.TrangThaiThanhLy NOT IN ('Hoan tat') OR h.TrangThaiThanhLy IS NULL)",
-                Long.class);
-        if (activeTenants == null) activeTenants = 0L;
+                "WHERE (h.TrangThaiThanhLy NOT IN ('Hoan tat') OR h.TrangThaiThanhLy IS NULL)) as activeTenants",
+                LocalDate.now().minusDays(1)
+        );
+
+        long pendingRequests = ((Number) countStats.get("pendingRequests")).longValue();
+        long pendingAppointments = ((Number) countStats.get("pendingAppointments")).longValue();
+        long pendingTransactions = ((Number) countStats.get("pendingTransactions")).longValue();
+        long activeTenants = ((Number) countStats.get("activeTenants")).longValue();
 
         double revenue = 47800000.0;
 
+        // Lấy tasks - KHÔNG dùng Page để tránh count query chậm
         List<DashboardResponse.DashboardTask> tasks = new ArrayList<>();
 
-        yeuCauDangKyRepository.findByTrangThaiYeuCau("Chờ phê duyệt", PageRequest.of(0, 3)).forEach(req -> {
-            tasks.add(DashboardResponse.DashboardTask.builder()
-                    .id("req-" + req.getMaYeuCau())
-                    .title("Duyệt hồ sơ thuê phòng")
-                    .desc("Khách hàng: " + req.getKhachHangYeuCau() + " · Khu vực: " + req.getKhuVuc())
-                    .source("approvals")
-                    .priority("high")
-                    .time(req.getThoiGianBatDauThueDuKien() != null ? req.getThoiGianBatDauThueDuKien().toString() : "Mới")
-                    .tag("Duyệt thuê")
-                    .build());
-        });
+        // Lấy top 3 yêu cầu chờ duyệt - dùng LIMIT thay vì Page
+        jdbcTemplate.query(
+                "SELECT MaYeuCau, KhachHangYeuCau, KhuVuc, ThoiGianBatDauThueDuKien " +
+                "FROM YEUCAUDANGKY " +
+                "WHERE TrangThaiYeuCau = 'Chờ phê duyệt' " +
+                "ORDER BY ThoiGianBatDauThueDuKien DESC " +
+                "LIMIT 3",
+                (rs, rowNum) -> {
+                    tasks.add(DashboardResponse.DashboardTask.builder()
+                            .id("req-" + rs.getString("MaYeuCau"))
+                            .title("Duyệt hồ sơ thuê phòng")
+                            .desc("Khách hàng: " + rs.getString("KhachHangYeuCau") + " · Khu vực: " + rs.getString("KhuVuc"))
+                            .source("approvals")
+                            .priority("high")
+                            .time(rs.getDate("ThoiGianBatDauThueDuKien") != null ? 
+                                  rs.getDate("ThoiGianBatDauThueDuKien").toString() : "Mới")
+                            .tag("Duyệt thuê")
+                            .build());
+                    return null;
+                }
+        );
 
-        lichXemPhongRepository.findByNgayHenAfter(LocalDate.now().minusDays(1), PageRequest.of(0, 2)).forEach(app -> {
-            tasks.add(DashboardResponse.DashboardTask.builder()
-                    .id("app-" + app.getMaLichHen())
-                    .title("Lịch xem phòng khách hàng")
-                    .desc("Khách hàng đang chờ xác nhận lịch hẹn #" + app.getMaLichHen())
-                    .source("approvals")
-                    .priority("medium")
-                    .time(app.getNgayHen() != null ? app.getNgayHen().toString() : "Hôm nay")
-                    .tag("Lịch hẹn")
-                    .build());
-        });
+        // Lấy top 2 lịch hẹn - dùng LIMIT thay vì Page
+        jdbcTemplate.query(
+                "SELECT MaLichHen, NgayHen " +
+                "FROM LICHXEMPHONG " +
+                "WHERE NgayHen > ? " +
+                "ORDER BY NgayHen ASC " +
+                "LIMIT 2",
+                new Object[]{LocalDate.now().minusDays(1)},
+                (rs, rowNum) -> {
+                    tasks.add(DashboardResponse.DashboardTask.builder()
+                            .id("app-" + rs.getString("MaLichHen"))
+                            .title("Lịch xem phòng khách hàng")
+                            .desc("Khách hàng đang chờ xác nhận lịch hẹn #" + rs.getString("MaLichHen"))
+                            .source("approvals")
+                            .priority("medium")
+                            .time(rs.getDate("NgayHen") != null ? 
+                                  rs.getDate("NgayHen").toString() : "Hôm nay")
+                            .tag("Lịch hẹn")
+                            .build());
+                    return null;
+                }
+        );
 
         return DashboardResponse.builder()
                 .totalRooms(totalRooms)

@@ -4,6 +4,7 @@ import com.homestay.dorm.dto.request.CreateContractRequest;
 import com.homestay.dorm.dto.request.UpdateContractRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
 import com.homestay.dorm.dto.response.ApiResponse;
+import com.homestay.dorm.dto.response.ContractDetailResponse;
 import com.homestay.dorm.entity.HopDongThue;
 import com.homestay.dorm.service.ContractService;
 import jakarta.validation.Valid;
@@ -16,6 +17,11 @@ import org.springframework.web.bind.annotation.*;
 public class ContractController {
 
     private final ContractService contractService;
+
+    @GetMapping("/stats")
+    public ApiResponse<java.util.Map<String, Long>> getContractStats() {
+        return ApiResponse.ok(contractService.getContractStats());
+    }
 
     @GetMapping("/settlement")
     public ApiResponse<java.util.List<java.util.Map<String, Object>>> getSettlementContracts(
@@ -52,6 +58,11 @@ public class ContractController {
     @GetMapping("/{maHopDongThue}")
     public ApiResponse<HopDongThue> getContractById(@PathVariable String maHopDongThue) {
         return ApiResponse.ok(contractService.getContractById(maHopDongThue));
+    }
+
+    @GetMapping("/{maHopDongThue}/details")
+    public ApiResponse<ContractDetailResponse> getContractDetails(@PathVariable String maHopDongThue) {
+        return ApiResponse.ok(contractService.getContractDetails(maHopDongThue));
     }
 
     @PostMapping

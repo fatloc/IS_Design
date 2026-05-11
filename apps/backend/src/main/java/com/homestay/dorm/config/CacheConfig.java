@@ -15,9 +15,9 @@ public class CacheConfig {
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager("dashboardStats", "saleDashboardStats");
         manager.setCaffeine(Caffeine.newBuilder()
-                .expireAfterWrite(30, TimeUnit.SECONDS)   // TTL 30 giây
-                .maximumSize(10)                           // Tối đa 10 entry
-                .recordStats());                           // Ghi stats để debug
+                .expireAfterWrite(2, TimeUnit.MINUTES)    // TTL 2 phút - dashboard không cần real-time
+                .maximumSize(50)                          // Tăng size để cache nhiều hơn
+                .recordStats());                          // Ghi stats để debug
         return manager;
     }
 }

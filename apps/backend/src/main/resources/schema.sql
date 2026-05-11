@@ -154,3 +154,93 @@ SET @sql = IF(
     'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+
+-- ============================================
+-- Performance Optimization: Dashboard Indexes
+-- ============================================
+
+-- Index cho PHONG.TrangThai để tăng tốc các query đếm theo trạng thái
+SELECT COUNT(*) INTO @PhongTrangThaiIdxExists
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'PHONG'
+  AND INDEX_NAME = 'idx_phong_trangthai';
+
+SET @sql = IF(
+    @PhongTrangThaiIdxExists = 0,
+    'CREATE INDEX idx_phong_trangthai ON PHONG(TrangThai)',
+    'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Index cho YEUCAUDANGKY.TrangThaiYeuCau để tăng tốc query đếm yêu cầu chờ duyệt
+SELECT COUNT(*) INTO @YeuCauTrangThaiIdxExists
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'YEUCAUDANGKY'
+  AND INDEX_NAME = 'idx_yeucau_trangthai';
+
+SET @sql = IF(
+    @YeuCauTrangThaiIdxExists = 0,
+    'CREATE INDEX idx_yeucau_trangthai ON YEUCAUDANGKY(TrangThaiYeuCau)',
+    'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Index cho LICHXEMPHONG.NgayHen để tăng tốc query lịch hẹn
+SELECT COUNT(*) INTO @LichHenNgayHenIdxExists
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'LICHXEMPHONG'
+  AND INDEX_NAME = 'idx_lichhen_ngayhen';
+
+SET @sql = IF(
+    @LichHenNgayHenIdxExists = 0,
+    'CREATE INDEX idx_lichhen_ngayhen ON LICHXEMPHONG(NgayHen)',
+    'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Index cho HOPDONGTHUE.TrangThaiThanhLy để tăng tốc query hợp đồng active
+SELECT COUNT(*) INTO @HopDongTrangThaiIdxExists
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'HOPDONGTHUE'
+  AND INDEX_NAME = 'idx_hopdong_trangthai';
+
+SET @sql = IF(
+    @HopDongTrangThaiIdxExists = 0,
+    'CREATE INDEX idx_hopdong_trangthai ON HOPDONGTHUE(TrangThaiThanhLy)',
+    'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Composite index cho CHITIETTHUEPHONG.MaHopDongThue để tăng tốc JOIN
+SELECT COUNT(*) INTO @ChiTietHopDongIdxExists
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'CHITIETTHUEPHONG'
+  AND INDEX_NAME = 'idx_chitiet_hopdong';
+
+SET @sql = IF(
+    @ChiTietHopDongIdxExists = 0,
+    'CREATE INDEX idx_chitiet_hopdong ON CHITIETTHUEPHONG(MaHopDongThue)',
+    'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

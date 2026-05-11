@@ -227,8 +227,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Transactional
     @Override
-    public YeuCauDangKy rejectRequest(String maYeuCau, String lyDo) {
-        YeuCauDangKy yeuCau = getRequestById(maYeuCau);
+    public YeuCauDangKy rejectRequest(String maYeuCau, String lyDo) {        YeuCauDangKy yeuCau = getRequestById(maYeuCau);
         if ("Đã phê duyệt".equals(yeuCau.getTrangThaiYeuCau())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Không thể từ chối yêu cầu đã được phê duyệt");
@@ -241,5 +240,18 @@ public class RequestServiceImpl implements RequestService {
                     : ghiChuHienTai + " | [Từ chối] " + lyDo);
         }
         return yeuCauRepository.save(yeuCau);
+    }
+
+    @Override
+    public java.util.Map<String, Long> getRequestStatusCounts() {
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        String[] statuses = {
+            "Yêu cầu mới", "Đã lên lịch xem", "Đã xem phòng",
+            "Chờ phê duyệt", "Đặt cọc thành công", "Đã phê duyệt", "Từ chối"
+        };
+        for (String s : statuses) {
+            counts.put(s, yeuCauRepository.findByTrangThaiYeuCau(s, org.springframework.data.domain.PageRequest.of(0, 1)).getTotalElements());
+        }
+        return counts;
     }
 }

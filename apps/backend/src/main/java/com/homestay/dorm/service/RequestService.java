@@ -14,4 +14,5 @@ public interface RequestService {
     void deleteRequest(String maYeuCau);
     ApproveRequestResponse approveRequest(String maYeuCau);
     YeuCauDangKy rejectRequest(String maYeuCau, String lyDo);
+    java.util.Map<String, Long> getRequestStatusCounts();
 }
