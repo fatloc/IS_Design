@@ -114,6 +114,15 @@ def pick_pairs(left_ids: Sequence[str], right_ids: Sequence[str], count: int) ->
     return pairs
 
 
+def pick_room_for_capacity(room_items: Sequence[Tuple[str, int]], required_capacity: int) -> str:
+    eligible = [room_id for room_id, room_capacity in room_items if room_capacity >= required_capacity]
+    if eligible:
+        return random.choice(eligible)
+
+    # Fallback hiếm gặp nếu thay đổi ROW_PLAN làm không còn phòng đủ lớn.
+    return max(room_items, key=lambda item: (item[1], item[0]))[0]
+
+
 def generate_data():
     # Master data tables.
     chinhanh_ids = [id_code(i, 4) for i in range(1, ROW_PLAN["CHINHANH"] + 1)]
@@ -129,9 +138,11 @@ def generate_data():
     phong_ids = [id_code(i, 4) for i in range(1, ROW_PLAN["PHONG"] + 1)]
     trang_thai_phong = ["Trống", "Đã đặt", "Đang thuê", "Bảo trì"]
     phong_rows = []
+    room_capacity_map = {}
     for pid in phong_ids:
         max_people = random.choice([2, 3, 4, 6, 8])
         room_price = Decimal(random.randint(2_000_000, 15_000_000))
+        room_capacity_map[pid] = max_people
         phong_rows.append(
             (
                 pid,
@@ -145,13 +156,16 @@ def generate_data():
     giuong_ids = [id_code(i, 4) for i in range(1, ROW_PLAN["GIUONG"] + 1)]
     trang_thai_giuong = ["Trống", "Đã đặt", "Đang sử dụng", "Bảo trì"]
     giuong_rows = []
+    beds_by_room = {}
     for gid in giuong_ids:
+        room_id = random.choice(phong_ids)
+        beds_by_room.setdefault(room_id, []).append(gid)
         giuong_rows.append(
             (
                 gid,
                 Decimal(random.randint(700_000, 3_000_000)),
                 random.choices(trang_thai_giuong, weights=[40, 20, 35, 5], k=1)[0],
-                random.choice(phong_ids),
+                room_id,
             )
         )
 
@@ -265,35 +279,67 @@ def generate_data():
 
     hinh_thuc_thue = ["Theo phòng", "Theo giường", "Kết hợp"]
     ky_thanh_toan = ["Tháng", "Quý", "6 tháng"]
-    hopdong_rows = [
-        (
-            hid,
-            random.choice(hinh_thuc_thue),
-            random.choice(ky_thanh_toan),
-            random.randint(1, 8),
-            random_date(date(2026, 6, 11), date(2027, 12, 31)),  # NgayKetThuc (luôn sau khi seed dải ngày)
-            random.choices(["Chua thanh ly", "Dang doi soat", "Da doi soat"], weights=[60, 25, 15], k=1)[0]
+    room_items = [(room_id, room_capacity_map[room_id]) for room_id in phong_ids]
+    hopdong_rows = []
+    contract_member_counts = []
+    contract_member_count_map = {}
+    contract_room_map = {}
+    for hid in contract_ids:
+        member_count = random.randint(1, 8)
+        room_id = pick_room_for_capacity(room_items, member_count)
+        contract_member_counts.append(member_count)
+        contract_member_count_map[hid] = member_count
+        contract_room_map[hid] = room_id
+        hopdong_rows.append(
+            (
+                hid,
+                random.choice(hinh_thuc_thue),
+                random.choice(ky_thanh_toan),
+                member_count,
+                random_date(date(2026, 6, 11), date(2027, 12, 31)),  # NgayKetThuc (luôn sau khi seed dải ngày)
+                random.choices(["Chua thanh ly", "Dang doi soat", "Da doi soat"], weights=[60, 25, 15], k=1)[0],
+            )
         )
-        for hid in contract_ids
-    ]
 
     thanhvien_rows = []
-    for i in range(1, ROW_PLAN["THANHVIENNHOM"] + 1):
-        tv_id = id_code(i, 5)
+    tv_index = 1
+    for contract_id, member_count in zip(contract_ids, contract_member_counts):
+        for _ in range(member_count):
+            tv_id = id_code(tv_index, 5)
+            rep = random.choice(khachhang_ids)
+            thanhvien_rows.append(
+                (
+                    tv_id,
+                    fake.name()[:50],
+                    unique_cccd(200_000 + tv_index),
+                    unique_phone(200_000 + tv_index),
+                    random.choice(["Nam", "Nữ"]),
+                    random.choice(["Việt Nam", "Lào", "Campuchia", "Nhật Bản"]),
+                    contract_id,
+                    None,  # MaYeuCau - will be linked later if needed
+                    rep,
+                )
+            )
+            tv_index += 1
+
+    while len(thanhvien_rows) < ROW_PLAN["THANHVIENNHOM"]:
+        contract_id = random.choice(contract_ids)
+        tv_id = id_code(tv_index, 5)
         rep = random.choice(khachhang_ids)
         thanhvien_rows.append(
             (
                 tv_id,
                 fake.name()[:50],
-                unique_cccd(200_000 + i),
-                unique_phone(200_000 + i),
+                unique_cccd(200_000 + tv_index),
+                unique_phone(200_000 + tv_index),
                 random.choice(["Nam", "Nữ"]),
                 random.choice(["Việt Nam", "Lào", "Campuchia", "Nhật Bản"]),
-                random.choice(contract_ids),
+                contract_id,
                 None,  # MaYeuCau - will be linked later if needed
                 rep,
             )
         )
+        tv_index += 1
 
     yeu_cau_rows = []
     yeu_cau_statuses = [
@@ -366,21 +412,27 @@ def generate_data():
     coc_phong_pairs = pick_pairs(phong_ids, deposit_ids, ROW_PLAN["CHITIETCOCPHONG"])
     coc_giuong_pairs = pick_pairs(giuong_ids, deposit_ids, ROW_PLAN["CHITIETCOCGIUONG"])
 
-    thue_phong_pairs = pick_pairs(phong_ids, contract_ids, ROW_PLAN["CHITIETTHUEPHONG"])
-    thue_giuong_pairs = pick_pairs(giuong_ids, contract_ids, ROW_PLAN["CHITIETTHUEGIUONG"])
+    thue_phong_rows = [(room_id, contract_id) for contract_id, room_id in contract_room_map.items()]
+    thue_giuong_rows = []
+    for index, (contract_id, room_id) in enumerate(contract_room_map.items()):
+        room_beds = beds_by_room.get(room_id) or giuong_ids
+        bed_count = 2 if index < 2000 else 1
+        bed_count = min(bed_count, len(room_beds))
+        for bed_id in random.sample(room_beds, k=bed_count):
+            thue_giuong_rows.append((bed_id, contract_id))
+
+    if len(thue_giuong_rows) > ROW_PLAN["CHITIETTHUEGIUONG"]:
+        thue_giuong_rows = thue_giuong_rows[: ROW_PLAN["CHITIETTHUEGIUONG"]]
 
     hinh_thuc_tt = ["Tiền mặt", "Chuyển khoản", "Thẻ ngân hàng", "Ví điện tử"]
     trang_thai_tt = ["Thành công", "Chờ xử lý", "Thất bại", "Hoàn tiền"]
     loai_giao_dich = ["Thu tiền cọc", "Thu tiền thuê", "Phụ thu", "Hoàn cọc", "Doi soat"]
     phieu_rows = []
-    # Tạo map để tra cứu ngày của chứng từ
     chungtu_date_map = {row[0]: row[2] for row in chungtu_rows}
     for i in range(1, ROW_PLAN["PHIEUTHANHTOAN"] + 1):
         pid = id_code(i, 7)
         target_chungtu = random.choice(chungtu_ids)
         ct_date = chungtu_date_map[target_chungtu]
-        
-        # Ngày thanh toán focus on presentation date
         d = weighted_random_date(ct_date, end_d, PRESENTATION_DATE, weight=0.4)
         phieu_rows.append(
             (
@@ -457,8 +509,8 @@ def generate_data():
         "HOSODATCOC": hosodc_rows,
         "CHITIETCOCPHONG": coc_phong_pairs,
         "CHITIETCOCGIUONG": coc_giuong_pairs,
-        "CHITIETTHUEPHONG": thue_phong_pairs,
-        "CHITIETTHUEGIUONG": thue_giuong_pairs,
+        "CHITIETTHUEPHONG": thue_phong_rows,
+        "CHITIETTHUEGIUONG": thue_giuong_rows,
         "PHIEUTHANHTOAN": phieu_rows,
         "BIENBANBANGIAOTAISAN": bbbg_rows,
         "BIENBANTRAPHONG": bbtp_rows,
