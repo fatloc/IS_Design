@@ -2,7 +2,7 @@ import React from "react";
 import { NavLink, useNavigate } from "react-router";
 import {
   LayoutDashboard, Building2, LogOut, ChevronRight,
-  ClipboardCheck, ArrowLeftRight, TrendingUp, Settings,
+  ClipboardCheck, ArrowLeftRight, TrendingUp, Settings, Users,
 } from "lucide-react";
 
 const ACCENT = "#4F46E5";
@@ -131,6 +131,13 @@ export default function Sidebar() {
             <Building2 size={14} />
           </div>
           <span style={{ fontSize: "0.82rem", fontWeight: 500 }}>Quản lý phòng</span>
+        </NavLink>
+        <NavLink to="/manager/users"
+          className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${isActive ? "text-white bg-white/10" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <Users size={14} />
+          </div>
+          <span style={{ fontSize: "0.82rem", fontWeight: 500 }}>Tài khoản người dùng</span>
         </NavLink>
         <NavLink to="/manager/settings"
           className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${isActive ? "text-white bg-white/10" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>

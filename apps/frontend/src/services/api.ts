@@ -199,9 +199,41 @@ export async function getCurrentUser() {
   return response.data.data;
 }
 
+export type CreateEmployeePayload = {
+  hoTen: string;
+  tenDangNhap?: string;
+  soDienThoai?: string;
+  email: string;
+  matKhau?: string;
+  phai?: string;
+  cccd?: string;
+  loaiNhanVien: string;
+};
+
+export type UpdateEmployeePayload = Partial<CreateEmployeePayload>;
+
 export async function getUsers(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Customer | Employee>>("/users", { params });
   return response.data;
+}
+
+export async function getUserById(maNhanVien: string) {
+  const response = await api.get<ApiResponse<Employee>>(`/users/${maNhanVien}`);
+  return response.data.data;
+}
+
+export async function createEmployee(payload: CreateEmployeePayload) {
+  const response = await api.post<ApiResponse<Employee>>("/users", payload);
+  return response.data.data;
+}
+
+export async function updateEmployee(maNhanVien: string, payload: UpdateEmployeePayload) {
+  const response = await api.put<ApiResponse<Employee>>(`/users/${maNhanVien}`, payload);
+  return response.data.data;
+}
+
+export async function deleteEmployee(maNhanVien: string) {
+  await api.delete(`/users/${maNhanVien}`);
 }
 
 export async function getCustomers(params?: Record<string, unknown>) {
