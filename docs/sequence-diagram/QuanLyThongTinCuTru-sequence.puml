@@ -1,0 +1,162 @@
+@startuml
+title Chuc nang Quan ly thong tin cu tru
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHQuanLyKhachHang" as UI_Main
+boundary ": MHChiTietCuTru" as UI_Detail
+
+control ": KhachHang" as S_Customer
+control ": ProfileStatus" as S_ProfileStatus
+
+database ": KhachHangDB" as DB_Customer
+
+== Tai danh sach khach hang ==
+Sale -> UI_Main: loadCustomers(params)
+activate Sale
+activate UI_Main
+UI_Main -> S_Customer: getCustomers(page, size, search)
+activate S_Customer
+S_Customer -> DB_Customer: findAll(pageable)
+activate DB_Customer
+DB_Customer --> S_Customer: findAll(...): Page<KhachHang>
+deactivate DB_Customer
+S_Customer --> UI_Main: getCustomers(...): ApiListResponse<KhachHang>
+deactivate S_Customer
+UI_Main --> Sale: render danh sach khach hang + pagination
+deactivate UI_Main
+deactivate Sale
+
+== Xem chi tiet thong tin cu tru ==
+Sale -> UI_Main: handleOpenCustomer(maKhachHang)
+activate Sale
+activate UI_Main
+
+UI_Main -> S_Customer: getCustomerById(maKhachHang)
+activate S_Customer
+S_Customer -> DB_Customer: findById(maKhachHang)
+activate DB_Customer
+DB_Customer --> S_Customer: findById(...): Optional<KhachHang>
+deactivate DB_Customer
+S_Customer --> UI_Main: getCustomerById(...): KhachHang
+deactivate S_Customer
+
+UI_Main -> S_ProfileStatus: calcStatus(khachHang)
+activate S_ProfileStatus
+S_ProfileStatus -> S_ProfileStatus: isComplete()
+S_ProfileStatus -> S_ProfileStatus: hasRequiredFields()
+S_ProfileStatus --> UI_Main: calcStatus(...): ProfileStatus
+deactivate S_ProfileStatus
+
+UI_Main -> UI_Detail: open(khachHang, profileStatus)
+activate UI_Detail
+UI_Detail --> UI_Main: render form chi tiet cu tru
+deactivate UI_Detail
+UI_Main --> Sale: hien thi thong tin chi tiet cuu tru
+deactivate UI_Main
+deactivate Sale
+
+== Cap nhat thong tin cu tru ==
+Sale -> UI_Detail: handleInputChange(field, value)
+activate Sale
+activate UI_Detail
+UI_Detail -> UI_Detail: validate()
+UI_Detail --> Sale: hien thi loi hop le
+deactivate UI_Detail
+deactivate Sale
+
+Sale -> UI_Detail: handleSaveProfile()
+activate Sale
+activate UI_Detail
+
+UI_Detail -> UI_Detail: validateBeforeSave()
+
+alt Du lieu hop le
+  UI_Detail -> S_Customer: updateCustomer(maKhachHang, data)
+  activate S_Customer
+  
+  S_Customer -> S_Customer: validateDuplicatePhone(soDienThoai)
+  S_Customer -> S_Customer: validateDuplicateCCCD(cccd)
+  
+  S_Customer -> DB_Customer: save(entity: KhachHang)
+  activate DB_Customer
+  DB_Customer --> S_Customer: save(...): KhachHang
+  deactivate DB_Customer
+  S_Customer --> UI_Detail: updateCustomer(...): KhachHang
+  deactivate S_Customer
+
+  UI_Detail -> S_ProfileStatus: calcStatus(khachHangUpdated)
+  activate S_ProfileStatus
+  S_ProfileStatus --> UI_Detail: calcStatus(...): ProfileStatus
+  deactivate S_ProfileStatus
+
+  UI_Detail -> UI_Main: showToast("Cap nhat thong tin thanh cong", "success")
+  activate UI_Main
+  UI_Main --> Sale: showToast("Cap nhat thong tin thanh cong", "success")
+  deactivate UI_Main
+
+  UI_Detail -> UI_Detail: close()
+
+else Du lieu khong hop le
+  UI_Detail -> UI_Main: showToast("Thong tin khong hop le", "error")
+  activate UI_Main
+  UI_Main --> Sale: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Main
+end
+
+deactivate UI_Detail
+deactivate Sale
+
+== Xoa khach hang ==
+Sale -> UI_Main: handleDeleteCustomer(maKhachHang)
+activate Sale
+activate UI_Main
+
+UI_Main -> UI_Detail: deleteCustomer()
+activate UI_Detail
+
+UI_Detail -> S_Customer: deleteCustomer(maKhachHang)
+activate S_Customer
+S_Customer -> DB_Customer: findById(maKhachHang)
+activate DB_Customer
+DB_Customer --> S_Customer: findById(...): Optional<KhachHang>
+deactivate DB_Customer
+S_Customer -> DB_Customer: delete(entity: KhachHang)
+activate DB_Customer
+DB_Customer --> S_Customer: delete(...): Void
+deactivate DB_Customer
+S_Customer --> UI_Detail: deleteCustomer(...): Void
+deactivate S_Customer
+
+UI_Detail -> UI_Main: loadCustomers(params)
+activate UI_Main
+UI_Main --> UI_Detail: render danh sach khach hang
+deactivate UI_Main
+
+UI_Detail -> UI_Main: showToast("Xoa khach hang thanh cong", "success")
+activate UI_Main
+UI_Main --> Sale: showToast("Xoa khach hang thanh cong", "success")
+deactivate UI_Main
+
+UI_Detail -> UI_Detail: close()
+
+deactivate UI_Detail
+deactivate UI_Main
+deactivate Sale
+
+@enduml
