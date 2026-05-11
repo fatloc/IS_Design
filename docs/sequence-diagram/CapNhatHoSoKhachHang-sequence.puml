@@ -1,0 +1,120 @@
+@startuml
+title Chức năng Cập nhật hồ sơ khách hàng
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHCapNhatHoSoKhachHang" as UI_Main
+control ": KhachHang" as S_Customer
+database ": KhachHangDB" as DB_Customer
+
+== Tải thông tin khách hàng ==
+Sale -> UI_Main: loadCustomerProfile(maKhachHang)
+activate Sale
+activate UI_Main
+UI_Main -> S_Customer: getCustomerById(maKhachHang)
+activate S_Customer
+S_Customer -> DB_Customer: findById(maKhachHang)
+activate DB_Customer
+DB_Customer --> S_Customer: findById(...): Optional<KhachHang>
+deactivate DB_Customer
+S_Customer --> UI_Main: getCustomerById(...): KhachHang
+deactivate S_Customer
+UI_Main --> Sale: render form with customer data
+deactivate UI_Main
+deactivate Sale
+
+== Thao tác sửa thông tin và gửi cập nhật ==
+Sale -> UI_Main: editField(field, value)
+activate Sale
+activate UI_Main
+UI_Main -> UI_Main: validateField(field, value)
+UI_Main --> Sale: update form state / show validation messages
+
+Sale -> UI_Main: submitUpdate(payload)
+activate UI_Main
+UI_Main -> UI_Main: validateForm()
+
+alt Dữ liệu hợp lệ
+  UI_Main -> S_Customer: validateEmailAvailable(email, maKhachHang)
+  activate S_Customer
+  S_Customer -> DB_Customer: existsByEmail(email)
+  activate DB_Customer
+  DB_Customer --> S_Customer: existsByEmail(...): Boolean
+  deactivate DB_Customer
+  S_Customer --> UI_Main: validateEmailAvailable(...): Boolean
+  deactivate S_Customer
+  
+  alt Email đã tồn tại (khác khách hàng hiện tại)
+    UI_Main -> Sale: showToast("Email đã được sử dụng", "error")
+    UI_Main --> Sale: focus email field
+  else Email hợp lệ
+    UI_Main -> S_Customer: validatePhoneAvailable(phone, maKhachHang)
+    activate S_Customer
+    S_Customer -> DB_Customer: existsBySoDienThoai(phone)
+    activate DB_Customer
+    DB_Customer --> S_Customer: existsBySoDienThoai(...): Boolean
+    deactivate DB_Customer
+    S_Customer --> UI_Main: validatePhoneAvailable(...): Boolean
+    deactivate S_Customer
+    
+    alt Số điện thoại đã tồn tại
+      UI_Main -> Sale: showToast("Số điện thoại đã được sử dụng", "error")
+      UI_Main --> Sale: focus phone field
+    else Số điện thoại hợp lệ
+      UI_Main -> S_Customer: validateCCCDAvailable(cccd, maKhachHang)
+      activate S_Customer
+      S_Customer -> DB_Customer: existsByCccd(cccd)
+      activate DB_Customer
+      DB_Customer --> S_Customer: existsByCccd(...): Boolean
+      deactivate DB_Customer
+      S_Customer --> UI_Main: validateCCCDAvailable(...): Boolean
+      deactivate S_Customer
+      
+      alt CCCD đã tồn tại
+        UI_Main -> Sale: showToast("CCCD đã được sử dụng", "error")
+        UI_Main --> Sale: focus cccd field
+      else CCCD hợp lệ
+        UI_Main -> S_Customer: updateCustomer(maKhachHang, payload)
+        activate S_Customer
+        S_Customer -> DB_Customer: findById(maKhachHang)
+        activate DB_Customer
+        DB_Customer --> S_Customer: findById(...): Optional<KhachHang>
+        deactivate DB_Customer
+        S_Customer -> DB_Customer: save(entity: KhachHang)
+        activate DB_Customer
+        DB_Customer --> S_Customer: save(...): KhachHang
+        deactivate DB_Customer
+        S_Customer --> UI_Main: updateCustomer(...): KhachHang
+        deactivate S_Customer
+
+        UI_Main -> UI_Main: showToast("Cập nhật hồ sơ thành công", "success")
+        UI_Main --> Sale: showToast("Cập nhật hồ sơ thành công", "success")
+        UI_Main -> UI_Main: close() or reset form
+      end
+    end
+  end
+
+else Dữ liệu không hợp lệ
+  UI_Main -> Sale: showToast("Dữ liệu không hợp lệ", "error")
+  UI_Main --> Sale: highlight invalid fields
+end
+
+deactivate UI_Main
+deactivate Sale
+
+@enduml

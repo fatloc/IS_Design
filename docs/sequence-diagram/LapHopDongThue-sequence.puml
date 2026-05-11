@@ -1,0 +1,182 @@
+@startuml
+title Chuc nang Lap hop dong thue
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #4C6E8B
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #E6F2FF
+  ParticipantFontColor #222222
+  ActivationBorderColor #4C6E8B
+  ActivationBackgroundColor #F0F4F9
+}
+skinparam ActorBorderColor #4C6E8B
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHLapHopDongThue" as UI_Main
+boundary ": MHPheDuyetHopDong" as UI_Approval
+boundary ": MHChiTietHopDong" as UI_Detail
+
+control ": HopDongThue" as S_Contract
+control ": YeuCauDangKy" as S_Request
+control ": Phong" as S_Room
+control ": ChiTietThuePhong" as S_ContractDetail
+
+database ": HopDongThueDB" as DB_Contract
+database ": YeuCauDangKyDB" as DB_Request
+database ": PhongDB" as DB_Room
+database ": ChiTietThuePhongDB" as DB_ContractDetail
+
+== Tai danh sach hop dong ==
+Sale -> UI_Main: loadContracts(page, size, filters)
+activate Sale
+activate UI_Main
+UI_Main -> S_Contract: getContracts(page, size, filters)
+activate S_Contract
+S_Contract -> DB_Contract: findAll(pageable)
+activate DB_Contract
+DB_Contract --> S_Contract: findAll(...): Page<HopDongThue>
+deactivate DB_Contract
+S_Contract --> UI_Main: getContracts(...): ApiListResponse<HopDongThue>
+deactivate S_Contract
+UI_Main --> Sale: render contractList
+deactivate UI_Main
+deactivate Sale
+
+== Tai danh sach yeu cau cho lap hop dong ==
+Sale -> UI_Main: handleTabChange("yeuCauChoLapHD")
+activate Sale
+activate UI_Main
+UI_Main -> UI_Approval: loadPendingRequests(params)
+activate UI_Approval
+UI_Approval -> S_Request: getRequests(page, size, filters)
+activate S_Request
+S_Request -> DB_Request: findByTrangThaiYeuCau(PENDING, pageable)
+activate DB_Request
+DB_Request --> S_Request: findByTrangThaiYeuCau(...): Page<YeuCauDangKy>
+deactivate DB_Request
+S_Request --> UI_Approval: getRequests(...): ApiListResponse<YeuCauDangKy>
+deactivate S_Request
+UI_Approval --> UI_Main: render requestCards + pagination
+deactivate UI_Approval
+UI_Main --> Sale: hien thi danh sach yeu cau cho lap hop dong
+deactivate UI_Main
+deactivate Sale
+
+== Lap hop dong thue moi ==
+Sale -> UI_Main: handleOpenRequest(maYeuCau)
+activate Sale
+activate UI_Main
+
+UI_Main -> S_Request: getRequestById(maYeuCau)
+activate S_Request
+S_Request -> DB_Request: findById(maYeuCau)
+activate DB_Request
+DB_Request --> S_Request: findById(...): Optional<YeuCauDangKy>
+deactivate DB_Request
+S_Request --> UI_Main: getRequestById(...): YeuCauDangKy
+deactivate S_Request
+
+UI_Main -> S_Room: getAvailableRooms(loaiPhong, mucGia, soLuongNguoi)
+activate S_Room
+S_Room -> DB_Room: findAvailableFullRooms(mucGia)
+activate DB_Room
+DB_Room --> S_Room: findAvailableFullRooms(...): List<Phong>
+deactivate DB_Room
+S_Room -> DB_Room: findAvailableSharedRooms(mucGia, soLuongNguoi)
+activate DB_Room
+DB_Room --> S_Room: findAvailableSharedRooms(...): List<Phong>
+deactivate DB_Room
+S_Room --> UI_Main: getAvailableRooms(...): ApiListResponse<Phong>
+deactivate S_Room
+
+UI_Main --> Sale: render form soan hop dong + danh sach phong co san
+deactivate UI_Main
+
+Sale -> UI_Main: submitCreateContract(contractPayload)
+
+UI_Main -> UI_Main: validate()
+
+alt Du lieu hop le
+  UI_Main -> S_Contract: createContract(req)
+  activate S_Contract
+  
+  S_Contract -> DB_Contract: save(entity: HopDongThue)
+  activate DB_Contract
+  DB_Contract --> S_Contract: save(...): HopDongThue
+  deactivate DB_Contract
+
+  S_Contract -> S_ContractDetail: createContractDetails(maHopDongThue, details)
+  activate S_ContractDetail
+  S_ContractDetail -> DB_ContractDetail: save(entity: ChiTietThuePhong)
+  activate DB_ContractDetail
+  DB_ContractDetail --> S_ContractDetail: save(...): ChiTietThuePhong
+  deactivate DB_ContractDetail
+  S_ContractDetail --> S_Contract: createContractDetails(...): List<ChiTietThuePhong>
+  deactivate S_ContractDetail
+
+  S_Contract -> DB_Request: save(entity: YeuCauDangKy)
+  activate DB_Request
+  DB_Request --> S_Contract: save(...): YeuCauDangKy
+  deactivate DB_Request
+
+  S_Contract --> UI_Main: createContract(...): HopDongThue
+  deactivate S_Contract
+
+  UI_Main -> UI_Main: loadContracts(params)
+  activate UI_Main
+  UI_Main --> UI_Main: render contractList
+  deactivate UI_Main
+
+  UI_Main -> UI_Main: showToast("Lap hop dong thanh cong", "success")
+  activate UI_Main
+  UI_Main --> Sale: showToast("Lap hop dong thanh cong", "success")
+  deactivate UI_Main
+
+  UI_Main -> UI_Main: close()
+
+else Du lieu khong hop le
+  UI_Main -> UI_Main: showToast("Thong tin khong hop le", "error")
+  activate UI_Main
+  UI_Main --> Sale: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Main
+end
+
+deactivate Sale
+
+== Xem chi tiet hop dong ==
+Sale -> UI_Main: handleOpenContract(maHopDongThue)
+activate Sale
+activate UI_Main
+UI_Main -> S_Contract: getContractById(maHopDongThue)
+activate S_Contract
+S_Contract -> DB_Contract: findById(maHopDongThue)
+activate DB_Contract
+DB_Contract --> S_Contract: findById(...): Optional<HopDongThue>
+deactivate DB_Contract
+S_Contract --> UI_Main: getContractById(...): HopDongThue
+deactivate S_Contract
+
+UI_Main -> S_ContractDetail: getContractDetails(maHopDongThue)
+activate S_ContractDetail
+S_ContractDetail -> DB_ContractDetail: findByMaHopDongThue(maHopDongThue)
+activate DB_ContractDetail
+DB_ContractDetail --> S_ContractDetail: findByMaHopDongThue(...): List<ChiTietThuePhong>
+deactivate DB_ContractDetail
+S_ContractDetail --> UI_Main: getContractDetails(...): List<ChiTietThuePhong>
+deactivate S_ContractDetail
+
+UI_Main -> UI_Detail: open(hopDongThue, chiTietList)
+activate UI_Detail
+UI_Detail --> UI_Main: render chi tiet hop dong
+deactivate UI_Detail
+UI_Main --> Sale: hien thi thong tin chi tiet hop dong
+deactivate UI_Main
+deactivate Sale
+
+@enduml
