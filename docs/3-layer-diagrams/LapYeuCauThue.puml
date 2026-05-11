@@ -52,6 +52,7 @@ class MHChiTietYeuCauThue {
   -txtNgayTao: Label
   -txtPhongDeXuat: Label
   -txtNgayXemPhong: Label
+  -txtThoiHanThueTheoThang: Dropdown
   -txtGhiChu: TextArea
   --
   +fetchAppointment(requestId: String): Promise<void>
@@ -144,6 +145,7 @@ class YeuCauDangKy {
   -cacTieuChiKhac: String
   -ngayTao: Date
   -isOverdue: Boolean
+  -thoiHanThue: Int
   --
   ' Methods (service operations)
   +getRequests(page,size,nhanVienPhuTrach,trangThaiYeuCau,ngayTao,thang,search): ApiListResponse<YeuCauDangKy>
