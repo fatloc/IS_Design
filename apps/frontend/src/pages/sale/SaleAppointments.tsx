@@ -16,9 +16,10 @@ const O  = "#EA580C";
 
 // ── Status config ──────────────────────────────────────────────────────────
 const STATUS_CFG: Record<string, { bg:string; color:string; dot:string; border:string }> = {
-  "Chờ xem": { bg:"#FFF7ED", color:"#C2410C", dot:O,         border:"#FED7AA" },
-  "Đã xem":  { bg:"#ECFDF5", color:"#065F46", dot:"#10B981", border:"#6EE7B7" },
-  "Đã hủy":  { bg:"#F8FAFC", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" },
+  "Chờ xác nhận":  { bg:"#FFF7ED", color:"#C2410C", dot:O,         border:"#FED7AA" },
+  "Đã xác nhận":   { bg:"#EEF2FF", color:"#4338CA", dot:"#6366F1", border:"#C7D2FE" },
+  "Đã xem":        { bg:"#ECFDF5", color:"#065F46", dot:"#10B981", border:"#6EE7B7" },
+  "Đã hủy":        { bg:"#F8FAFC", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" },
 };
 const DEFAULT_STATUS_CFG = { bg:"#F1F5F9", color:"#64748B", dot:"#94A3B8", border:"#E2E8F0" };
 
@@ -182,7 +183,7 @@ function ApptRow({ appt, userMap, onUpdate }: {
   const [localRxn,  setLocalRxn]  = useState<Reaction>("");
   const [saving,    setSaving]    = useState(false);
 
-  const status = appt.trangThaiHen ?? "Chờ xem";
+  const status = appt.trangThaiHen ?? "Chờ xác nhận";
   const cfg    = STATUS_CFG[status] ?? DEFAULT_STATUS_CFG;
 
   const handleSave = async () => {
@@ -212,7 +213,7 @@ function ApptRow({ appt, userMap, onUpdate }: {
       </div>
       <div className="flex flex-col items-center flex-shrink-0" style={{ width:16 }}>
         <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-          style={{ background: status==="Đã hủy"?"#CBD5E1":status==="Đã xem"?"#10B981":O, marginTop:8 }}/>
+          style={{ background: status==="Đã hủy"?"#CBD5E1":status==="Đã xem"?"#10B981":status==="Đã xác nhận"?"#6366F1":O, marginTop:8 }}/>
       </div>
       <div className="flex-1 rounded-2xl overflow-hidden" style={{ border:`1.5px solid ${cfg.border}`, boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}>
         <div className="flex items-start gap-3 px-4 py-3" style={{ background:status==="Đã hủy"?"#F8FAFC":"white" }}>
@@ -246,7 +247,8 @@ function ApptRow({ appt, userMap, onUpdate }: {
               <select value={status} onChange={e=>handleStatusChange(e.target.value)}
                 className="appearance-none pl-2.5 pr-6 py-1.5 rounded-xl outline-none cursor-pointer"
                 style={{ background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.border}`, fontSize:"0.72rem", fontWeight:700, minWidth:96 }}>
-                <option>Chờ xem</option>
+                <option>Chờ xác nhận</option>
+                <option>Đã xác nhận</option>
                 <option>Đã xem</option>
                 <option>Đã hủy</option>
               </select>
@@ -373,7 +375,7 @@ function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
         maPhong: roomId,
         ngayHen: date,
         thoiGianHen: time + ":00", 
-        trangThaiHen: "Chờ xem",
+        trangThaiHen: "Chờ xác nhận",
       } as any);
       await updateRequest(selectedReq.maYeuCau, {
         trangThaiYeuCau: "Đã lên lịch xem",
@@ -569,7 +571,8 @@ export default function SaleAppointments() {
   };
 
   const formattedSelDay = `${String(selDay).padStart(2,"0")} ${MONTH_NAMES[viewMonth]}, ${viewYear}`;
-  const dayChorxem = dayAppts.filter(a=>a.trangThaiHen==="Chờ xem").length;
+  const dayChorxem = dayAppts.filter(a=>a.trangThaiHen==="Chờ xác nhận").length;
+  const dayDaxacnhan = dayAppts.filter(a=>a.trangThaiHen==="Đã xác nhận").length;
   const dayDaxem  = dayAppts.filter(a=>a.trangThaiHen==="Đã xem").length;
   const dayHuy    = dayAppts.filter(a=>a.trangThaiHen==="Đã hủy").length;
 
@@ -665,7 +668,8 @@ export default function SaleAppointments() {
                 <div className="flex items-center gap-3 mt-0.5">
                   {[
                     { label:`${search ? searchFiltered.length : dayAppts.length} cuộc hẹn`, color:"#1E293B" },
-                    { label:`${dayChorxem} chờ xem`, color:O },
+                    { label:`${dayChorxem} chờ xác nhận`, color:O },
+                    { label:`${dayDaxacnhan} đã xác nhận`, color:"#4338CA" },
                     { label:`${dayDaxem} đã xem`, color:"#059669" },
                     { label:`${dayHuy} hủy`, color:"#94A3B8" },
                   ].map((s,i)=>(

@@ -4,8 +4,9 @@ import {
   Shield, X, Save, Clock, RotateCcw,
 } from "lucide-react";
 import { usePagedList } from "../../hooks/usePagedList";
-import { getCustomers } from "../../services/api";
+import { getCustomers, updateCustomer } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
+import { toast } from "sonner";
 import type { Customer } from "../../types";
 
 const O = "#EA580C";
@@ -29,10 +30,147 @@ function getInitials(name: string | null) {
   return name.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 }
 
+// ── Edit Modal ─────────────────────────────────────────────────────────────
+function EditCustomerModal({ customer, isOpen, onClose, onSave }: { 
+  customer: Customer; 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onSave: (data: Partial<Customer>) => Promise<void>; 
+}) {
+  const [formData, setFormData] = useState<Partial<Customer>>({
+    hoTen: customer.hoTen,
+    soDienThoai: customer.soDienThoai,
+    email: customer.email,
+    cccd: customer.cccd,
+    quocTich: customer.quocTich,
+    phai: customer.phai,
+  });
+  const [saving, setSaving] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleApply = async () => {
+    if (!formData.hoTen?.trim()) {
+      toast.error("Họ tên không được để trống");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Lỗi khi cập nhật");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom:"1px solid #F1F5F9" }}>
+          <div>
+            <h3 style={{ fontWeight:900, fontSize:"1.1rem", color:"#1E293B" }}>Sửa Hồ sơ Khách hàng</h3>
+            <p style={{ fontSize:"0.72rem", color:"#64748B" }}>Cập nhật thông tin chi tiết</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+            <X size={20} className="text-slate-400"/>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#475569" }}>Họ và tên</label>
+              <input value={formData.hoTen || ""} onChange={e=>setFormData({...formData, hoTen:e.target.value})}
+                className="w-full px-4 py-2.5 rounded-xl border-1.5 outline-none focus:border-orange-500 transition-all font-medium"
+                style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem" }}/>
+            </div>
+            <div>
+              <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#475569" }}>Giới tính</label>
+              <select value={formData.phai || ""} onChange={e=>setFormData({...formData, phai:e.target.value as any})}
+                className="w-full px-4 py-2.5 rounded-xl border-1.5 outline-none focus:border-orange-500 transition-all font-medium"
+                style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem" }}>
+                <option value="">Chọn...</option>
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+                <option value="Khác">Khác</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#475569" }}>Số điện thoại</label>
+              <input value={formData.soDienThoai || ""} onChange={e=>setFormData({...formData, soDienThoai:e.target.value})}
+                className="w-full px-4 py-2.5 rounded-xl border-1.5 outline-none focus:border-orange-500 transition-all font-medium"
+                style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem" }}/>
+            </div>
+            <div>
+              <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#475569" }}>Quốc tịch</label>
+              <input value={formData.quocTich || ""} onChange={e=>setFormData({...formData, quocTich:e.target.value})}
+                className="w-full px-4 py-2.5 rounded-xl border-1.5 outline-none focus:border-orange-500 transition-all font-medium"
+                style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem" }}/>
+            </div>
+          </div>
+
+          <div>
+            <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#475569" }}>Email</label>
+            <input value={formData.email || ""} onChange={e=>setFormData({...formData, email:e.target.value})}
+              className="w-full px-4 py-2.5 rounded-xl border-1.5 outline-none focus:border-orange-500 transition-all font-medium"
+              style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem" }}/>
+          </div>
+
+          <div>
+            <label className="block mb-1.5" style={{ fontSize:"0.75rem", fontWeight:700, color:"#475569" }}>CCCD</label>
+            <input value={formData.cccd || ""} onChange={e=>setFormData({...formData, cccd:e.target.value})}
+              className="w-full px-4 py-2.5 rounded-xl border-1.5 outline-none focus:border-orange-500 transition-all font-medium"
+              style={{ background:"#F8FAFC", border:"1.5px solid #E2E8F0", fontSize:"0.85rem" }}/>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 flex items-center justify-end gap-3" style={{ background:"#FAFBFD", borderTop:"1px solid #F1F5F9" }}>
+          <button onClick={onClose} disabled={saving}
+            className="px-5 py-2.5 rounded-xl font-bold transition-all text-slate-500 hover:bg-slate-100"
+            style={{ fontSize:"0.82rem" }}>
+            Hủy
+          </button>
+          <button onClick={handleApply} disabled={saving}
+            className="px-7 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-orange-200/50 flex items-center gap-2"
+            style={{ background:O, color:"white", fontSize:"0.82rem" }}>
+            {saving ? <RotateCcw size={14} className="animate-spin" /> : <Save size={14}/>}
+            {saving ? "Đang lưu..." : "Lưu thay đổi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Profile Panel ──────────────────────────────────────────────────────────
-function ProfilePanel({ customer }: { customer: Customer }) {
+function ProfilePanel({ customer, onUpdate, onDelete }: { 
+  customer: Customer; 
+  onUpdate: (id: string, data: Partial<Customer>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
   const status = calcStatus(customer);
   const cfg    = STATUS_CFG[status];
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ khách hàng ${customer.hoTen}? Thao tác này không thể hoàn tác.`)) return;
+    
+    setIsDeleting(true);
+    try {
+      await onDelete(customer.maKhachHang);
+      toast.success("Đã xóa khách hàng");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Lỗi khi xóa khách hàng");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -47,12 +185,37 @@ function ProfilePanel({ customer }: { customer: Customer }) {
             <div style={{ fontWeight:900, fontSize:"1rem", color:"#1E293B" }}>{customer.hoTen ?? "--"}</div>
             <div style={{ fontSize:"0.72rem", color:"#92400E", marginTop:2 }}>Mã KH: {customer.maKhachHang} · {customer.phai ?? "?"}</div>
           </div>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl"
-            style={{ background:cfg.bg, color:cfg.color, fontSize:"0.72rem", fontWeight:700 }}>
-            <cfg.icon size={11}/> {cfg.label}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl"
+              style={{ background:cfg.bg, color:cfg.color, fontSize:"0.72rem", fontWeight:700 }}>
+              <cfg.icon size={11}/> {cfg.label}
+            </span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsEditOpen(true)}
+                className="p-1.5 hover:bg-white rounded-lg transition-colors text-slate-500 hover:text-orange-600 border border-transparent hover:border-orange-200"
+                title="Sửa hồ sơ">
+                <Save size={14}/>
+              </button>
+              <button 
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="p-1.5 hover:bg-white rounded-lg transition-colors text-slate-500 hover:text-red-600 border border-transparent hover:border-red-200"
+                title="Xóa hồ sơ">
+                {isDeleting ? <RotateCcw size={14} className="animate-spin"/> : <X size={14}/>}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      <EditCustomerModal 
+        key={customer.maKhachHang}
+        customer={customer} 
+        isOpen={isEditOpen} 
+        onClose={() => setIsEditOpen(false)}
+        onSave={(data) => onUpdate(customer.maKhachHang, data)}
+      />
 
       {/* Info */}
       <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
@@ -257,7 +420,19 @@ export default function SaleCustomers() {
         {/* Right – Profile */}
         <div className="rounded-2xl overflow-hidden bg-white" style={{ border:"1px solid #E8EEF4", boxShadow:"0 1px 4px rgba(0,0,0,0.04)", minHeight:500 }}>
           {selected ? (
-            <ProfilePanel customer={selected}/>
+            <ProfilePanel 
+              customer={selected}
+              onUpdate={async (id, data) => {
+                await updateCustomer(id, data);
+                toast.success("Đã cập nhật hồ sơ");
+                reload();
+              }}
+              onDelete={async (id) => {
+                await deleteCustomer(id);
+                setSelectedId(null);
+                reload();
+              }}
+            />
           ) : (
             <div className="flex flex-col items-center justify-center h-full py-20">
               <Users size={32} style={{ color:"#CBD5E1" }} className="mb-3"/>
