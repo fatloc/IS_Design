@@ -8,7 +8,6 @@ import com.homestay.dorm.dto.response.OperationCheckoutResponse;
 import com.homestay.dorm.dto.response.OperationsResponse;
 import com.homestay.dorm.service.OperationsService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,35 +20,42 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationsServiceImpl implements OperationsService {
 
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final int MAX_ITEMS = 10;
 
     private final JdbcTemplate jdbcTemplate;
-    private final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(15);
+
+    // ── Trạng thái TrangThaiThanhLy ──────────────────────────────────────────
+    // null / không có          → "Chờ thanh lý"   (manager chưa khởi tạo)
+    // "Chờ đối soát"           → "Chờ đối soát"   (manager đã bấm Thanh lý, kế toán chưa xử lý)
+    // "Đã đối soát"            → "Đã đối soát"    (kế toán đã tạo bảng đối soát)
+    // "Hoàn tất"               → bị lọc ra khỏi danh sách (manager đã ký bàn giao)
 
     @Override
     @Transactional
     public void confirmHandover(HandoverRequest request) {
         String bbId = "BB" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+
+        // 1. Tạo CHUNGTU
         jdbcTemplate.update(
                 "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap) VALUES (?, ?, ?, ?)",
                 bbId, "Biên bản bàn giao", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()));
+
+        // 2. Tạo BIENBANBANGIAOTAISAN
         jdbcTemplate.update("INSERT INTO BIENBANBANGIAOTAISAN (MaBienBanBanGiao) VALUES (?)", bbId);
+
+        // 3. Tạo CHITIETBANGIAO cho từng tài sản
         for (OperationAssetResponse asset : request.getAssets()) {
             List<String> assetIds = jdbcTemplate.queryForList(
                     "SELECT MaTaiSan FROM TAISAN WHERE TenTaiSan = ? LIMIT 1",
@@ -59,6 +65,8 @@ public class OperationsServiceImpl implements OperationsService {
                     "INSERT INTO CHITIETBANGIAO (MaBienBanBanGiao, MaTaiSanBanGiao, SoLuong) VALUES (?, ?, ?)",
                     bbId, assetId, 1);
         }
+
+        // 4. Cập nhật trạng thái phòng
         jdbcTemplate.update("UPDATE PHONG SET TrangThai = 'Da thue' WHERE MaPhong = ?", request.getRoom());
     }
 
@@ -66,12 +74,18 @@ public class OperationsServiceImpl implements OperationsService {
     @Transactional
     public void confirmCheckout(CheckoutRequest request) {
         String bbId = "BT" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+
+        // 1. Tạo CHUNGTU
         jdbcTemplate.update(
                 "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap) VALUES (?, ?, ?, ?)",
                 bbId, "Biên bản trả phòng", Date.valueOf(LocalDate.now()), Time.valueOf(LocalTime.now()));
+
+        // 2. Tạo BIENBANTRAPHONG liên kết với hợp đồng
         jdbcTemplate.update(
                 "INSERT INTO BIENBANTRAPHONG (MaBienBanTraPhong, MaHopDongThue) VALUES (?, ?)",
                 bbId, request.getId());
+
+        // 3. Cập nhật TrangThaiThanhLy → "Dang doi soat" để kế toán xử lý
         jdbcTemplate.update(
                 "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Dang doi soat' WHERE MaHopDongThue = ?",
                 request.getId());
@@ -80,30 +94,26 @@ public class OperationsServiceImpl implements OperationsService {
     @Override
     @Transactional
     public void finishCheckout(String id) {
+        // Manager ký bàn giao → set "Hoan tat" → biến mất khỏi danh sách
         jdbcTemplate.update(
-                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoan tat' WHERE MaHopDongThue = ?",
-                id);
+                "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoan tat' WHERE MaHopDongThue = ?", id);
     }
 
     @Override
     public OperationsResponse getOperations() {
-        long startTime = System.currentTimeMillis();
-        
-        CompletableFuture<List<OperationAssetResponse>> assetTemplateFuture = CompletableFuture.supplyAsync(this::loadAssetTemplate, executor);
-        CompletableFuture<List<OperationCheckinResponse>> checkinsFuture = CompletableFuture.supplyAsync(() -> loadCheckins(assetTemplateFuture.join()), executor);
-        CompletableFuture<List<OperationCheckoutResponse>> checkoutsFuture = CompletableFuture.supplyAsync(() -> loadCheckouts(assetTemplateFuture.join()), executor);
+        List<OperationAssetResponse> assetTemplate = loadAssetTemplate();
+        Map<String, BigDecimal> latestDepositByCustomer = loadLatestDepositsByCustomer();
 
-        OperationsResponse response = OperationsResponse.builder()
-                .checkins(checkinsFuture.join())
-                .checkouts(checkoutsFuture.join())
+        List<OperationCheckinResponse> checkins = loadCheckins(assetTemplate);
+        List<OperationCheckoutResponse> checkouts = loadCheckouts(assetTemplate, latestDepositByCustomer);
+
+        return OperationsResponse.builder()
+                .checkins(checkins)
+                .checkouts(checkouts)
                 .build();
-                
-        long endTime = System.currentTimeMillis();
-        log.info("⏱ [Performance] Operations stats loaded in {} ms", (endTime - startTime));
-        
-        return response;
     }
 
+    // ── Load checkins ─────────────────────────────────────────────────────────
     private List<OperationCheckinResponse> loadCheckins(List<OperationAssetResponse> assetTemplate) {
         String sql = """
                 SELECT h.MaHoSoDatCoc AS id,
@@ -116,61 +126,39 @@ public class OperationsServiceImpl implements OperationsService {
                 JOIN CHUNGTU c ON c.MaVanBan = h.MaHoSoDatCoc
                 LEFT JOIN KHACHHANG k ON k.MaKhachHang = c.KhachHangSoHuu
                 ORDER BY c.NgayLap DESC, c.GioLap DESC, h.MaHoSoDatCoc DESC
-                LIMIT %d
-                """.formatted(MAX_ITEMS);
+                """;
 
-        CompletableFuture<List<RawDocumentRow>> depositRowsF = CompletableFuture.supplyAsync(() ->
-            jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
-                    rs.getString("id"),
-                    toLocalDate(rs.getDate("ngayLap")),
-                    toLocalTime(rs.getTime("gioLap")),
-                    rs.getString("customerId"),
-                    rs.getString("customerName"),
-                    rs.getBigDecimal("deposit")
-            )), executor
-        );
+        List<RawDocumentRow> depositRows = jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
+                rs.getString("id"),
+                toLocalDate(rs.getDate("ngayLap")),
+                toLocalTime(rs.getTime("gioLap")),
+                rs.getString("customerId"),
+                rs.getString("customerName"),
+                rs.getBigDecimal("deposit")
+        ));
 
-        List<RawDocumentRow> depositRows = depositRowsF.join();
-        if (depositRows.isEmpty()) {
-            return List.of();
-        }
-
-        String depositIds = depositRows.stream()
-                .map(r -> "'" + r.id() + "'")
-                .collect(Collectors.joining(","));
-
-        CompletableFuture<Map<String, List<String>>> roomsByDepositF = CompletableFuture.supplyAsync(() ->
-            jdbcTemplate.query(
-                    "SELECT MaHoSoCoc, MaPhong FROM CHITIETCOCPHONG WHERE MaHoSoCoc IN (" + depositIds + ")",
-                    rs -> {
-                        Map<String, List<String>> map = new LinkedHashMap<>();
-                        while (rs.next()) {
-                            map.computeIfAbsent(rs.getString("MaHoSoCoc"), key -> new ArrayList<>())
-                                    .add(rs.getString("MaPhong"));
-                        }
-                        return map;
+        Map<String, List<String>> roomsByDeposit = jdbcTemplate.query(
+                "SELECT MaHoSoCoc, MaPhong FROM CHITIETCOCPHONG",
+                rs -> {
+                    Map<String, List<String>> map = new LinkedHashMap<>();
+                    while (rs.next()) {
+                        map.computeIfAbsent(rs.getString("MaHoSoCoc"), k -> new ArrayList<>())
+                                .add(rs.getString("MaPhong"));
                     }
-            ), executor
-        );
+                    return map;
+                });
 
-        CompletableFuture<Map<String, List<RawBedLinkRow>>> bedsByDepositF = CompletableFuture.supplyAsync(() ->
-            jdbcTemplate.query(
-                    "SELECT c.MaHoSoCoc AS depositId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId " +
-                            "FROM CHITIETCOCGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong " +
-                            "WHERE c.MaHoSoCoc IN (" + depositIds + ")",
-                    rs -> {
-                        Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
-                        while (rs.next()) {
-                            map.computeIfAbsent(rs.getString("depositId"), key -> new ArrayList<>())
-                                    .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
-                        }
-                        return map;
+        Map<String, List<RawBedLinkRow>> bedsByDeposit = jdbcTemplate.query(
+                "SELECT c.MaHoSoCoc AS depositId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId "
+                        + "FROM CHITIETCOCGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong",
+                rs -> {
+                    Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
+                    while (rs.next()) {
+                        map.computeIfAbsent(rs.getString("depositId"), k -> new ArrayList<>())
+                                .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
                     }
-            ), executor
-        );
-
-        Map<String, List<String>> roomsByDeposit = roomsByDepositF.join();
-        Map<String, List<RawBedLinkRow>> bedsByDeposit = bedsByDepositF.join();
+                    return map;
+                });
 
         List<OperationCheckinResponse> items = new ArrayList<>();
         for (RawDocumentRow deposit : depositRows) {
@@ -181,27 +169,21 @@ public class OperationsServiceImpl implements OperationsService {
                 items.add(buildCheckinItem(deposit, deposit.id(), "Toàn phòng", assetTemplate));
                 continue;
             }
-
             for (String roomId : rooms) {
                 items.add(buildCheckinItem(deposit, roomId, "Toàn phòng", assetTemplate));
             }
             for (RawBedLinkRow bed : beds) {
                 String displayRoom = bed.roomId() != null && !bed.roomId().isBlank()
-                        ? bed.roomId() + " / " + bed.bedId()
-                        : bed.bedId();
+                        ? bed.roomId() + " / " + bed.bedId() : bed.bedId();
                 items.add(buildCheckinItem(deposit, displayRoom, "Ghép giường", assetTemplate));
             }
         }
-
         return items;
     }
 
     private OperationCheckinResponse buildCheckinItem(
-            RawDocumentRow deposit,
-            String roomLabel,
-            String roomType,
-            List<OperationAssetResponse> assetTemplate
-    ) {
+            RawDocumentRow deposit, String roomLabel, String roomType,
+            List<OperationAssetResponse> assetTemplate) {
         return OperationCheckinResponse.builder()
                 .id(deposit.id())
                 .room(roomLabel)
@@ -215,138 +197,122 @@ public class OperationsServiceImpl implements OperationsService {
                 .build();
     }
 
-    private List<OperationCheckoutResponse> loadCheckouts(List<OperationAssetResponse> assetTemplate) {
+    // ── Load checkouts ────────────────────────────────────────────────────────
+    private List<OperationCheckoutResponse> loadCheckouts(
+            List<OperationAssetResponse> assetTemplate,
+            Map<String, BigDecimal> latestDepositByCustomer) {
+
+        // Lấy toàn bộ hợp đồng cần thanh lý (trừ "Hoan tat")
         String sql = """
                 SELECT h.MaHopDongThue AS id,
-                       c.NgayLap AS ngayLap,
-                       c.GioLap AS gioLap,
+                       c.NgayLap AS ngayLap, c.GioLap AS gioLap,
                        c.KhachHangSoHuu AS customerId,
                        COALESCE(k.HoTen, c.KhachHangSoHuu) AS customerName,
-                       h.HinhThucThue AS hinhThucThue
+                       h.HinhThucThue AS hinhThucThue,
+                       h.NgayKetThuc AS ngayKetThuc,
+                       h.TrangThaiThanhLy AS trangThaiThanhLy
                 FROM HOPDONGTHUE h
                 JOIN CHUNGTU c ON c.MaVanBan = h.MaHopDongThue
                 LEFT JOIN KHACHHANG k ON k.MaKhachHang = c.KhachHangSoHuu
-                ORDER BY c.NgayLap DESC, c.GioLap DESC, h.MaHopDongThue DESC
-                LIMIT %d
-                """.formatted(MAX_ITEMS);
+                WHERE h.TrangThaiThanhLy IN ('Chua thanh ly', 'Dang doi soat', 'Da doi soat')
+                ORDER BY h.NgayKetThuc ASC
+                """;
 
-        CompletableFuture<List<RawDocumentRow>> contractRowsF = CompletableFuture.supplyAsync(() ->
-            jdbcTemplate.query(sql, (rs, rowNum) -> new RawDocumentRow(
-                    rs.getString("id"),
-                    toLocalDate(rs.getDate("ngayLap")),
-                    toLocalTime(rs.getTime("gioLap")),
-                    rs.getString("customerId"),
-                    rs.getString("customerName"),
-                    null
-            )), executor
-        );
+        List<RawContractRow> contractRows = jdbcTemplate.query(sql, (rs, rowNum) -> new RawContractRow(
+                rs.getString("id"),
+                toLocalDate(rs.getDate("ngayLap")),
+                toLocalTime(rs.getTime("gioLap")),
+                rs.getString("customerId"),
+                rs.getString("customerName"),
+                toLocalDate(rs.getDate("ngayKetThuc")),
+                rs.getString("trangThaiThanhLy")
+        ));
 
-        List<RawDocumentRow> contractRows = contractRowsF.join();
-        if (contractRows.isEmpty()) {
-            return List.of();
-        }
+        Map<String, List<String>> roomsByContract = jdbcTemplate.query(
+                "SELECT MaHopDongThue, MaPhong FROM CHITIETTHUEPHONG",
+                rs -> {
+                    Map<String, List<String>> map = new LinkedHashMap<>();
+                    while (rs.next()) {
+                        map.computeIfAbsent(rs.getString("MaHopDongThue"), k -> new ArrayList<>())
+                                .add(rs.getString("MaPhong"));
+                    }
+                    return map;
+                });
 
-        String contractIds = contractRows.stream()
-                .map(r -> "'" + r.id() + "'")
-                .collect(Collectors.joining(","));
-                
-        String customerIds = contractRows.stream()
-                .map(RawDocumentRow::customerId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .map(id -> "'" + id + "'")
-                .collect(Collectors.joining(","));
-        
-        String finalCustomerIds = customerIds.isEmpty() ? "'EMPTY'" : customerIds;
+        Map<String, List<RawBedLinkRow>> bedsByContract = jdbcTemplate.query(
+                "SELECT c.MaHopDongThue AS contractId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId "
+                        + "FROM CHITIETTHUEGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong",
+                rs -> {
+                    Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
+                    while (rs.next()) {
+                        map.computeIfAbsent(rs.getString("contractId"), k -> new ArrayList<>())
+                                .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
+                    }
+                    return map;
+                });
 
-        CompletableFuture<Map<String, List<String>>> roomsByContractF = CompletableFuture.supplyAsync(() ->
-            jdbcTemplate.query(
-                    "SELECT MaHopDongThue, MaPhong FROM CHITIETTHUEPHONG WHERE MaHopDongThue IN (" + contractIds + ")",
-                    rs -> {
-                        Map<String, List<String>> map = new LinkedHashMap<>();
-                        while (rs.next()) {
-                            map.computeIfAbsent(rs.getString("MaHopDongThue"), key -> new ArrayList<>())
-                                    .add(rs.getString("MaPhong"));
+        // Lấy số tiền đối soát từ PHIEUTHANHTOAN (LoaiGiaoDich = 'Doi soat')
+        Map<String, BigDecimal> doiSoatAmtByContract = jdbcTemplate.query(
+                "SELECT MaChungTu, SoTienGiaoDich FROM PHIEUTHANHTOAN "
+                        + "WHERE LoaiGiaoDich = 'Doi soat' ORDER BY NgayGiaoDich DESC",
+                rs -> {
+                    Map<String, BigDecimal> map = new LinkedHashMap<>();
+                    while (rs.next()) {
+                        String maHD = rs.getString("MaChungTu");
+                        if (!map.containsKey(maHD)) {
+                            map.put(maHD, rs.getBigDecimal("SoTienGiaoDich"));
                         }
-                        return map;
                     }
-            ), executor
-        );
-
-        CompletableFuture<Map<String, List<RawBedLinkRow>>> bedsByContractF = CompletableFuture.supplyAsync(() ->
-            jdbcTemplate.query(
-                    "SELECT c.MaHopDongThue AS contractId, c.MaGiuong AS bedId, g.MaPhongChua AS roomId " +
-                            "FROM CHITIETTHUEGIUONG c LEFT JOIN GIUONG g ON g.MaGiuong = c.MaGiuong " +
-                            "WHERE c.MaHopDongThue IN (" + contractIds + ")",
-                    rs -> {
-                        Map<String, List<RawBedLinkRow>> map = new LinkedHashMap<>();
-                        while (rs.next()) {
-                            map.computeIfAbsent(rs.getString("contractId"), key -> new ArrayList<>())
-                                    .add(new RawBedLinkRow(rs.getString("bedId"), rs.getString("roomId")));
-                        }
-                        return map;
-                    }
-            ), executor
-        );
-
-        CompletableFuture<Map<String, BigDecimal>> depositsByCustomerF = CompletableFuture.supplyAsync(() -> {
-            String depositSql = "SELECT c.KhachHangSoHuu AS customerId, h.MucTienCoc AS deposit " +
-                                "FROM HOSODATCOC h JOIN CHUNGTU c ON c.MaVanBan = h.MaHoSoDatCoc " +
-                                "WHERE c.KhachHangSoHuu IN (" + finalCustomerIds + ") " +
-                                "ORDER BY c.NgayLap DESC, c.GioLap DESC";
-            Map<String, BigDecimal> map = new LinkedHashMap<>();
-            jdbcTemplate.query(depositSql, rs -> {
-                while (rs.next()) {
-                    String customerId = rs.getString("customerId");
-                    if (customerId != null && !map.containsKey(customerId)) {
-                        map.put(customerId, zeroIfNull(rs.getBigDecimal("deposit")));
-                    }
-                }
-                return null;
-            });
-            return map;
-        }, executor);
-
-        Map<String, List<String>> roomsByContract = roomsByContractF.join();
-        Map<String, List<RawBedLinkRow>> bedsByContract = bedsByContractF.join();
-        Map<String, BigDecimal> latestDepositByCustomer = depositsByCustomerF.join();
+                    return map;
+                });
 
         List<OperationCheckoutResponse> items = new ArrayList<>();
-        for (RawDocumentRow contract : contractRows) {
+        for (RawContractRow contract : contractRows) {
             List<String> rooms = roomsByContract.getOrDefault(contract.id(), List.of());
             List<RawBedLinkRow> beds = bedsByContract.getOrDefault(contract.id(), List.of());
             BigDecimal deposit = latestDepositByCustomer.getOrDefault(contract.customerId(), BigDecimal.ZERO);
-            LocalDate dueDate = contract.date() == null ? LocalDate.now() : contract.date().plusDays(30);
+            BigDecimal netAmount = doiSoatAmtByContract.get(contract.id());
+
+            // Tính ngày hết hạn và số ngày còn lại
+            LocalDate dueDate = contract.ngayKetThuc() != null
+                    ? contract.ngayKetThuc()
+                    : (contract.date() != null ? contract.date().plusDays(180) : LocalDate.now());
             int daysLeft = (int) Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), dueDate));
 
-            if (rooms.isEmpty() && beds.isEmpty()) {
-                items.add(buildCheckoutItem(contract, contract.id(), "Toàn phòng", dueDate, daysLeft, deposit, assetTemplate));
-                continue;
+            // Map trạng thái từ DB (không dấu) sang frontend (có dấu)
+            String raw = contract.trangThaiThanhLy() != null ? contract.trangThaiThanhLy().trim() : "";
+            String status;
+            if ("Da doi soat".equalsIgnoreCase(raw) || "Đã đối soát".equals(raw)) {
+                status = "Đã đối soát";
+            } else if ("Dang doi soat".equalsIgnoreCase(raw) || "Chờ đối soát".equals(raw)) {
+                status = "Chờ đối soát";
+            } else {
+                status = "Chờ thanh lý";
             }
 
+            if (rooms.isEmpty() && beds.isEmpty()) {
+                items.add(buildCheckoutItem(contract, contract.id(), "Toàn phòng",
+                        dueDate, daysLeft, deposit, netAmount, assetTemplate, status));
+                continue;
+            }
             for (String roomId : rooms) {
-                items.add(buildCheckoutItem(contract, roomId, "Toàn phòng", dueDate, daysLeft, deposit, assetTemplate));
+                items.add(buildCheckoutItem(contract, roomId, "Toàn phòng",
+                        dueDate, daysLeft, deposit, netAmount, assetTemplate, status));
             }
             for (RawBedLinkRow bed : beds) {
                 String displayRoom = bed.roomId() != null && !bed.roomId().isBlank()
-                        ? bed.roomId() + " / " + bed.bedId()
-                        : bed.bedId();
-                items.add(buildCheckoutItem(contract, displayRoom, "Ghép giường", dueDate, daysLeft, deposit, assetTemplate));
+                        ? bed.roomId() + " / " + bed.bedId() : bed.bedId();
+                items.add(buildCheckoutItem(contract, displayRoom, "Ghép giường",
+                        dueDate, daysLeft, deposit, netAmount, assetTemplate, status));
             }
         }
-
         return items;
     }
 
     private OperationCheckoutResponse buildCheckoutItem(
-            RawDocumentRow contract,
-            String roomLabel,
-            String roomType,
-            LocalDate dueDate,
-            int daysLeft,
-            BigDecimal deposit,
-            List<OperationAssetResponse> assetTemplate
-    ) {
+            RawContractRow contract, String roomLabel, String roomType,
+            LocalDate dueDate, int daysLeft, BigDecimal deposit, BigDecimal netAmount,
+            List<OperationAssetResponse> assetTemplate, String status) {
         return OperationCheckoutResponse.builder()
                 .id(contract.id())
                 .room(roomLabel)
@@ -355,12 +321,14 @@ public class OperationsServiceImpl implements OperationsService {
                 .roomType(roomType)
                 .moveOut(formatDate(dueDate))
                 .deposit(zeroIfNull(deposit).setScale(0, RoundingMode.HALF_UP))
+                .netAmount(netAmount != null ? netAmount.setScale(0, RoundingMode.HALF_UP) : null)
                 .daysLeft(daysLeft)
-                .status("Chờ thanh lý")
+                .status(status)
                 .assets(cloneAssets(assetTemplate))
                 .build();
     }
 
+    // ── Asset template ────────────────────────────────────────────────────────
     private List<OperationAssetResponse> loadAssetTemplate() {
         String sql = """
                 SELECT bb.MaBienBanBanGiao AS handoverId,
@@ -372,14 +340,13 @@ public class OperationsServiceImpl implements OperationsService {
                 LEFT JOIN CHITIETBANGIAO ct ON ct.MaBienBanBanGiao = bb.MaBienBanBanGiao
                 LEFT JOIN TAISAN ts ON ts.MaTaiSan = ct.MaTaiSanBanGiao
                 ORDER BY bb.MaBienBanBanGiao DESC, ct.MaTaiSanBanGiao ASC
-                LIMIT 50
                 """;
 
         Map<String, List<OperationAssetResponse>> grouped = new LinkedHashMap<>();
         jdbcTemplate.query(sql, rs -> {
             while (rs.next()) {
                 String handoverId = rs.getString("handoverId");
-                grouped.computeIfAbsent(handoverId, key -> new ArrayList<>())
+                grouped.computeIfAbsent(handoverId, k -> new ArrayList<>())
                         .add(OperationAssetResponse.builder()
                                 .asset(defaultText(rs.getString("assetName"), rs.getString("assetId")))
                                 .present(true)
@@ -390,16 +357,38 @@ public class OperationsServiceImpl implements OperationsService {
             return null;
         });
 
-        List<OperationAssetResponse> firstTemplate = grouped.values().stream()
+        return grouped.values().stream()
                 .filter(list -> !list.isEmpty())
                 .findFirst()
+                .map(this::cloneAssets)
                 .orElseGet(this::defaultAssetTemplate);
-
-        return cloneAssets(firstTemplate);
     }
 
+    private Map<String, BigDecimal> loadLatestDepositsByCustomer() {
+        String sql = """
+                SELECT c.KhachHangSoHuu AS customerId,
+                       h.MucTienCoc AS deposit,
+                       c.NgayLap AS ngayLap,
+                       c.GioLap AS gioLap
+                FROM HOSODATCOC h
+                JOIN CHUNGTU c ON c.MaVanBan = h.MaHoSoDatCoc
+                ORDER BY c.NgayLap DESC, c.GioLap DESC, h.MaHoSoDatCoc DESC
+                """;
 
+        Map<String, BigDecimal> map = new LinkedHashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            while (rs.next()) {
+                String customerId = rs.getString("customerId");
+                if (customerId != null && !customerId.isBlank() && !map.containsKey(customerId)) {
+                    map.put(customerId, zeroIfNull(rs.getBigDecimal("deposit")));
+                }
+            }
+            return null;
+        });
+        return map;
+    }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
     private List<OperationAssetResponse> cloneAssets(List<OperationAssetResponse> source) {
         return source.stream()
                 .map(item -> OperationAssetResponse.builder()
@@ -421,20 +410,11 @@ public class OperationsServiceImpl implements OperationsService {
     }
 
     private String mapCondition(String value) {
-        if (value == null) {
-            return "Tốt";
-        }
-
-        String normalized = value.trim().toLowerCase(Locale.ROOT)
-                .replaceAll("\\p{M}+", "")
-                .replaceAll("[^a-z0-9]+", "");
-
-        if (normalized.contains("bad") || normalized.contains("huhong") || normalized.contains("cansua")) {
-            return "Cần sửa chữa";
-        }
-        if (normalized.contains("kha") || normalized.contains("binhthuong")) {
-            return "Bình thường";
-        }
+        if (value == null) return "Tốt";
+        String n = value.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("\\p{M}+", "").replaceAll("[^a-z0-9]+", "");
+        if (n.contains("bad") || n.contains("huhong") || n.contains("cansua")) return "Cần sửa chữa";
+        if (n.contains("kha") || n.contains("binhthuong")) return "Bình thường";
         return "Tốt";
     }
 
@@ -446,14 +426,12 @@ public class OperationsServiceImpl implements OperationsService {
         return date == null ? null : date.toLocalDate();
     }
 
-    private java.time.LocalTime toLocalTime(Time time) {
+    private java.time.LocalTime toLocalTime(java.sql.Time time) {
         return time == null ? null : time.toLocalTime();
     }
 
     private String defaultText(String primary, String fallback) {
-        if (primary != null && !primary.isBlank()) {
-            return primary;
-        }
+        if (primary != null && !primary.isBlank()) return primary;
         return fallback == null || fallback.isBlank() ? "Khách hàng" : fallback;
     }
 
@@ -461,7 +439,8 @@ public class OperationsServiceImpl implements OperationsService {
         String[] parts = text.trim().split("\\s+");
         String first = parts.length > 0 ? parts[0] : "KH";
         String second = parts.length > 1 ? parts[parts.length - 1] : "";
-        String initials = (first.substring(0, 1) + (second.isEmpty() ? "" : second.substring(0, 1))).toUpperCase(Locale.ROOT);
+        String initials = (first.substring(0, 1) + (second.isEmpty() ? "" : second.substring(0, 1)))
+                .toUpperCase(Locale.ROOT);
         return initials.length() > 2 ? initials.substring(0, 2) : initials;
     }
 
@@ -469,16 +448,15 @@ public class OperationsServiceImpl implements OperationsService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    // ── Records ───────────────────────────────────────────────────────────────
     private record RawDocumentRow(
-            String id,
-            LocalDate date,
-            java.time.LocalTime time,
-            String customerId,
-            String customerName,
-            BigDecimal deposit
-    ) {
-    }
+            String id, LocalDate date, java.time.LocalTime time,
+            String customerId, String customerName, BigDecimal deposit) {}
 
-    private record RawBedLinkRow(String bedId, String roomId) {
-    }
+    private record RawContractRow(
+            String id, LocalDate date, java.time.LocalTime time,
+            String customerId, String customerName,
+            LocalDate ngayKetThuc, String trangThaiThanhLy) {}
+
+    private record RawBedLinkRow(String bedId, String roomId) {}
 }

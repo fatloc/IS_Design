@@ -19,18 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import java.time.temporal.ChronoUnit;
-import com.homestay.dorm.dto.response.DoiSoatResponse;
-
-import java.math.BigDecimal;
-import org.springframework.transaction.annotation.Transactional;
-
-// Kéo toàn bộ Entity và Repository vào để xài cho gọn, khỏi báo lỗi thiếu
-import com.homestay.dorm.entity.*;
-import com.homestay.dorm.repository.*;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContractServiceImpl implements ContractService {
@@ -38,44 +26,11 @@ public class ContractServiceImpl implements ContractService {
     private final HopDongThueRepository repository;
     private final JdbcTemplate jdbcTemplate;
 
-    private final ChiTietThuePhongRepository chiTietThuePhongRepository;
-    private final ChiTietThueGiuongRepository chiTietThueGiuongRepository;
-    private final DichVuHopDongRepository dichVuHopDongRepository;
-    private final PhongRepository phongRepository;
-    private final GiuongRepository giuongRepository;
-    private final DichVuRepository dichVuRepository;
-    private final HoSoDatCocRepository hoSoDatCocRepository;
-
     @Override
-    public ApiListResponse<HopDongThue> getContracts(int page, int size, String search, String loaiVanBan, String kyThanhToan) {
-        long startTime = System.currentTimeMillis();
-        
-        // Normalize filters (UI Vietnamese -> Seeded DB plain text)
-        String q = (search != null && !search.isBlank()) ? search.trim() : null;
-        
-        String type = null;
-        if ("Hợp đồng thuê".equals(loaiVanBan)) type = "Hop dong thue";
-        else if ("Biên bản bàn giao".equals(loaiVanBan)) type = "Ban giao tai san";
-        else if ("Biên bản trả phòng".equals(loaiVanBan)) type = "Bien ban tra phong";
-        else if ("Hồ sơ đặt cọc".equals(loaiVanBan)) type = "Ho so dat coc";
-        else if (loaiVanBan != null && !"Tất cả".equals(loaiVanBan)) type = loaiVanBan;
-
-        String term = null;
-        if ("1 Tháng".equals(kyThanhToan)) term = "Thang";
-        else if ("3 Tháng".equals(kyThanhToan)) term = "Quy";
-        else if ("6 Tháng".equals(kyThanhToan)) term = "6 thang";
-        else if (kyThanhToan != null && !"Tất cả".equals(kyThanhToan)) term = kyThanhToan;
-
-        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(
-                org.springframework.data.domain.Sort.Direction.DESC, "ngayLap"
-        ));
-        
-        Page<HopDongThue> pageData = repository.searchContracts(q, type, term, pageable);
-        
-        ApiListResponse<HopDongThue> response = ApiListResponse.fromPage(pageData);
-        long endTime = System.currentTimeMillis();
-        log.info("⏱ [Performance] Contracts loaded in {} ms with search='{}', type='{}'", (endTime - startTime), q, type);
-        return response;
+    public ApiListResponse<HopDongThue> getContracts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<HopDongThue> pageData = repository.findAll(pageable);
+        return ApiListResponse.fromPage(pageData);
     }
 
     @Override
@@ -178,31 +133,7 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
-    @Transactional
     public HopDongThue createContract(CreateContractRequest req) {
-        // 1. KIỂM TRA SỨC CHỨA CỦA PHÒNG
-        if (req.getMaPhong() != null && !req.getMaPhong().trim().isEmpty()) {
-            String targetRoom = req.getMaPhong().trim();
-            Phong phong = phongRepository.findById(targetRoom)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng: " + targetRoom));
-            
-            long currentOccupants = 0;
-            for (Object[] row : phongRepository.countCurrentOccupantsPerRoom()) {
-                if (targetRoom.equals(((String) row[0]).trim())) {
-                    currentOccupants = ((Number) row[1]).longValue();
-                    break;
-                }
-            }
-            
-            int capacity = phong.getSucChuaToiDa() != null ? phong.getSucChuaToiDa() : 0;
-            int requestedOccupants = req.getSoLuongThanhVien() != null ? req.getSoLuongThanhVien() : 1;
-            
-            if (currentOccupants + requestedOccupants > capacity) {
-                throw new RuntimeException("Phòng đã đầy hoặc không đủ chỗ trống! Sức chứa: " + capacity + ", Hiện tại: " + currentOccupants + ", Yêu cầu thêm: " + requestedOccupants);
-            }
-        }
-
-        // 2. TẠO HỢP ĐỒNG CHÍNH
         String newId = "HD" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
 
         HopDongThue hk = new HopDongThue();
@@ -217,19 +148,8 @@ public class ContractServiceImpl implements ContractService {
         hk.setHinhThucThue(req.getHinhThucThue());
         hk.setKyThanhToan(req.getKyThanhToan());
         hk.setSoLuongThanhVien(req.getSoLuongThanhVien() != null ? req.getSoLuongThanhVien() : 1);
-        if (req.getNgayKetThuc() != null) hk.setNgayKetThuc(req.getNgayKetThuc());
 
-        HopDongThue savedContract = repository.save(hk);
-
-        // 3. LƯU CHI TIẾT THUÊ PHÒNG
-        if (req.getMaPhong() != null && !req.getMaPhong().trim().isEmpty()) {
-            ChiTietThuePhong ctp = new ChiTietThuePhong();
-            ctp.setMaHopDongThue(savedContract.getMaVanBan());
-            ctp.setMaPhong(req.getMaPhong().trim());
-            chiTietThuePhongRepository.save(ctp);
-        }
-
-        return savedContract;
+        return repository.save(hk);
     }
 
     @Override
@@ -246,7 +166,6 @@ public class ContractServiceImpl implements ContractService {
         if (req.getHinhThucThue() != null) hk.setHinhThucThue(req.getHinhThucThue());
         if (req.getKyThanhToan() != null) hk.setKyThanhToan(req.getKyThanhToan());
         if (req.getSoLuongThanhVien() != null) hk.setSoLuongThanhVien(req.getSoLuongThanhVien());
-        if (req.getNgayKetThuc() != null) hk.setNgayKetThuc(req.getNgayKetThuc());
 
         return repository.save(hk);
     }
@@ -259,6 +178,7 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public String seedSettlementStatus() {
+        // Đếm tổng số hợp đồng
         Integer total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM HOPDONGTHUE", Integer.class);
         if (total == null || total == 0) {
             return "Không có hợp đồng nào trong database";
@@ -304,57 +224,5 @@ public class ContractServiceImpl implements ContractService {
             "Đã cập nhật trạng thái thanh lý: Chờ thanh lý=%d, Chờ đối soát=%d, Đã đối soát=%d",
             choThanhLy, choDoiSoat, daDoiSoat
         );
-    }
-
-    @Override
-    public java.math.BigDecimal tinhTienThueKyDau(String maHopDongThue) {
-        // Stub — tính tiền thuê kỳ đầu dựa trên hợp đồng
-        HopDongThue hopDong = getContractById(maHopDongThue);
-        // Lấy giá thuê từ CHITIETTHUEPHONG hoặc CHITIETTHUEGIUONG qua jdbcTemplate
-        java.math.BigDecimal giaThue = jdbcTemplate.queryForObject(
-            "SELECT COALESCE(" +
-            "  (SELECT p.GiaThuePhong FROM CHITIETTHUEPHONG tp JOIN PHONG p ON p.MaPhong = tp.MaPhong WHERE tp.MaHopDongThue = ? LIMIT 1)," +
-            "  (SELECT COALESCE(SUM(g.GiaThue),0) FROM CHITIETTHUEGIUONG tg JOIN GIUONG g ON g.MaGiuong = tg.MaGiuong WHERE tg.MaHopDongThue = ?)" +
-            ", 0)",
-            java.math.BigDecimal.class, maHopDongThue, maHopDongThue
-        );
-        return giaThue != null ? giaThue : java.math.BigDecimal.ZERO;
-    }
-
-    @Override
-    public com.homestay.dorm.dto.response.DoiSoatResponse doiSoatChiPhi(
-            String maHopDongThue, java.math.BigDecimal tongTienKhauTru, boolean laHetHanHopDong) {
-        // Stub — trả về kết quả đối soát cơ bản
-        if (tongTienKhauTru == null) tongTienKhauTru = java.math.BigDecimal.ZERO;
-        java.math.BigDecimal tienCoc = java.math.BigDecimal.valueOf(5000000);
-        java.math.BigDecimal tyLe = laHetHanHopDong ? java.math.BigDecimal.ONE : new java.math.BigDecimal("0.7");
-        java.math.BigDecimal hoan = tienCoc.multiply(tyLe).subtract(tongTienKhauTru);
-        return com.homestay.dorm.dto.response.DoiSoatResponse.builder()
-            .maHopDong(maHopDongThue)
-            .tienCocBanDau(tienCoc)
-            .tyLeHoanCoc(laHetHanHopDong ? "100%" : "70%")
-            .tienCocDuocHoanCoBan(tienCoc.multiply(tyLe))
-            .tongTienKhauTru(tongTienKhauTru)
-            .soTienThucTe(hoan.abs())
-            .loaiGiaoDich(hoan.compareTo(java.math.BigDecimal.ZERO) >= 0 ? "Hoàn cọc" : "Thu thêm")
-            .build();
-    }
-
-    @Override
-    public void thanhLyHopDong(String maHopDongThue) {
-        // Cập nhật trạng thái thanh lý thành "Hoàn tất"
-        jdbcTemplate.update(
-            "UPDATE HOPDONGTHUE SET TrangThaiThanhLy = 'Hoàn tất', NgayKetThuc = ? WHERE MaHopDongThue = ?",
-            java.time.LocalDate.now(), maHopDongThue
-        );
-    }
-    @Override
-    public java.util.Map<String, Long> getContractStats() {
-        java.util.Map<String, Long> stats = new java.util.HashMap<>();
-        stats.put("total", repository.count());
-        stats.put("contract", repository.countByLoaiVanBan("Hop dong thue"));
-        stats.put("handover", repository.countByLoaiVanBan("Ban giao tai san"));
-        stats.put("deposit", repository.countByLoaiVanBan("Ho so dat coc"));
-        return stats;
     }
 }
