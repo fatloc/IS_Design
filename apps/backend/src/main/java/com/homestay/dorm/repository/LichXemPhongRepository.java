@@ -11,6 +11,7 @@ import java.time.LocalDate;
 @Repository
 public interface LichXemPhongRepository extends JpaRepository<LichXemPhong, String> {
     Page<LichXemPhong> findByNgayHenBetween(LocalDate startDate, LocalDate endDate, Pageable pageable);
+    Page<LichXemPhong> findByNgayHen(LocalDate date, Pageable pageable);
     
     long countByNgayHenAfter(LocalDate date);
     Page<LichXemPhong> findByNgayHenAfter(LocalDate date, Pageable pageable);
