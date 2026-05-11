@@ -2,7 +2,7 @@ import React from "react";
 import { Outlet, useLocation, useNavigate, NavLink } from "react-router";
 import {
   LayoutDashboard, Building2, LogOut, Bell, ChevronRight,
-  Shield, ClipboardCheck, ArrowLeftRight, Search, Zap,
+  Shield, ClipboardCheck, ArrowLeftRight, Search, Zap, Users,
 } from "lucide-react";
 import Sidebar from "./Sidebar";
 
@@ -16,6 +16,7 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Elemen
   "/manager/approvals": { title: "Trung tâm Phê duyệt", sub: "Phê duyệt các yêu cầu thuê phòng và lịch hẹn từ Sales", icon: ClipboardCheck, crumbs: ["Manager", "Phê duyệt"] },
   "/manager/operations": { title: "Vận hành & Bàn giao", sub: "Quản lý quy trình bàn giao nhận phòng và thanh lý hợp đồng", icon: ArrowLeftRight, crumbs: ["Manager", "Vận hành"] },
   "/manager/rooms": { title: "Quản lý phòng", sub: "Danh sách và chi tiết trạng thái tất cả phòng trong hệ thống", icon: Building2, crumbs: ["Manager", "Phòng"] },
+  "/manager/users": { title: "Tài khoản người dùng", sub: "Quản lý tài khoản nhân viên trong hệ thống", icon: Users, crumbs: ["Manager", "Tài khoản"] },
 };
 
 export default function Layout() {
