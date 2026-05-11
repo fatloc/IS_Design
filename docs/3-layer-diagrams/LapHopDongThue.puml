@@ -1,0 +1,185 @@
+@startuml
+title Chức năng Lập hợp đồng thuê
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHLapHopDongThue {
+	' Sale soạn điều khoản hợp đồng (SaleContracts.tsx)
+	-searchContractInput: TextBox
+	-contractList: Grid
+	-btnSoanHopDong: Button
+	-rentInput: Input
+	-durationSelect: Dropdown
+	-startDateInput: DatePicker
+	-rulesInput: TextArea
+	-btnLuuVaTrinhKy: Button
+	--
+	+loadContracts(page: int, size: int): Promise<void>
+	+openContractDraft(maHopDongThue: String): Void
+	+editContractTerms(): Void
+	+submitForApproval(maHopDongThue: String): Promise<void>
+	+showDraftSuccess(): Void
+}
+
+class MHPheDuyetHopDong {
+	' Quản lý duyệt điều kiện lưu trú + duyệt hợp đồng (ApprovalHub.tsx)
+	-requestQueue: Grid
+	-btnDongYChoThue: Button
+	-btnTuChoi: Button
+	-conditionBadge: Badge
+	--
+	+loadPendingRequests(): Promise<void>
+	+reviewResidenceConditions(maYeuCau: String): Void
+	+approveOrReject(maYeuCau: String): Promise<void>
+}
+
+class MHDangNhap {
+	' Include từ use case Đăng nhập
+	+login(username: String, password: String): Promise<void>
+}
+
+class MHQuanLyThongTinCuTru {
+	' Include từ use case Quản lý thông tin cư trú
+	+loadResidenceProfile(maYeuCau: String): Promise<void>
+	+checkRoomAvailability(criteria: String): Promise<void>
+}
+
+note right of MHDangNhap
+Use case này <<include>> Đăng nhập.
+Chi tiết đã mô tả ở
+diagram DangNhap.puml.
+end note
+
+note right of MHQuanLyThongTinCuTru
+Use case này <<include>>
+Quản lý thông tin cư trú.
+Điều kiện lưu trú được đối chiếu từ
+thông tin yêu cầu và sức chứa phòng.
+end note
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class HopDongThue {
+	' Entity hợp đồng thuê (gộp trường kế thừa ChungTu)
+	-maVanBan: String
+	-loaiVanBan: String
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	-chiNhanh: String
+	-nhanVienLap: String
+	-khachHangSoHuu: String
+	-hinhThucThue: String
+	-kyThanhToan: String
+	-soLuongThanhVien: Integer
+	-ngayKetThuc: LocalDate
+	-trangThaiThanhLy: String
+	--
+	+getContracts(page: int, size: int): ApiListResponse<HopDongThue>
+	+getContractById(maHopDongThue: String): HopDongThue
+	+createContract(request: CreateContractRequest): HopDongThue
+	+updateContract(maHopDongThue: String, request: UpdateContractRequest): HopDongThue
+	+deleteContract(maHopDongThue: String): Void
+	+updateSettlementStatus(maHopDongThue: String, trangThai: String): HopDongThue
+}
+
+class YeuCauDangKy {
+	' Dữ liệu yêu cầu thuê để kiểm tra điều kiện lưu trú
+	-maYeuCau: String
+	-soLuongNguoi: Integer
+	-gioiTinhYeuCau: String
+	-khuVuc: String
+	-trangThaiYeuCau: String
+	-khachHangYeuCau: String
+	-maPhongDeXuat: String
+	--
+	+getRequests(page: int, size: int, nhanVienPhuTrach: String, trangThaiYeuCau: String, search: String): ApiListResponse<YeuCauDangKy>
+	+getRequestById(maYeuCau: String): YeuCauDangKy
+	+updateRequest(maYeuCau: String, request: UpdateYeuCauRequest): YeuCauDangKy
+}
+
+class Phong {
+	' Dữ liệu sức chứa để kiểm tra đủ điều kiện cư trú
+	-maPhong: String
+	-sucChuaToiDa: Integer
+	-giaThuePhong: BigDecimal
+	-trangThai: String
+	-chiNhanh: String
+	--
+	+getAvailableRooms(loaiPhong: String, mucGia: BigDecimal, soLuongNguoi: Integer): List<Phong>
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class HopDongThueDB {
+	' Repository (HopDongThueRepository)
+	--
+	+findAll(pageable: Pageable): Page<HopDongThue>
+	+findById(maHopDongThue: String): Optional<HopDongThue>
+	+save(entity: HopDongThue): HopDongThue
+	+delete(entity: HopDongThue): Void
+}
+
+class YeuCauDangKyDB {
+	' Repository (YeuCauDangKyRepository)
+	--
+	+findById(maYeuCau: String): Optional<YeuCauDangKy>
+	+findByTrangThaiYeuCau(trangThaiYeuCau: String, pageable: Pageable): Page<YeuCauDangKy>
+	+findByNhanVienPhuTrachAndTrangThaiYeuCau(nhanVienPhuTrach: String, trangThaiYeuCau: String, pageable: Pageable): Page<YeuCauDangKy>
+	+save(entity: YeuCauDangKy): YeuCauDangKy
+}
+
+class PhongDB {
+	' Repository (PhongRepository)
+	--
+	+findAvailableFullRooms(mucGia: BigDecimal): List<Phong>
+	+findAvailableSharedRooms(mucGia: BigDecimal, soLuongNguoi: Integer): List<Phong>
+}
+
+class ChiTietThuePhongDB {
+	' Repository (ChiTietThuePhongRepository)
+	--
+	+findByMaHopDongThue(maHopDongThue: String): List<ChiTietThuePhong>
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Include use cases)
+MHLapHopDongThue ..> MHDangNhap : <<include>>
+MHLapHopDongThue ..> MHQuanLyThongTinCuTru : <<include>>
+MHPheDuyetHopDong ..> MHQuanLyThongTinCuTru : <<include>>
+
+' (UI -> BLL)
+MHLapHopDongThue o-- HopDongThue
+MHPheDuyetHopDong o-- YeuCauDangKy
+MHPheDuyetHopDong o-- Phong
+MHQuanLyThongTinCuTru o-- YeuCauDangKy
+MHQuanLyThongTinCuTru o-- Phong
+
+' (BLL -> DAL)
+HopDongThue o-- HopDongThueDB
+YeuCauDangKy o-- YeuCauDangKyDB
+Phong o-- PhongDB
+PhongDB ..> ChiTietThuePhongDB : đếm sức chứa đang ở
+
+@enduml
