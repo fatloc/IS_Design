@@ -109,14 +109,21 @@ class LichXemPhong {
   ' Attributes
   -maLichHen: String
   -maYeuCau: String
+  -khachHangXem: String
+  -nhanVienPhuTrach: String
   -maPhong: String
   -ngayHen: Date
   -thoiGianHen: String
+  -trangThaiHen: String
+  -isOverdue: Boolean
   --
   ' Methods (service operations)
-  +getAppointments(page,size,month,year?): ApiListResponse<LichXemPhong>
+  +getAppointments(page,size,month,year): ApiListResponse<LichXemPhong>
+  +getAppointmentById(maLichHen: String): LichXemPhong
   +getAppointmentByMaYeuCau(maYeuCau: String): LichXemPhong
   +createAppointment(req): LichXemPhong
+  +updateAppointment(maLichHen: String, req): LichXemPhong
+  +deleteAppointment(maLichHen: String): Void
 }
 
 class YeuCauDangKy {
@@ -124,15 +131,22 @@ class YeuCauDangKy {
   ' Attributes
   -maYeuCau: String
   -khachHangYeuCau: String
+  -nhanVienPhuTrach: String
   -trangThaiYeuCau: String
+  -soLuongNguoi: Integer
+  -gioiTinhYeuCau: String
   -thoiGianBatDauThueDuKien: Date
   -thoiGianBanGiaoPhongDuKien: Date
+  -khuVuc: String
   -mucGiaMongMuon: Number
+  -coDieuHoa: Boolean
+  -coBaiGuiXe: Boolean
   -cacTieuChiKhac: String
   -ngayTao: Date
+  -isOverdue: Boolean
   --
   ' Methods (service operations)
-  +getRequests(page,size,filters...): ApiListResponse<YeuCauDangKy>
+  +getRequests(page,size,nhanVienPhuTrach,trangThaiYeuCau,ngayTao,thang,search): ApiListResponse<YeuCauDangKy>
   +getRequestById(maYeuCau: String): YeuCauDangKy
   +createRequest(req: CreateYeuCauRequest): YeuCauDangKy
   +updateRequest(maYeuCau: String, req: UpdateYeuCauRequest): YeuCauDangKy
@@ -149,8 +163,10 @@ class KhachHang {
   -email: String
   -cccd: String
   -phai: String
+  -quocTich: String
   --
-  +getCustomers(page,size,search?): ApiListResponse<KhachHang>
+  ' Methods (service operations)
+  +getCustomers(page,size,search): ApiListResponse<KhachHang>
   +getCustomerById(maKhachHang: String): KhachHang
   +createCustomer(data: KhachHang): KhachHang
   +updateCustomer(maKhachHang: String, data: KhachHang): KhachHang
@@ -166,22 +182,26 @@ class YeuCauDangKyDB {
   +findByFiltersWithSearch(...): Page<YeuCauDangKy>
   +findByFiltersAndMonthWithSearch(...): Page<YeuCauDangKy>
   +countByStatus(): List<Object[]>
-  +save(entity: YeuCauDangKy): YeuCauDangKy
   +findById(id: String): Optional<YeuCauDangKy>
+  +save(entity: YeuCauDangKy): YeuCauDangKy
   +delete(entity: YeuCauDangKy): Void
 }
 
 class LichXemPhongDB {
   --
+  +findByNgayHenBetween(startDate,endDate,pageable): Page<LichXemPhong>
   +findByMaYeuCau(maYeuCau: String): Optional<LichXemPhong>
   +findAll(...): Page<LichXemPhong>
+  +findById(maLichHen: String): Optional<LichXemPhong>
+  +save(entity: LichXemPhong): LichXemPhong
+  +delete(entity: LichXemPhong): Void
 }
 
 class KhachHangDB {
   --
   +findAll(...): Page<KhachHang>
   +findById(maKhachHang: String): Optional<KhachHang>
-  +save(kh: KhachHang): KhachHang
+  +save(entity: KhachHang): KhachHang
 }
 }
 
