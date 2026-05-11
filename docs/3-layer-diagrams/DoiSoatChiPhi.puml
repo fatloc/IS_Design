@@ -129,6 +129,26 @@ class PhieuThanhToan {
 	+save(entity: PhieuThanhToan): PhieuThanhToan
 	+delete(maPhieuThanhToan: String): Void
 }
+
+class BangDoiSoat {
+	' Entity + Service (BangDoiSoat)
+	' Attributes
+	-maBangDoiSoat: String
+	-maHopDongThue: String
+	-tiLeHoanCoc: Integer
+	-tongKhauTru: BigDecimal
+	-soTienThucTe: BigDecimal
+	-ngayLap: Date
+	-trangThai: String
+	--
+	+reconcile(request: CreateReconciliationRequest): BangDoiSoat
+	+getPendingPayments(): List<BangDoiSoat>
+	+processPayment(settlementId: String, action: String): Void
+	+findByTrangThai(trangThai: String): List<BangDoiSoat>
+	+save(entity: BangDoiSoat): BangDoiSoat
+	+update(maBangDoiSoat: String, entity: BangDoiSoat): BangDoiSoat
+	+delete(maBangDoiSoat: String): Void
+}
 }
 
 ' ================= TẦNG TRUY CẬP DỮ LIỆU =================
@@ -165,6 +185,17 @@ class PhieuThanhToanDB {
 	+update(maPhieuThanhToan: String, entity: PhieuThanhToan): PhieuThanhToan
 	+delete(maPhieuThanhToan: String): Void
 }
+
+class BangDoiSoatDB {
+	' Repository
+	--
+	+findById(maBangDoiSoat: String): BangDoiSoat
+	+findAll(pageable: Pageable): Page<BangDoiSoat>
+	+findByTrangThai(trangThai: String): List<BangDoiSoat>
+	+save(entity: BangDoiSoat): BangDoiSoat
+	+update(maBangDoiSoat: String, entity: BangDoiSoat): BangDoiSoat
+	+delete(maBangDoiSoat: String): Void
+}
 }
 
 ' ================= RELATIONSHIPS =================
@@ -172,14 +203,18 @@ class PhieuThanhToanDB {
 MHQuanLyThanhLyHopDong o-- HopDongThue
 MHBienBanThanhLyHopDong o-- HopDongThue
 MHBienBanThanhLyHopDong o-- PhieuThanhToan
+MHBienBanThanhLyHopDong o-- BangDoiSoat
 
 ' 2. Quan hệ nội bộ tầng Nghiệp vụ
 HopDongThue "0..*" -- "1..1" KhachHang : thuộc
 HopDongThue "1..1" -- "0..*" PhieuThanhToan : có
+HopDongThue "1..1" -- "0..*" BangDoiSoat : đối soát
+BangDoiSoat "1..1" -- "0..1" PhieuThanhToan : sinh giao dịch
 
 ' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
 HopDongThue o-- HopDongThueDB
 KhachHang o-- KhachHangDB
 PhieuThanhToan o-- PhieuThanhToanDB
+BangDoiSoat o-- BangDoiSoatDB
 
 @enduml
