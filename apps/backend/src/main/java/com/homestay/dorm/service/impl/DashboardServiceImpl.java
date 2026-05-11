@@ -1,6 +1,7 @@
 package com.homestay.dorm.service.impl;
 
 import com.homestay.dorm.dto.response.DashboardResponse;
+import com.homestay.dorm.dto.response.SaleDashboardResponse;
 import com.homestay.dorm.entity.Phong;
 import com.homestay.dorm.entity.YeuCauDangKy;
 import com.homestay.dorm.entity.LichXemPhong;
@@ -11,10 +12,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +23,9 @@ public class DashboardServiceImpl implements DashboardService {
     private final YeuCauDangKyRepository yeuCauDangKyRepository;
     private final LichXemPhongRepository lichXemPhongRepository;
     private final PhieuThanhToanRepository phieuThanhToanRepository;
+    private final HoSoDatCocRepository hoSoDatCocRepository;
+    private final KhachHangRepository khachHangRepository;
+    private final NhanVienRepository nhanVienRepository;
 
     @Override
     public DashboardResponse getDashboardStats() {
@@ -79,6 +81,138 @@ public class DashboardServiceImpl implements DashboardService {
                 .pendingTransactions(pendingTransactions)
                 .monthlyRevenue(revenue)
                 .urgentTasks(tasks)
+                .build();
+    }
+
+    @Override
+    public SaleDashboardResponse getSaleDashboardStats() {
+        LocalDate today = LocalDate.now();
+        LocalDate yesterday = today.minusDays(1);
+
+        List<YeuCauDangKy> requests = yeuCauDangKyRepository.findAll();
+        List<LichXemPhong> appointments = lichXemPhongRepository.findAll();
+        List<com.homestay.dorm.entity.HoSoDatCoc> deposits = hoSoDatCocRepository.findAll();
+        
+        Map<String, String> customerMap = khachHangRepository.findAll().stream()
+                .collect(Collectors.toMap(com.homestay.dorm.entity.KhachHang::getMaKhachHang, 
+                         c -> c.getHoTen() != null ? c.getHoTen() : "", (v1, v2) -> v1));
+        Map<String, String> employeeMap = nhanVienRepository.findAll().stream()
+                .collect(Collectors.toMap(com.homestay.dorm.entity.NhanVien::getMaNhanVien, 
+                         e -> e.getHoTen() != null ? e.getHoTen() : "", (v1, v2) -> v1));
+
+        // Helper to map DB request status to Sale dashboard status
+        java.util.function.Function<String, String> toDashboardStatus = (status) -> {
+            if (status == null) return "Pending";
+            switch (status.trim()) {
+                case "Yêu cầu mới": return "Pending";
+                case "Đã lên lịch xem": return "Scheduled";
+                case "Đã xem phòng": return "Shown";
+                case "Đặt cọc thành công": return "Deposited";
+                case "Đã hủy": return "Cancelled";
+                default: return "Pending";
+            }
+        };
+
+        // Map requests to DTO and counts
+        Map<String, Long> requestStatusCounts = new HashMap<>();
+        Map<String, Long> requestRentalModeCounts = new HashMap<>();
+        Map<String, Long> requestGenderCounts = new HashMap<>();
+        List<SaleDashboardResponse.RequestDto> mappedRequests = new ArrayList<>();
+
+        for (YeuCauDangKy r : requests) {
+            String dbStatus = r.getTrangThaiYeuCau();
+            String dashStatus = toDashboardStatus.apply(dbStatus);
+            requestStatusCounts.put(dashStatus, requestStatusCounts.getOrDefault(dashStatus, 0L) + 1);
+
+            String rMode = (r.getSoLuongNguoi() != null && r.getSoLuongNguoi() > 1) ? "Whole Room" : "Shared Bed";
+            requestRentalModeCounts.put(rMode, requestRentalModeCounts.getOrDefault(rMode, 0L) + 1);
+
+            String gender = "Any";
+            if ("Nam".equalsIgnoreCase(r.getGioiTinhYeuCau())) gender = "Male";
+            else if ("Nữ".equalsIgnoreCase(r.getGioiTinhYeuCau())) gender = "Female";
+            requestGenderCounts.put(gender, requestGenderCounts.getOrDefault(gender, 0L) + 1);
+
+            String budgetStr = "Chưa cập nhật";
+            if (r.getMucGiaMongMuon() != null) {
+                budgetStr = String.format("%.1fM", r.getMucGiaMongMuon().doubleValue() / 1000000.0);
+            }
+            
+            String clientName = customerMap.getOrDefault(r.getKhachHangYeuCau(), r.getKhachHangYeuCau());
+
+            mappedRequests.add(SaleDashboardResponse.RequestDto.builder()
+                    .id(r.getMaYeuCau())
+                    .date(r.getThoiGianBatDauThueDuKien() != null ? r.getThoiGianBatDauThueDuKien().toString() : "")
+                    .clientName(clientName != null ? clientName : "Khách hàng")
+                    .phone("--") 
+                    .rentalMode(rMode)
+                    .headcount(r.getSoLuongNguoi() != null ? r.getSoLuongNguoi() : 1)
+                    .gender(gender)
+                    .budget(budgetStr)
+                    .status(dashStatus)
+                    .note(r.getCacTieuChiKhac() != null ? r.getCacTieuChiKhac() : "")
+                    .criteria(r.getCacTieuChiKhac() != null ? List.of(r.getCacTieuChiKhac()) : List.of())
+                    .build());
+        }
+
+        List<SaleDashboardResponse.RequestDto> pendingList = mappedRequests.stream()
+                .filter(r -> "Pending".equals(r.getStatus()))
+                .sorted((a, b) -> b.getDate().compareTo(a.getDate()))
+                .collect(Collectors.toList());
+        List<SaleDashboardResponse.RequestDto> visiblePendingRequests = 
+                pendingList.size() > 5 ? pendingList.subList(0, 5) : pendingList;
+
+        // Appointments
+        List<SaleDashboardResponse.AppointmentDto> todayApps = new ArrayList<>();
+        long yesterdayAppointmentsCount = 0;
+
+        for (LichXemPhong a : appointments) {
+            if (today.equals(a.getNgayHen())) {
+                String cName = customerMap.getOrDefault(a.getKhachHangXem(), a.getKhachHangXem());
+                String eName = employeeMap.getOrDefault(a.getNhanVienPhuTrach(), a.getNhanVienPhuTrach());
+                String dashStatus = "Đã xem".equalsIgnoreCase(a.getTrangThaiHen()) ? "Shown" :
+                                   "Đã hủy".equalsIgnoreCase(a.getTrangThaiHen()) ? "Cancelled" : "Pending";
+
+                todayApps.add(SaleDashboardResponse.AppointmentDto.builder()
+                        .id(a.getMaLichHen())
+                        .time(a.getThoiGianHen() != null ? a.getThoiGianHen().toString().substring(0,5) : "--:--")
+                        .clientName(cName != null ? cName : "Khách hàng")
+                        .rentalMode("Shared Bed")
+                        .targetAssetLabel("Lịch hẹn " + a.getMaLichHen())
+                        .staffName(eName != null ? eName : "--")
+                        .status(dashStatus)
+                        .notes("")
+                        .build());
+            } else if (yesterday.equals(a.getNgayHen())) {
+                yesterdayAppointmentsCount++;
+            }
+        }
+
+        // Deposits
+        long depositedTodayCount = 0;
+        long yesterdayDepositsCount = 0;
+        Map<String, Long> depositedByRentalModeCounts = new HashMap<>(); 
+        
+        for (com.homestay.dorm.entity.HoSoDatCoc d : deposits) {
+            LocalDate dDate = d.getNgayLap();
+            if (today.equals(dDate)) {
+                depositedTodayCount++;
+                depositedByRentalModeCounts.put("Shared Bed", depositedByRentalModeCounts.getOrDefault("Shared Bed", 0L) + 1);
+            } else if (yesterday.equals(dDate)) {
+                yesterdayDepositsCount++;
+            }
+        }
+
+        return SaleDashboardResponse.builder()
+                .requestStatusCounts(requestStatusCounts)
+                .requestRentalModeCounts(requestRentalModeCounts)
+                .depositedByRentalModeCounts(depositedByRentalModeCounts)
+                .requestGenderCounts(requestGenderCounts)
+                .todayAppointments(todayApps)
+                .visiblePendingRequests(visiblePendingRequests)
+                .pendingRequestsCount(requestStatusCounts.getOrDefault("Pending", 0L) + requestStatusCounts.getOrDefault("Scheduled", 0L))
+                .depositedTodayCount(depositedTodayCount)
+                .yesterdayAppointmentsCount(yesterdayAppointmentsCount)
+                .yesterdayDepositsCount(yesterdayDepositsCount)
                 .build();
     }
 }

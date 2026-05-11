@@ -124,6 +124,44 @@ export type DashboardResponse = {
   urgentTasks: DashboardTask[];
 };
 
+export type SaleDashboardAppointment = {
+    id: string;
+    time: string;
+    clientName: string;
+    rentalMode: string;
+    targetAssetLabel: string;
+    staffName: string;
+    status: string;
+    notes: string;
+};
+
+export type SaleDashboardRequest = {
+    id: string;
+    date: string;
+    clientName: string;
+    phone: string;
+    rentalMode: string;
+    headcount: number;
+    gender: string;
+    budget: string;
+    status: string;
+    criteria: string[];
+    note: string;
+};
+
+export type SaleDashboardResponse = {
+    requestStatusCounts: Record<string, number>;
+    requestRentalModeCounts: Record<string, number>;
+    depositedByRentalModeCounts: Record<string, number>;
+    requestGenderCounts: Record<string, number>;
+    todayAppointments: SaleDashboardAppointment[];
+    visiblePendingRequests: SaleDashboardRequest[];
+    pendingRequestsCount: number;
+    depositedTodayCount: number;
+    yesterdayAppointmentsCount: number;
+    yesterdayDepositsCount: number;
+};
+
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -371,6 +409,11 @@ export async function finishCheckout(id: string) {
 export async function getDashboardStats() {
   const response = await api.get<ApiResponse<DashboardResponse>>("/dashboard/stats");
   return response.data.data;
+}
+
+export async function getSaleDashboardStats() {
+    const response = await api.get<ApiResponse<SaleDashboardResponse>>("/dashboard/sale/stats");
+    return response.data.data;
 }
 
 export function hasAuthToken() {
