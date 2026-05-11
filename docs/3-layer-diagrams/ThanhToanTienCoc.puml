@@ -20,58 +20,35 @@ skinparam package {
 
 ' ================= TẦNG GIAO DIỆN =================
 package "Tầng Giao Diện" as UI_Layer {
-class MHThanhToanTienCoc {
-	' Presentation (AccountingWorkflowPage.tsx - mode=deposit)
-	-searchInput: SearchBox
-	-depositTable: Grid
-	-pagination: Pagination
-	-btnXacNhan: Button
-	-btnHuyGiaoDich: Button
-	-btnReload: Button
-	-statusBadge: Badge
-	--
-	+loadDepositQueue(page: int, size: int): Promise<void>
-	+handleSearch(keyword: String): Void
-	+handleOpenDepositModal(requestId: String): Void
-	+handleConfirmDeposit(requestId: String, amount: BigDecimal): Promise<void>
-	+handleCancelTransaction(): Void
-	+reload(): Void
-}
-
-class MHDongYThuCoc {
-	' Modal xác nhận thu cọc
-	-customerName: Label
-	-roomRef: Label
-	-requestedDeposit: Label
-	-actualAmountInput: TextBox
-	-evidenceUpload: FileUpload
+class MHTaoPhieuThu {
+	' Modal tạo phiếu thu (tái sử dụng từ use case XacNhanThuePhong)
+	-thongTinHoSo: Panel
+	-chiTietKhoanThu: Panel
+	-adjustAmountInput: Input
+	-noteInput: TextArea
 	-btnXacNhan: Button
 	-btnHuy: Button
 	--
-	+loadDepositInfo(requestId: String): Promise<void>
-	+handleAmountChange(value: String): Void
-	+handleUploadEvidence(file: File): Void
-	+handleConfirm(requestId: String, finalAmount: BigDecimal): Promise<void>
+	+loadReceiptPreview(maHoSoDatCoc: String): Promise<void>
+	+handleAdjustAmount(value: BigDecimal): Void
+	+handleInputChange(field: String, value: Any): Void
+	+handleConfirmCreateReceipt(maHoSoDatCoc: String, amount: BigDecimal): Promise<void>
 	+validateAmount(): Boolean
 }
 
-class MHHuyGiaoDich {
-	' Modal hủy giao dịch
-	-warningText: Label
-	-btnXacNhan: Button
-	-btnHuy: Button
-	--
-	+handleConfirmCancel(requestId: String): Promise<void>
-	+handleCancel(): Void
-	+showCancelReason(reason: String): Void
-}
+note right of MHTaoPhieuThu
+Use case này chỉ có 1 màn hình thao tác:
+modal "Tạo Phiếu Thu".
+Màn hình được tái sử dụng từ
+use case "Xác nhận thuê phòng".
+end note
 }
 
 ' ================= TẦNG NGHIỆP VỤ =================
 package "Tầng Nghiệp Vụ" as BLL_Layer {
 
 class YeuCauDangKy {
-	' Entity + Service (nguồn vào cho luồng cọc)
+	' Entity + Service (nguồn dữ liệu hồ sơ)
 	-maYeuCau: String
 	-soLuongNguoi: Integer
 	-gioiTinhYeuCau: String
@@ -86,11 +63,7 @@ class YeuCauDangKy {
 	-nhanVienPhuTrach: String
 	-trangThaiYeuCau: String
 	--
-	+getRequests(page: int, size: int, nhanVienPhuTrach: String, trangThaiYeuCau: String): Page<YeuCauDangKy>
 	+getRequestById(maYeuCau: String): YeuCauDangKy
-	+createRequest(request: CreateYeuCauRequest): YeuCauDangKy
-	+updateRequest(maYeuCau: String, request: UpdateYeuCauRequest): YeuCauDangKy
-	+deleteRequest(maYeuCau: String): Void
 }
 
 class HoSoDatCoc {
@@ -104,12 +77,10 @@ class HoSoDatCoc {
 	-khachHangSoHuu: String
 	-mucTienCoc: BigDecimal
 	--
-	+getDeposits(page: int, size: int): Page<HoSoDatCoc>
 	+getDepositById(maHoSoDatCoc: String): HoSoDatCoc
-	+createDeposit(request: CreateDepositRequest): HoSoDatCoc
-	+updateDeposit(maHoSoDatCoc: String, request: UpdateDepositRequest): HoSoDatCoc
-	+deleteDeposit(maHoSoDatCoc: String): Void
-	+calculateDepositAmount(monthlyRent: BigDecimal, bedCount: int): BigDecimal
+	+getDepositByRequestId(maYeuCau: String): HoSoDatCoc
+	+markAsCheckedForReceipt(maHoSoDatCoc: String, checkedBy: String): HoSoDatCoc
+	+requestReceiptCreation(maHoSoDatCoc: String, requestedBy: String): HoSoDatCoc
 }
 
 class PhieuThanhToan {
@@ -126,11 +97,9 @@ class PhieuThanhToan {
 	-maChungTu: String
 	-soTienGiaoDich: BigDecimal
 	--
-	+getTransactions(page: int, size: int, loaiGiaoDich: String, trangThai: String): Page<PhieuThanhToan>
 	+getTransactionById(maPhieuThanhToan: String): PhieuThanhToan
-	+createTransaction(request: CreateTransactionRequest): PhieuThanhToan
-	+updateTransaction(maPhieuThanhToan: String, request: UpdateTransactionRequest): PhieuThanhToan
-	+deleteTransaction(maPhieuThanhToan: String): Void
+	+createReceiptFromDeposit(maHoSoDatCoc: String, amount: BigDecimal, createdBy: String): PhieuThanhToan
+	+generateReceiptDocument(maPhieuThanhToan: String): Binary
 }
 }
 
@@ -141,61 +110,36 @@ class YeuCauDangKyDB {
 	' Repository (YeuCauDangKyRepository)
 	--
 	+findById(maYeuCau: String): YeuCauDangKy
-	+findAll(pageable: Pageable): Page<YeuCauDangKy>
-	+findByNhanVienPhuTrach(nhanVienPhuTrach: String, pageable: Pageable): Page<YeuCauDangKy>
-	+findByTrangThaiYeuCau(trangThaiYeuCau: String, pageable: Pageable): Page<YeuCauDangKy>
-	+findByNhanVienPhuTrachAndTrangThaiYeuCau(nhanVienPhuTrach: String, trangThaiYeuCau: String, pageable: Pageable): Page<YeuCauDangKy>
-	+countByThoiGianBatDauThueDuKienAfter(date: LocalDate): long
-	+save(entity: YeuCauDangKy): YeuCauDangKy
 }
 
 class HoSoDatCocDB {
 	' Repository (HoSoDatCocRepository)
 	--
 	+findById(maHoSoDatCoc: String): HoSoDatCoc
-	+findAll(pageable: Pageable): Page<HoSoDatCoc>
-	+save(entity: HoSoDatCoc): HoSoDatCoc
-	+delete(entity: HoSoDatCoc): Void
+	+findByMaYeuCau(maYeuCau: String): HoSoDatCoc
+	+markChecked(maHoSoDatCoc: String, checkedBy: String): HoSoDatCoc
 }
 
 class PhieuThanhToanDB {
 	' Repository (PhieuThanhToanRepository)
 	--
 	+findById(maPhieuThanhToan: String): PhieuThanhToan
-	+findAll(pageable: Pageable): Page<PhieuThanhToan>
-	+findByLoaiGiaoDichAndTrangThai(loaiGiaoDich: String, trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
-	+findByLoaiGiaoDich(loaiGiaoDich: String, pageable: Pageable): Page<PhieuThanhToan>
-	+findByTrangThai(trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
-	+save(entity: PhieuThanhToan): PhieuThanhToan
+	+findByHoSoDatCocId(maHoSoDatCoc: String): List<PhieuThanhToan>
+	+saveReceiptForDeposit(maHoSoDatCoc: String, phieu: PhieuThanhToan): PhieuThanhToan
 }
 }
 
 ' ================= RELATIONSHIPS =================
 ' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
-MHThanhToanTienCoc o-- YeuCauDangKy
-MHThanhToanTienCoc o-- HoSoDatCoc
-MHThanhToanTienCoc o-- PhieuThanhToan
-MHDongYThuCoc o-- HoSoDatCoc
-MHDongYThuCoc o-- PhieuThanhToan
-MHHuyGiaoDich o-- PhieuThanhToan
+MHTaoPhieuThu o-- HoSoDatCoc
+MHTaoPhieuThu o-- PhieuThanhToan
+MHTaoPhieuThu o-- YeuCauDangKy
 
 ' (Điều hướng màn hình)
-MHThanhToanTienCoc --> MHDongYThuCoc : mở xác nhận
-MHThanhToanTienCoc --> MHHuyGiaoDich : hủy giao dịch
+' Không có điều hướng nội bộ vì use case chỉ có 1 màn hình modal
 
 ' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
 YeuCauDangKy o-- YeuCauDangKyDB
 HoSoDatCoc o-- HoSoDatCocDB
 PhieuThanhToan o-- PhieuThanhToanDB
-
-note bottom of MHThanhToanTienCoc
-Use case này được <<include>> bởi Xác nhận thuê phòng.
-Hệ thống tính tiền cọc từ yêu cầu thuê và chuyển sang ghi nhận giao dịch.
-end note
-
-note bottom of HoSoDatCoc
-A3.1: số tiền thanh toán không đủ -> từ chối lưu và báo lỗi.
-A3.2: hủy giao dịch -> không lưu dữ liệu, trả kết quả thất bại.
-end note
-
 @enduml
