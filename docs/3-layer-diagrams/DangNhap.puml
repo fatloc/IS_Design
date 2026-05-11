@@ -1,0 +1,115 @@
+@startuml
+title Chức năng Đăng nhập hệ thống
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHDangNhap {
+	' Presentation (LoginPage.tsx)
+	-emailOrUsernameInput: TextBox
+	-matKhauInput: TextBox
+	-chkGhiNhoDangNhap: CheckBox
+	-btnDangNhap: Button
+	-linkQuenMatKhau: Link
+	-linkDangKy: Link
+	-errorMessage: Label
+	-loadingIndicator: Spinner
+	--
+	+handleInputChange(field: String, value: String): Void
+	+handleToggleRememberMe(checked: Boolean): Void
+	+handleSubmitLogin(payload: LoginRequest): Promise<void>
+	+handleForgotPassword(): Void
+	+handleNavigateToRegister(): Void
+	+validateForm(): Boolean
+	+validateEmailOrUsername(input: String): Boolean
+	+showInvalidCredentialsError(): Void
+	+showNetworkError(): Void
+	+showLoadingState(): Void
+	+hideLoadingState(): Void
+}
+
+
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class NhanVien {
+	' Gộp dữ liệu nhân viên và thông tin trả về đăng nhập
+	-maNhanVien: String
+	-hoTen: String
+	-soDienThoai: String
+	-email: String
+	-tenDangNhap: String
+	-phai: String
+	-cccd: String
+	-loaiNhanVien: String
+	-matKhau: String
+	-role: String (MANAGER, ACCOUNTANT, SALE)
+	-token: String
+	--
+	+login(request: LoginRequest): NhanVien
+	+register(request: RegisterRequest): NhanVien
+	+getCurrentUser(username: String): NhanVien
+	+normalizeRole(loaiNhanVien: String): String
+	+generateUniqueUsername(email: String): String
+}
+
+class AuthResponse {
+	' Response login: token + user info
+	-token: String
+	-user: NhanVien
+}
+
+class JwtTokenProvider {
+	' Cung cấp JWT token
+	--
+	+generateToken(authentication: Authentication): String
+	+validateToken(token: String): Boolean
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class NhanVienDB {
+	' Repository (JpaRepository<NhanVien, String>)
+	--
+	+findByEmail(email: String): Optional<NhanVien>
+	+findByTenDangNhap(tenDangNhap: String): Optional<NhanVien>
+	+existsByEmail(email: String): Boolean
+	+existsByTenDangNhap(tenDangNhap: String): Boolean
+	+save(entity: NhanVien): NhanVien
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+
+MHDangNhap o-- NhanVien
+NhanVien -- AuthResponse : trả về
+
+' (Tầng Nghiệp Vụ)
+NhanVien o-- JwtTokenProvider
+
+' (Tầng Nghiệp Vụ - Tầng Truy Cập Dữ Liệu)
+NhanVien o-- NhanVienDB
+NhanVienDB -- NhanVien : truy vấn
+
+@enduml
