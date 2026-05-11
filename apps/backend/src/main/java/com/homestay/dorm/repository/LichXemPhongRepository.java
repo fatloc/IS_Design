@@ -16,4 +16,6 @@ public interface LichXemPhongRepository extends JpaRepository<LichXemPhong, Stri
     Page<LichXemPhong> findByNgayHenAfter(LocalDate date, Pageable pageable);
 
     java.util.Optional<LichXemPhong> findFirstByMaYeuCau(String maYeuCau);
+
+    Page<LichXemPhong> findByKhachHangXemContaining(String khachHangXem, Pageable pageable);
 }

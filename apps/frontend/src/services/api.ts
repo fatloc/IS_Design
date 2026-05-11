@@ -251,6 +251,22 @@ export async function createCustomer(data: Partial<Customer>) {
   return response.data.data;
 }
 
+export async function deleteCustomer(maKhachHang: string) {
+  await api.delete(`/customers/${maKhachHang}`);
+}
+
+
+export type AvailableRoomParams = {
+  loaiPhong: string;
+  khuVuc: string;
+  mucGia: number;
+  soLuongNguoi: number;
+};
+
+export async function getAvailableRooms(params: AvailableRoomParams) {
+  const response = await api.get<ApiResponse<Room[]>>("/rooms/available", { params });
+  return response.data.data;
+}
 
 export async function getRooms(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Room>>("/rooms", { params });
@@ -294,6 +310,29 @@ export async function createRequest(payload: CreateRequestPayload) {
 
 export async function updateRequest(maYeuCau: string, payload: UpdateRequestPayload) {
   const response = await api.put<ApiResponse<RoomRequest>>(`/requests/${maYeuCau}`, payload);
+  return response.data.data;
+}
+
+export type ApproveRequestResponse = {
+  yeuCau: RoomRequest;
+  hopDong: {
+    maVanBan: string;
+    hinhThucThue: string | null;
+    kyThanhToan: string | null;
+    soLuongThanhVien: number | null;
+    ngayKetThuc: string | null;
+    trangThaiThanhLy: string | null;
+  };
+  message: string;
+};
+
+export async function approveRequest(maYeuCau: string) {
+  const response = await api.post<ApiResponse<ApproveRequestResponse>>(`/requests/${maYeuCau}/approve`);
+  return response.data.data;
+}
+
+export async function rejectRequest(maYeuCau: string, lyDo?: string) {
+  const response = await api.post<ApiResponse<RoomRequest>>(`/requests/${maYeuCau}/reject`, { lyDo });
   return response.data.data;
 }
 

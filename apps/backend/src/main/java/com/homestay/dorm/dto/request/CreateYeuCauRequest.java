@@ -3,6 +3,7 @@ package com.homestay.dorm.dto.request;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class CreateYeuCauRequest {
@@ -18,4 +19,7 @@ public class CreateYeuCauRequest {
     private String khachHangYeuCau;
     private String nhanVienPhuTrach;
     private String trangThaiYeuCau;
+    private Integer thoiHanThue;
+    private String maPhongDeXuat;
+    private List<ThanhVienDto> thanhVienList;
 }
