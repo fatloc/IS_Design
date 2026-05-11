@@ -302,7 +302,7 @@ export default function SaleDashboard() {
         {/* Request funnel */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Tình trạng yêu cầu tháng 4</h2>
+            <h2 className="text-slate-900 text-sm" style={{ fontWeight: 600 }}>Tình trạng yêu cầu tháng 5</h2>
             <TrendingUp size={16} className="text-emerald-500" />
           </div>
           <div className="grid grid-cols-5 gap-2">

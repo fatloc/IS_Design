@@ -90,4 +90,17 @@ public class CustomerServiceImpl implements CustomerService {
         data.setMaKhachHang(newId);
         return khachHangRepository.save(data);
     }
+
+    @Override
+    public void deleteCustomer(String maKhachHang) {
+        KhachHang kh = getCustomerById(maKhachHang);
+        try {
+            khachHangRepository.delete(kh);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT, 
+                "Không thể xoá khách hàng này vì đã có dữ liệu liên quan (lịch hẹn, hợp đồng...)"
+            );
+        }
+    }
 }
