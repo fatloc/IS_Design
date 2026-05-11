@@ -4,6 +4,7 @@ import com.homestay.dorm.dto.request.CreateRoomRequest;
 import com.homestay.dorm.dto.request.UpdateRoomRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
 import com.homestay.dorm.dto.response.ApiResponse;
+import com.homestay.dorm.dto.response.RoomAvailabilityResponse;
 import com.homestay.dorm.entity.Phong;
 import com.homestay.dorm.service.RoomService;
 import jakarta.validation.Valid;
@@ -21,11 +22,16 @@ public class RoomController {
     private final RoomService roomService;
 
     @GetMapping
-    public ApiListResponse<Phong> getRooms(
+    public ApiListResponse<RoomAvailabilityResponse> getRooms(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(required = false) String search) {
         return roomService.getRooms(page, size, search);
+    }
+
+    @GetMapping("/status-counts")
+    public ApiResponse<java.util.Map<String, Long>> getRoomStatusCounts() {
+        return ApiResponse.ok(roomService.getRoomStatusCounts());
     }
 
     @GetMapping("/available")

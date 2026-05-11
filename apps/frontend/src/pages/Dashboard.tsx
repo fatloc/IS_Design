@@ -136,7 +136,10 @@ export default function Dashboard() {
     { label: "Bảo trì", value: data.roomStatusCounts["Đang bảo trì"] || 0, color: "#94A3B8" },
   ];
 
-  const occupancyRate = data.totalRooms > 0 ? Math.round(((data.roomStatusCounts["Đang có người"] || 0) / data.totalRooms) * 100) : 0;
+  // Tỷ lệ lấp đầy = số phòng đang thuê / tổng phòng (phòng đầy khi đang có người thuê)
+  const occupancyRate = (data.totalRooms ?? 0) > 0
+    ? Math.round(((data.fullRooms ?? data.roomStatusCounts["Đang có người"] ?? 0) / data.totalRooms) * 100)
+    : 0;
   const criticalCount = data.urgentTasks.filter(t => t.priority === "critical").length;
 
   return (
@@ -173,7 +176,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── KPI Cards Row ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         {/* 1. Occupancy Rate */}
         <div className="rounded-2xl p-5" style={{ background: "white", border: "1px solid #EFF6FF", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
           <div className="flex items-start justify-between mb-4">
@@ -191,11 +194,32 @@ export default function Dashboard() {
             <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${occupancyRate}%`, background: "linear-gradient(90deg,#2563EB,#3B82F6)" }} />
           </div>
           <div className="flex items-center justify-between mt-2">
-            <span style={{ fontSize: "0.72rem", color: "#94A3B8" }}>{data.roomStatusCounts["Đang có người"] || 0}/{data.totalRooms} phòng có người</span>
+            <span style={{ fontSize: "0.72rem", color: "#94A3B8" }}>
+              {data.fullRooms ?? data.roomStatusCounts["Đang có người"] ?? 0}/{data.totalRooms} phòng đang có người
+            </span>
           </div>
         </div>
 
-        {/* 2. Pending Approvals */}
+        {/* 2. Active Tenants */}
+        <div className="rounded-2xl p-5" style={{ background: "white", border: "1px solid #DDD6FE", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>Hợp đồng đang thuê</div>
+              <div style={{ fontSize: "2.8rem", fontWeight: 900, color: "#7C3AED", lineHeight: 1.05, letterSpacing: "-0.02em", marginTop: 4 }}>
+                {data.activeTenants ?? 0}
+              </div>
+            </div>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#F5F3FF" }}>
+              <BedDouble size={19} style={{ color: "#7C3AED" }} />
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="w-2 h-2 rounded-full" style={{ background: "#7C3AED" }} />
+            <span style={{ fontSize: "0.72rem", color: "#94A3B8" }}>Từ {data.fullRooms ?? 0} phòng đang hoạt động</span>
+          </div>
+        </div>
+
+        {/* 3. Pending Approvals */}
         <div className="rounded-2xl p-5 cursor-pointer transition" style={{ background: "white", border: "1.5px solid #FECACA", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }} onClick={() => navigate("/manager/approvals")}>
           <div className="flex items-start justify-between mb-3">
             <div>
@@ -217,7 +241,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 3. Rooms in Maintenance */}
+        {/* 4. Rooms in Maintenance */}
         <div className="rounded-2xl p-5" style={{ background: "white", border: "1px solid #FDE68A", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
           <div className="flex items-start justify-between mb-3">
             <div>
@@ -230,7 +254,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 4. Monthly Revenue */}
+        {/* 5. Monthly Revenue */}
         <div className="rounded-2xl p-5" style={{ background: "white", border: "1px solid #A7F3D0", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
           <div className="flex items-start justify-between mb-3">
             <div>

@@ -4,11 +4,14 @@ import com.homestay.dorm.dto.request.CreateYeuCauRequest;
 import com.homestay.dorm.dto.request.UpdateYeuCauRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
 import com.homestay.dorm.dto.response.ApiResponse;
+import com.homestay.dorm.dto.response.ApproveRequestResponse;
 import com.homestay.dorm.entity.YeuCauDangKy;
 import com.homestay.dorm.service.RequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/requests")
@@ -48,5 +51,24 @@ public class RequestController {
     public ApiResponse<Void> deleteRequest(@PathVariable String maYeuCau) {
         requestService.deleteRequest(maYeuCau);
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * Duyệt yêu cầu thuê → tự động tạo HopDongThue
+     */
+    @PostMapping("/{maYeuCau}/approve")
+    public ApiResponse<ApproveRequestResponse> approveRequest(@PathVariable String maYeuCau) {
+        return ApiResponse.ok(requestService.approveRequest(maYeuCau));
+    }
+
+    /**
+     * Từ chối yêu cầu thuê
+     */
+    @PostMapping("/{maYeuCau}/reject")
+    public ApiResponse<YeuCauDangKy> rejectRequest(
+            @PathVariable String maYeuCau,
+            @RequestBody(required = false) Map<String, String> body) {
+        String lyDo = body != null ? body.get("lyDo") : null;
+        return ApiResponse.ok(requestService.rejectRequest(maYeuCau, lyDo));
     }
 }
