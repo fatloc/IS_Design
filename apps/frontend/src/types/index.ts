@@ -1,10 +1,3 @@
-export type SqlDate = string;
-export type SqlTime = string;
-export type SqlDecimal = string;
-export type SqlBoolean = boolean;
-
-export type Gender = "Nam" | "Nữ";
-
 export interface Branch {
   maChiNhanh: string;
   tenChiNhanh: string | null;
@@ -199,3 +192,12 @@ export type SqlRequest = Request;
 export type SqlAppointment = Appointment;
 export type SqlContract = Contract;
 export type SqlTransaction = Transaction;
+
+export type Deposit = Document & DepositFile;
+
+export type SqlDate = string;
+export type SqlTime = string;
+export type SqlDecimal = string;
+export type SqlBoolean = boolean;
+
+export type Gender = "Nam" | "Nữ";
