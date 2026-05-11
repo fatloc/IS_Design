@@ -17,9 +17,12 @@ public interface PhongRepository extends JpaRepository<Phong, String> {
 
     long countByTrangThai(String trangThai);
 
+    /** Tổng sức chứa tất cả phòng */
+    @Query("SELECT COALESCE(SUM(p.sucChuaToiDa), 0) FROM Phong p")
+    long sumTotalCapacity();
+
     /**
      * Tìm phòng trống (Toàn phòng): trangThai = 'Trống', giá <= mucGia.
-     * Bỏ filter khuVuc vì DiaChi trong DB là địa chỉ đầy đủ, không match format "Q.7".
      */
     @Query("SELECT p FROM Phong p WHERE p.trangThai = 'Trống' " +
            "AND p.giaThuePhong <= :mucGia")

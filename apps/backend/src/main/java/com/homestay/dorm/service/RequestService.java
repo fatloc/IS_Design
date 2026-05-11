@@ -3,6 +3,7 @@ package com.homestay.dorm.service;
 import com.homestay.dorm.dto.request.CreateYeuCauRequest;
 import com.homestay.dorm.dto.request.UpdateYeuCauRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
+import com.homestay.dorm.dto.response.ApproveRequestResponse;
 import com.homestay.dorm.entity.YeuCauDangKy;
 
 public interface RequestService {
@@ -11,4 +12,6 @@ public interface RequestService {
     YeuCauDangKy createRequest(CreateYeuCauRequest request);
     YeuCauDangKy updateRequest(String maYeuCau, UpdateYeuCauRequest request);
     void deleteRequest(String maYeuCau);
+    ApproveRequestResponse approveRequest(String maYeuCau);
+    YeuCauDangKy rejectRequest(String maYeuCau, String lyDo);
 }

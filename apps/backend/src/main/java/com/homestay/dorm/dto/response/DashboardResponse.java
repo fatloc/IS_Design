@@ -18,6 +18,9 @@ public class DashboardResponse {
     private long pendingRequests;
     private long pendingAppointments;
     private long pendingTransactions;
+    private long activeTenants;
+    private long totalCapacity;
+    private long fullRooms;
     private double monthlyRevenue;
     private List<DashboardTask> urgentTasks;
 

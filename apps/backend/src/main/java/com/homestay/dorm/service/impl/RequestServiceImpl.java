@@ -4,8 +4,13 @@ import com.homestay.dorm.dto.request.CreateYeuCauRequest;
 import com.homestay.dorm.dto.request.ThanhVienDto;
 import com.homestay.dorm.dto.request.UpdateYeuCauRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
+import com.homestay.dorm.dto.response.ApproveRequestResponse;
+import com.homestay.dorm.entity.ChiTietThuePhong;
+import com.homestay.dorm.entity.HopDongThue;
 import com.homestay.dorm.entity.ThanhVienNhom;
 import com.homestay.dorm.entity.YeuCauDangKy;
+import com.homestay.dorm.repository.ChiTietThuePhongRepository;
+import com.homestay.dorm.repository.HopDongThueRepository;
 import com.homestay.dorm.repository.ThanhVienNhomRepository;
 import com.homestay.dorm.repository.YeuCauDangKyRepository;
 import com.homestay.dorm.service.RequestService;
@@ -18,6 +23,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,6 +36,8 @@ public class RequestServiceImpl implements RequestService {
 
     private final YeuCauDangKyRepository yeuCauRepository;
     private final ThanhVienNhomRepository thanhVienNhomRepository;
+    private final HopDongThueRepository hopDongThueRepository;
+    private final ChiTietThuePhongRepository chiTietThuePhongRepository;
 
     @Override
     public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau, String search) {
@@ -149,5 +159,87 @@ public class RequestServiceImpl implements RequestService {
     public void deleteRequest(String maYeuCau) {
         YeuCauDangKy yeuCau = getRequestById(maYeuCau);
         yeuCauRepository.delete(yeuCau);
+    }
+
+    @Transactional
+    @Override
+    public ApproveRequestResponse approveRequest(String maYeuCau) {
+        YeuCauDangKy yeuCau = getRequestById(maYeuCau);
+
+        // Kiểm tra trạng thái hợp lệ để duyệt
+        String trangThai = yeuCau.getTrangThaiYeuCau();
+        if ("Đã phê duyệt".equals(trangThai) || "Từ chối".equals(trangThai)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Yêu cầu đã được xử lý trước đó (trạng thái: " + trangThai + ")");
+        }
+
+        // Tạo mã hợp đồng mới
+        String maHopDong = "HD" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+
+        // Tính ngày kết thúc dựa trên thời hạn thuê
+        LocalDate ngayBatDau = yeuCau.getThoiGianBatDauThueDuKien() != null
+                ? yeuCau.getThoiGianBatDauThueDuKien()
+                : LocalDate.now();
+        LocalDate ngayKetThuc = null;
+        if (yeuCau.getThoiHanThue() != null) {
+            ngayKetThuc = ngayBatDau.plusMonths(yeuCau.getThoiHanThue());
+        }
+
+        // Tạo HopDongThue từ thông tin YeuCauDangKy
+        HopDongThue hopDong = new HopDongThue();
+        hopDong.setMaVanBan(maHopDong);
+        hopDong.setLoaiVanBan("[STATUS:Active]");
+        hopDong.setNgayLap(LocalDate.now());
+        hopDong.setGioLap(LocalTime.now());
+        hopDong.setChiNhanh(null);
+        hopDong.setNhanVienLap(yeuCau.getNhanVienPhuTrach());
+        hopDong.setKhachHangSoHuu(yeuCau.getKhachHangYeuCau());
+        hopDong.setHinhThucThue(yeuCau.getSoLuongNguoi() != null && yeuCau.getSoLuongNguoi() > 1
+                ? "Toàn phòng" : "Ghép giường");
+        hopDong.setKyThanhToan("Hàng tháng");
+        hopDong.setSoLuongThanhVien(yeuCau.getSoLuongNguoi() != null ? yeuCau.getSoLuongNguoi() : 1);
+        hopDong.setNgayKetThuc(ngayKetThuc);
+        hopDong.setTrangThaiThanhLy("Chua thanh ly");
+        hopDongThueRepository.save(hopDong);
+
+        // Liên kết phòng đề xuất vào hợp đồng nếu có
+        if (yeuCau.getMaPhongDeXuat() != null && !yeuCau.getMaPhongDeXuat().isBlank()) {
+            ChiTietThuePhong chiTiet = new ChiTietThuePhong();
+            chiTiet.setMaPhong(yeuCau.getMaPhongDeXuat());
+            chiTiet.setMaHopDongThue(maHopDong);
+            chiTietThuePhongRepository.save(chiTiet);
+        }
+
+        // Chuyển thành viên nhóm từ yêu cầu sang hợp đồng
+        List<ThanhVienNhom> thanhVienList = thanhVienNhomRepository.findByMaYeuCau(maYeuCau);
+        for (ThanhVienNhom tv : thanhVienList) {
+            tv.setMaHopDongThue(maHopDong);
+            thanhVienNhomRepository.save(tv);
+        }
+
+        // Cập nhật trạng thái yêu cầu
+        yeuCau.setTrangThaiYeuCau("Đã phê duyệt");
+        yeuCauRepository.save(yeuCau);
+
+        return new ApproveRequestResponse(yeuCau, hopDong,
+                "Yêu cầu đã được duyệt. Hợp đồng thuê " + maHopDong + " đã được tạo thành công.");
+    }
+
+    @Transactional
+    @Override
+    public YeuCauDangKy rejectRequest(String maYeuCau, String lyDo) {
+        YeuCauDangKy yeuCau = getRequestById(maYeuCau);
+        if ("Đã phê duyệt".equals(yeuCau.getTrangThaiYeuCau())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Không thể từ chối yêu cầu đã được phê duyệt");
+        }
+        yeuCau.setTrangThaiYeuCau("Từ chối");
+        if (lyDo != null && !lyDo.isBlank()) {
+            String ghiChuHienTai = yeuCau.getCacTieuChiKhac() != null ? yeuCau.getCacTieuChiKhac() : "";
+            yeuCau.setCacTieuChiKhac(ghiChuHienTai.isBlank()
+                    ? "[Từ chối] " + lyDo
+                    : ghiChuHienTai + " | [Từ chối] " + lyDo);
+        }
+        return yeuCauRepository.save(yeuCau);
     }
 }
