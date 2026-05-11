@@ -280,6 +280,7 @@ def generate_data():
                 random.choice(["Nam", "Nữ"]),
                 random.choice(["Viet Nam", "Lao", "Campuchia", "Nhat Ban"]),
                 random.choice(contract_ids),
+                None,  # MaYeuCau - will be linked later if needed
                 rep,
             )
         )
@@ -320,11 +321,13 @@ def generate_data():
                 random.choice(khachhang_ids),
                 random.choice(nhanvien_ids),
                 random.choice(yeu_cau_statuses) if i <= 7000 else "Mới tạo",
+                random.choice([1, 3, 6, None]),  # ThoiHanThue
+                random.choice(phong_ids) if random.random() < 0.4 else None,  # MaPhongDeXuat
             )
         )
 
     lichxem_ids = [id_code(i, 6) for i in range(1, ROW_PLAN["LICHXEMPHONG"] + 1)]
-    linked_request_ids = [row[0] for row in yeu_cau_rows if row[13] != "Mới tạo"]
+    linked_request_ids = [row[0] for row in yeu_cau_rows if row[13] != "Mới tạo"]  # index 13 = TrangThaiYeuCau
     if len(linked_request_ids) < len(lichxem_ids):
         used_ids = set(linked_request_ids)
         linked_request_ids.extend(row[0] for row in yeu_cau_rows if row[0] not in used_ids)
@@ -488,8 +491,8 @@ def insert_all(connection, data):
         "NHANVIEN": "INSERT INTO NHANVIEN (MaNhanVien, HoTen, SoDienThoai, Email, TenDangNhap, MatKhau, Phai, CCCD, LoaiNhanVien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "CHUNGTU": "INSERT INTO CHUNGTU (MaVanBan, LoaiVanBan, NgayLap, GioLap, ChiNhanh, NhanVienLap, KhachHangSoHuu) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         "HOPDONGTHUE": "INSERT INTO HOPDONGTHUE (MaHopDongThue, HinhThucThue, KyThanhToan, SoLuongThanhVien, NgayKetThuc, TrangThaiThanhLy) VALUES (%s, %s, %s, %s, %s, %s)",
-        "THANHVIENNHOM": "INSERT INTO THANHVIENNHOM (MaThanhVien, HoTen, CCCD, SoDienThoai, Phai, QuocTich, MaHopDongThue, NguoiDaiDien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-        "YEUCAUDANGKY": "INSERT INTO YEUCAUDANGKY (MaYeuCau, NgayTao, SoLuongNguoi, GioiTinhYeuCau, ThoiGianBatDauThueDuKien, ThoiGianBanGiaoPhongDuKien, CoDieuHoa, KhuVuc, MucGiaMongMuon, CoBaiGuiXe, CacTieuChiKhac, KhachHangYeuCau, NhanVienPhuTrach, TrangThaiYeuCau) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "THANHVIENNHOM": "INSERT INTO THANHVIENNHOM (MaThanhVien, HoTen, CCCD, SoDienThoai, Phai, QuocTich, MaHopDongThue, MaYeuCau, NguoiDaiDien) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "YEUCAUDANGKY": "INSERT INTO YEUCAUDANGKY (MaYeuCau, NgayTao, SoLuongNguoi, GioiTinhYeuCau, ThoiGianBatDauThueDuKien, ThoiGianBanGiaoPhongDuKien, CoDieuHoa, KhuVuc, MucGiaMongMuon, CoBaiGuiXe, CacTieuChiKhac, KhachHangYeuCau, NhanVienPhuTrach, TrangThaiYeuCau, ThoiHanThue, MaPhongDeXuat) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "LICHXEMPHONG": "INSERT INTO LICHXEMPHONG (MaLichHen, ThoiGianHen, TrangThaiHen, NgayHen, KhachHangXem, MaYeuCau, NhanVienPhuTrach) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         "CHITIETLICHXEM": "INSERT INTO CHITIETLICHXEM (LichXemPhong, MaPhongDuocXem) VALUES (%s, %s)",
         "HOSODATCOC": "INSERT INTO HOSODATCOC (MaHoSoDatCoc, MucTienCoc) VALUES (%s, %s)",

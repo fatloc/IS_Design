@@ -2,17 +2,26 @@ import { useMemo, useState, useEffect } from "react";
 import {
   Plus, Search, Filter, ChevronRight, Home, MapPin,
   CheckCircle, AlertTriangle, X,
-  Flame, BedDouble, Phone,
+  Flame, BedDouble, Phone, Users, Building2,
 } from "lucide-react";
 import { usePagedList } from "../../hooks/usePagedList";
 import { useToast } from "../../components/ToastProvider";
 import { formatVNDInput, parseVNDInput } from "../../utils/format";
-import { getCustomers, getRequests, updateRequest, createRequest, getAppointments, getAppointmentByRequest, getRequestStatusCounts, createCustomer } from "../../services/api";
+import { getCustomers, getRequests, updateRequest, createRequest, getAppointments, getAppointmentByRequest, getRequestStatusCounts, createCustomer, getAvailableRooms } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
-import type { Appointment, Customer, Request, Gender } from "../../types";
+import type { Appointment, Customer, Request, Room, Gender } from "../../types";
 
 
 const O = "#EA580C"; // orange accent
+
+// ── Companion form type ────────────────────────────────────────────────────
+type CompanionForm = {
+  hoTen: string;
+  soDienThoai: string;
+  phai: string;
+  cccd: string;
+  quocTich: string;
+};
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type ReqStatus =
@@ -30,6 +39,7 @@ interface RentalRequest {
   created: string;
   room: string | null; showingDate: string | null;
   note?: string | null;
+  suggestedRoom?: string | null;
 }
 
 
@@ -138,7 +148,7 @@ function RequestDetailModal({
               { label: "Khu vực", value: request.area },
               { label: "Ngân sách", value: request.budget },
               { label: "Ngày tạo", value: request.created },
-              { label: "Phòng đề xuất", value: loadingAppt ? "Đang tải..." : (apptRoom ?? "Chưa phân phòng") },
+              { label: "Phòng đề xuất", value: loadingAppt ? "Đang tải..." : (apptRoom ?? request.suggestedRoom ?? "Chưa phân phòng") },
               { label: "Ngày xem phòng", value: loadingAppt ? "Đang tải..." : (apptDate ?? "Chưa có lịch xem") },
             ].map((item) => (
               <div key={item.label} className="rounded-xl px-3 py-2.5" style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
@@ -286,6 +296,15 @@ function CreateRequestTab({
   const [thoiGianBanGiao, setThoiGianBanGiao] = useState(() => new Date().toISOString().split('T')[0]);
   const [coDieuHoa, setCoDieuHoa] = useState(true);
   const [coBaiGuiXe, setCoBaiGuiXe] = useState(true);
+  const [thoiHanThue, setThoiHanThue] = useState<number | null>(null);
+
+  const [companions, setCompanions] = useState<CompanionForm[]>([]);
+  const [companionErrors, setCompanionErrors] = useState<Record<number, { hoTen?: string; soDienThoai?: string }>>({});
+
+  const [suggestedRooms, setSuggestedRooms] = useState<Room[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [checkingRooms, setCheckingRooms] = useState(false);
+  const [roomPage, setRoomPage] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -325,6 +344,47 @@ function CreateRequestTab({
 
   // Đã chuyển sang search backend
 
+  useEffect(() => {
+    if (soLuongNguoi <= 1) {
+      setCompanions([]);
+      setCompanionErrors({});
+    } else {
+      const needed = soLuongNguoi - 1;
+      setCompanions(prev => {
+        if (prev.length === needed) return prev;
+        if (prev.length < needed) {
+          const extras = Array.from({ length: needed - prev.length }, () => ({
+            hoTen: "", soDienThoai: "", phai: "Nam", cccd: "", quocTich: ""
+          }));
+          return [...prev, ...extras];
+        }
+        return prev.slice(0, needed);
+      });
+    }
+  }, [soLuongNguoi]);
+
+  const handleCheckRooms = async () => {
+    setCheckingRooms(true);
+    setSuggestedRooms([]);
+    setSelectedRoomId(null);
+    try {
+      const rooms = await getAvailableRooms({
+        loaiPhong: roomType,
+        khuVuc: area,
+        mucGia: Number(parseVNDInput(budget)),
+        soLuongNguoi: Number(soLuongNguoi),
+      });
+      setSuggestedRooms(rooms ?? []);
+      if (!rooms || rooms.length === 0) {
+        addToast({ message: "Không tìm thấy phòng phù hợp với tiêu chí.", type: "error" });
+      }
+    } catch {
+      addToast({ message: "Không thể kiểm tra phòng. Vui lòng thử lại.", type: "error" });
+    } finally {
+      setCheckingRooms(false);
+    }
+  };
+
   const renderHighlightedText = (text: string, query: string) => {
     if (!query) return text;
     // Escape special regex characters to avoid crashes
@@ -363,6 +423,23 @@ function CreateRequestTab({
     
     try {
       setLoading(true);
+      // Validate companions
+      if (companions.length > 0) {
+        const errors: Record<number, { hoTen?: string; soDienThoai?: string }> = {};
+        companions.forEach((c, i) => {
+          const err: { hoTen?: string; soDienThoai?: string } = {};
+          if (!c.hoTen.trim()) err.hoTen = `Họ tên người đi cùng ${i + 1} không được để trống`;
+          if (!c.soDienThoai.trim()) err.soDienThoai = `Số điện thoại người đi cùng ${i + 1} không được để trống`;
+          if (Object.keys(err).length > 0) errors[i] = err;
+        });
+        if (Object.keys(errors).length > 0) {
+          setCompanionErrors(errors);
+          addToast({ message: "Vui lòng điền đầy đủ thông tin người đi cùng.", type: "error" });
+          setLoading(false);
+          return;
+        }
+      }
+
       await createRequest({
         khachHangYeuCau: cid,
         nhanVienPhuTrach: null,
@@ -376,8 +453,35 @@ function CreateRequestTab({
         coBaiGuiXe,
         cacTieuChiKhac: note,
         trangThaiYeuCau: "Mới tạo",
+        thoiHanThue: thoiHanThue ?? undefined,
+        maPhongDeXuat: selectedRoomId ?? undefined,
+        thanhVienList: companions.length > 0 ? companions.map(c => ({
+          hoTen: c.hoTen,
+          soDienThoai: c.soDienThoai,
+          phai: c.phai || null,
+          cccd: c.cccd || null,
+          quocTich: c.quocTich || null,
+        })) : undefined,
       } as any);
       addToast({ message: "Tạo yêu cầu thuê thành công!", type: "success" });
+      // Reset form
+      setSearchCustomer("");
+      setSelectedCustomerId(null);
+      setRoomType("Ghép giường");
+      setSoLuongNguoi(1);
+      setGioiTinh("Nam");
+      setArea("Q.7");
+      setBudget(formatVNDInput("1500000"));
+      setNote("");
+      setThoiGianBatDauThue(new Date().toISOString().split('T')[0]);
+      setThoiGianBanGiao(new Date().toISOString().split('T')[0]);
+      setCoDieuHoa(true);
+      setCoBaiGuiXe(true);
+      setThoiHanThue(null);
+      setCompanions([]);
+      setCompanionErrors({});
+      setSuggestedRooms([]);
+      setSelectedRoomId(null);
       onSuccess();
     } catch (e: any) {
       addToast({ message: "Lỗi khi tạo yêu cầu: " + e.message, type: "error" });
@@ -527,6 +631,20 @@ function CreateRequestTab({
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-bold text-slate-700 mb-1.5">Thời hạn thuê</label>
+          <select
+            value={thoiHanThue ?? ""}
+            onChange={e => setThoiHanThue(e.target.value ? Number(e.target.value) : null)}
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
+          >
+            <option value="">Chọn thời hạn thuê</option>
+            <option value="1">1 tháng</option>
+            <option value="3">3 tháng (quý)</option>
+            <option value="6">6 tháng</option>
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">Ngày thuê dự kiến</label>
@@ -562,10 +680,163 @@ function CreateRequestTab({
           </label>
         </div>
 
+        {companions.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Users size={16} className="text-orange-500" />
+              <span className="text-sm font-bold text-slate-700">Thông tin người đi cùng ({companions.length} người)</span>
+            </div>
+            {companions.map((c, i) => (
+              <div key={i} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Người đi cùng {i + 1}</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Họ và tên *</label>
+                    <input
+                      value={c.hoTen}
+                      onChange={e => {
+                        const updated = [...companions];
+                        updated[i] = { ...updated[i], hoTen: e.target.value };
+                        setCompanions(updated);
+                        if (companionErrors[i]?.hoTen) {
+                          const errs = { ...companionErrors };
+                          delete errs[i]?.hoTen;
+                          setCompanionErrors(errs);
+                        }
+                      }}
+                      maxLength={50}
+                      placeholder="Nguyễn Văn B"
+                      className={`w-full px-3 py-2 border rounded-xl bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition text-sm ${companionErrors[i]?.hoTen ? 'border-red-400' : 'border-slate-200'}`}
+                    />
+                    {companionErrors[i]?.hoTen && <p className="text-xs text-red-500 mt-1">{companionErrors[i].hoTen}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại *</label>
+                    <input
+                      value={c.soDienThoai}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        if (val.length <= 10) {
+                          const updated = [...companions];
+                          updated[i] = { ...updated[i], soDienThoai: val };
+                          setCompanions(updated);
+                          if (companionErrors[i]?.soDienThoai) {
+                            const errs = { ...companionErrors };
+                            delete errs[i]?.soDienThoai;
+                            setCompanionErrors(errs);
+                          }
+                        }
+                      }}
+                      maxLength={10}
+                      placeholder="09xxxxxxxx"
+                      className={`w-full px-3 py-2 border rounded-xl bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition text-sm ${companionErrors[i]?.soDienThoai ? 'border-red-400' : 'border-slate-200'}`}
+                    />
+                    {companionErrors[i]?.soDienThoai && <p className="text-xs text-red-500 mt-1">{companionErrors[i].soDienThoai}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Giới tính</label>
+                    <select
+                      value={c.phai}
+                      onChange={e => { const updated = [...companions]; updated[i] = { ...updated[i], phai: e.target.value }; setCompanions(updated); }}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition text-sm"
+                    >
+                      <option value="Nam">Nam</option>
+                      <option value="Nữ">Nữ</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">CCCD (Không bắt buộc)</label>
+                    <input
+                      value={c.cccd}
+                      onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ''); if (val.length <= 12) { const updated = [...companions]; updated[i] = { ...updated[i], cccd: val }; setCompanions(updated); } }}
+                      maxLength={12}
+                      placeholder="01234..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-1.5">Ghi chú tiêu chí khác</label>
           <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Nhập thêm yêu cầu của khách..." className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition" rows={3}></textarea>
         </div>
+
+        {/* Kiểm tra phòng khả dụng */}
+        <div>
+          <button
+            type="button"
+            onClick={handleCheckRooms}
+            disabled={checkingRooms || !roomType || !area || !budget || !soLuongNguoi}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-orange-300 text-orange-600 font-bold text-sm hover:bg-orange-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Building2 size={16} />
+            {checkingRooms ? "Đang kiểm tra..." : "Kiểm tra phòng phù hợp"}
+          </button>
+
+          {suggestedRooms.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                  {suggestedRooms.length} phòng phù hợp — chọn 1 để gợi ý lịch xem
+                </div>
+                {suggestedRooms.length > 6 && (
+                  <div className="flex items-center gap-1 text-xs text-slate-500">
+                    <button
+                      type="button"
+                      disabled={roomPage === 0}
+                      onClick={() => setRoomPage(p => Math.max(0, p - 1))}
+                      className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      ‹
+                    </button>
+                    <span className="px-1 font-bold">{roomPage + 1}/{Math.ceil(suggestedRooms.length / 6)}</span>
+                    <button
+                      type="button"
+                      disabled={roomPage >= Math.ceil(suggestedRooms.length / 6) - 1}
+                      onClick={() => setRoomPage(p => p + 1)}
+                      className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      ›
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {suggestedRooms.slice(roomPage * 6, roomPage * 6 + 6).map(room => (
+                  <button
+                    key={room.maPhong}
+                    type="button"
+                    onClick={() => setSelectedRoomId(prev => prev === room.maPhong ? null : room.maPhong)}
+                    className={`p-3 rounded-xl border-2 text-left transition ${
+                      selectedRoomId === room.maPhong
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-slate-200 bg-white hover:border-orange-300'
+                    }`}
+                  >
+                    <div className="font-bold text-sm text-slate-800">{room.maPhong}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {room.giaThuePhong ? `${Number(room.giaThuePhong).toLocaleString('vi-VN')}đ/tháng` : '—'}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      Sức chứa: {room.sucChuaToiDa ?? '—'} · {room.trangThai}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {selectedRoomId && (
+                <div className="text-xs text-orange-600 font-bold flex items-center gap-1">
+                  <CheckCircle size={12} /> Đã chọn phòng {selectedRoomId} — sẽ gợi ý khi tạo lịch xem
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="pt-2 flex justify-end">
           <button onClick={handleCreate} disabled={loading || !searchCustomer} className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold rounded-xl hover:brightness-110 transition shadow-lg shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
             {loading ? "Đang xử lý..." : <><CheckCircle size={18} /> Xác nhận Tạo yêu cầu</>}
@@ -617,7 +888,11 @@ export default function SaleRequests() {
     reload: reloadCustomers,
   } = usePagedList<Customer>(getCustomers, 500);
 
-  const { items: appointments } = usePagedList<any>(getAppointments, 10000);
+  const {
+    items: rawAppointments,
+  } = usePagedList<Appointment>(getAppointments, 10, {
+    search: debouncedSearch || undefined
+  });
 
   const customerMap = useMemo(() => {
     return new Map(customers.map((c) => [c.maKhachHang, c]));
@@ -626,14 +901,14 @@ export default function SaleRequests() {
   const appointmentMap = useMemo(() => {
     const map = new Map<string, Appointment>();
 
-    appointments.forEach((appointment) => {
+    rawAppointments.forEach((appointment) => {
       if (appointment.maYeuCau) {
         map.set(appointment.maYeuCau, appointment);
       }
     });
 
     return map;
-  }, [appointments]);
+  }, [rawAppointments]);
 
   const requests = useMemo<RentalRequest[]>(() => {
     const formatDate = (value: string | null) => {
@@ -707,6 +982,7 @@ export default function SaleRequests() {
         room: matchedAppointment?.maPhong ?? null,
         showingDate: matchedAppointment ? formatSchedule(matchedAppointment.ngayHen, matchedAppointment.thoiGianHen) : null,
         note: request.cacTieuChiKhac,
+        suggestedRoom: request.maPhongDeXuat ?? null,
       };
     });
   }, [rawRequests, customerMap, appointmentMap]);
@@ -787,6 +1063,7 @@ export default function SaleRequests() {
           reloadCustomers={reloadCustomers}
           onSuccess={() => {
             reloadRequests();
+            addToast({ message: "Tạo yêu cầu thuê thành công!", type: "success" });
             setActiveTab("list");
           }} 
         />

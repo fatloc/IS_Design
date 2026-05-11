@@ -220,6 +220,18 @@ export async function createCustomer(data: Partial<Customer>) {
 }
 
 
+export type AvailableRoomParams = {
+  loaiPhong: string;
+  khuVuc: string;
+  mucGia: number;
+  soLuongNguoi: number;
+};
+
+export async function getAvailableRooms(params: AvailableRoomParams) {
+  const response = await api.get<ApiResponse<Room[]>>("/rooms/available", { params });
+  return response.data.data;
+}
+
 export async function getRooms(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Room>>("/rooms", { params });
   return response.data;

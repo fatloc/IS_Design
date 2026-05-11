@@ -22,8 +22,9 @@ public class RequestController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(required = false) String nhanVienPhuTrach,
-            @RequestParam(required = false) String trangThaiYeuCau) {
-        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau);
+            @RequestParam(required = false) String trangThaiYeuCau,
+            @RequestParam(required = false) String search) {
+        return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau, search);
     }
 
     @GetMapping("/{maYeuCau}")

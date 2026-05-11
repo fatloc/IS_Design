@@ -128,6 +128,7 @@ CREATE TABLE THANHVIENNHOM (
     Phai VARCHAR(3) CHECK (Phai IN ('Nam', 'Nữ')),
     QuocTich VARCHAR(30),
     MaHopDongThue CHAR(6),
+    MaYeuCau CHAR(6),
     NguoiDaiDien CHAR(6),
     FOREIGN KEY (MaHopDongThue) REFERENCES HOPDONGTHUE(MaHopDongThue),
     FOREIGN KEY (NguoiDaiDien) REFERENCES KHACHHANG(MaKhachHang)
@@ -149,6 +150,8 @@ CREATE TABLE YEUCAUDANGKY (
     KhachHangYeuCau CHAR(6),
     NhanVienPhuTrach CHAR(4),
     TrangThaiYeuCau VARCHAR(30),
+    ThoiHanThue INT,
+    MaPhongDeXuat CHAR(6),
     FOREIGN KEY (KhachHangYeuCau) REFERENCES KHACHHANG(MaKhachHang),
     FOREIGN KEY (NhanVienPhuTrach) REFERENCES NHANVIEN(MaNhanVien)
 );

@@ -15,4 +15,10 @@ public interface YeuCauDangKyRepository extends JpaRepository<YeuCauDangKy, Stri
     
     long countByThoiGianBatDauThueDuKienAfter(LocalDate date);
     Page<YeuCauDangKy> findByThoiGianBatDauThueDuKienAfter(LocalDate date, Pageable pageable);
+
+    // Search methods
+    Page<YeuCauDangKy> findByKhachHangYeuCauContaining(String search, Pageable pageable);
+    Page<YeuCauDangKy> findByNhanVienPhuTrachAndKhachHangYeuCauContaining(String nhanVienPhuTrach, String search, Pageable pageable);
+    Page<YeuCauDangKy> findByTrangThaiYeuCauAndKhachHangYeuCauContaining(String trangThaiYeuCau, String search, Pageable pageable);
+    Page<YeuCauDangKy> findByNhanVienPhuTrachAndTrangThaiYeuCauAndKhachHangYeuCauContaining(String nhanVienPhuTrach, String trangThaiYeuCau, String search, Pageable pageable);
 }

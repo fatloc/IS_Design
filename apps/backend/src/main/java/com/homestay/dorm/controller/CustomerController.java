@@ -33,4 +33,9 @@ public class CustomerController {
             @RequestBody KhachHang data) {
         return ApiResponse.ok(customerService.updateCustomer(maKhachHang, data));
     }
+
+    @PostMapping
+    public ApiResponse<KhachHang> createCustomer(@RequestBody KhachHang data) {
+        return ApiResponse.ok(customerService.createCustomer(data));
+    }
 }

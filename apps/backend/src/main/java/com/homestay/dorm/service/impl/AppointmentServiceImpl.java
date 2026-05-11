@@ -37,10 +37,13 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
-    public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year) {
+    public ApiListResponse<LichXemPhong> getAppointments(int page, int size, Integer month, Integer year, String search) {
         Pageable pageable = PageRequest.of(page, size);
         Page<LichXemPhong> appointmentPage;
-        if (month != null && year != null) {
+        
+        if (search != null && !search.isEmpty()) {
+            appointmentPage = lichXemPhongRepository.findByKhachHangXemContaining(search, pageable);
+        } else if (month != null && year != null) {
             // month is 1-indexed (January=1)
             LocalDate startDate = LocalDate.of(year, month, 1);
             LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());

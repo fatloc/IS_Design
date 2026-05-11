@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface KhachHangRepository extends JpaRepository<KhachHang, String> {
     Optional<KhachHang> findByEmail(String email);
     boolean existsByEmail(String email);
+    boolean existsBySoDienThoai(String soDienThoai);
+    boolean existsByCccd(String cccd);
 
     @Query("SELECT k FROM KhachHang k WHERE " +
            "LOWER(k.hoTen) LIKE LOWER(CONCAT('%', :q, '%')) OR " +

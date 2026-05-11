@@ -10,6 +10,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/rooms")
 @RequiredArgsConstructor
@@ -23,6 +26,14 @@ public class RoomController {
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(required = false) String search) {
         return roomService.getRooms(page, size, search);
+    }
+
+    @GetMapping("/available")
+    public ApiResponse<List<Phong>> getAvailableRooms(
+            @RequestParam String loaiPhong,
+            @RequestParam BigDecimal mucGia,
+            @RequestParam Integer soLuongNguoi) {
+        return ApiResponse.ok(roomService.getAvailableRooms(loaiPhong, mucGia, soLuongNguoi));
     }
 
     @GetMapping("/{id}")

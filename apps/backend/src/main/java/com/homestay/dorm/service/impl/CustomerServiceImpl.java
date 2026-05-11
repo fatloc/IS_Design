@@ -46,4 +46,48 @@ public class CustomerServiceImpl implements CustomerService {
         if (data.getQuocTich() != null)    kh.setQuocTich(data.getQuocTich());
         return khachHangRepository.save(kh);
     }
+
+    @Override
+    public KhachHang createCustomer(KhachHang data) {
+        // 1. Validate hoTen
+        if (data.getHoTen() == null || data.getHoTen().isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.BAD_REQUEST, "Họ tên không được để trống");
+        }
+        // 2. Validate soDienThoai length
+        if (data.getSoDienThoai() != null && data.getSoDienThoai().length() > 10) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.BAD_REQUEST, "Số điện thoại không được vượt quá 10 ký tự");
+        }
+        // 3. Validate cccd length
+        if (data.getCccd() != null && data.getCccd().length() > 12) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.BAD_REQUEST, "CCCD không được vượt quá 12 ký tự");
+        }
+        // 4. Check duplicate soDienThoai
+        if (data.getSoDienThoai() != null && khachHangRepository.existsBySoDienThoai(data.getSoDienThoai())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT, "Số điện thoại đã được đăng ký trong hệ thống");
+        }
+        // 5. Check duplicate cccd
+        if (data.getCccd() != null && !data.getCccd().isBlank() && khachHangRepository.existsByCccd(data.getCccd())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT, "CCCD đã được đăng ký trong hệ thống");
+        }
+        // 6. Auto-generate maKhachHang KH#### with retry
+        String newId = null;
+        for (int i = 0; i < 10; i++) {
+            String candidate = String.format("KH%04d", new java.util.Random().nextInt(10000));
+            if (!khachHangRepository.existsById(candidate)) {
+                newId = candidate;
+                break;
+            }
+        }
+        if (newId == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "Không thể tạo mã khách hàng, vui lòng thử lại");
+        }
+        data.setMaKhachHang(newId);
+        return khachHangRepository.save(data);
+    }
 }
