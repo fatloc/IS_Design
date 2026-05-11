@@ -1,0 +1,109 @@
+@startuml
+title Chức năng Thanh toán phí đầu kỳ
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHTaoPhieuThu {
+	' Modal tạo phiếu thu, tái sử dụng từ use case XacNhanThuePhong
+	-thongTinHoSo: Panel
+	-chiTietKhoanThu: Panel
+	-adjustAmountInput: Input
+	-btnXacNhan: Button
+	-btnHuy: Button
+	--
+	+loadReceiptPreview(maHoSoDatCoc: String): Promise<void>
+	+handleAdjustAmount(value: BigDecimal): Void
+	+handleConfirmCreateReceipt(maHoSoDatCoc: String, amount: BigDecimal): Promise<void>
+	+handleCancel(): Void
+}
+
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class HoSoDatCoc {
+	' Entity hồ sơ đặt cọc
+	-mucTienCoc: BigDecimal
+	--
+	+getDepositAmount(): BigDecimal
+	+getDepositOwner(): String
+	+isValidForReceipt(): Boolean
+}
+
+class PhieuThanhToan {
+	' Entity phiếu thanh toán, lưu con thôi
+	-maPhieuThanhToan: String
+	-maVanBan: String
+	-loaiVanBan: String
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	-chiNhanh: String
+	-nhanVienLap: String
+	-khachHangSoHuu: String
+	-hinhThucThanhToan: String
+	-ghiChu: String
+	-gioGiaoDich: LocalTime
+	-ngayGiaoDich: LocalDate
+	-trangThai: String
+	-loaiGiaoDich: String
+	-keToanLapPhieu: String
+	-quanLyDoiChung: String
+	-soTienGiaoDich: BigDecimal
+	--
+	+getDocumentSummary(): String
+	+isOwnedBy(khachHangId: String): Boolean
+	+calculateFinalAmount(): BigDecimal
+	+createFromDeposit(maHoSoDatCoc: String, amount: BigDecimal): PhieuThanhToan
+	+markAsIssued(): Void
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class HoSoDatCocDB {
+	' Repository (JpaRepository<HoSoDatCoc, String>)
+	--
+	+findAll(): List<HoSoDatCoc>
+	+findById(maVanBan: String): Optional<HoSoDatCoc>
+	+save(entity: HoSoDatCoc): HoSoDatCoc
+}
+
+class PhieuThanhToanDB {
+	' Repository (JpaRepository<PhieuThanhToan, String>)
+	--
+	+findByLoaiGiaoDichAndTrangThai(loaiGiaoDich: String, trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
+	+findByLoaiGiaoDich(loaiGiaoDich: String, pageable: Pageable): Page<PhieuThanhToan>
+	+findByTrangThai(trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
+	+save(entity: PhieuThanhToan): PhieuThanhToan
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHTaoPhieuThu o-- HoSoDatCoc
+MHTaoPhieuThu o-- PhieuThanhToan
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+HoSoDatCoc o-- HoSoDatCocDB
+PhieuThanhToan o-- PhieuThanhToanDB
+PhieuThanhToan "1.1"--"1.1" HoSoDatCoc: tương ứng
+
+@enduml

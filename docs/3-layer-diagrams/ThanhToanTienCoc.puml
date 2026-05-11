@@ -1,0 +1,145 @@
+@startuml
+title Chức năng Thanh toán tiền cọc
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHTaoPhieuThu {
+	' Modal tạo phiếu thu (tái sử dụng từ use case XacNhanThuePhong)
+	-thongTinHoSo: Panel
+	-chiTietKhoanThu: Panel
+	-adjustAmountInput: Input
+	-noteInput: TextArea
+	-btnXacNhan: Button
+	-btnHuy: Button
+	--
+	+loadReceiptPreview(maHoSoDatCoc: String): Promise<void>
+	+handleAdjustAmount(value: BigDecimal): Void
+	+handleInputChange(field: String, value: Any): Void
+	+handleConfirmCreateReceipt(maHoSoDatCoc: String, amount: BigDecimal): Promise<void>
+	+validateAmount(): Boolean
+}
+
+note right of MHTaoPhieuThu
+Use case này chỉ có 1 màn hình thao tác:
+modal "Tạo Phiếu Thu".
+Màn hình được tái sử dụng từ
+use case "Xác nhận thuê phòng".
+end note
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class YeuCauDangKy {
+	' Entity + Service (nguồn dữ liệu hồ sơ)
+	-maYeuCau: String
+	-soLuongNguoi: Integer
+	-gioiTinhYeuCau: String
+	-thoiGianBatDauThueDuKien: LocalDate
+	-thoiGianBanGiaoPhongDuKien: LocalDate
+	-coDieuHoa: Boolean
+	-khuVuc: String
+	-mucGiaMongMuon: BigDecimal
+	-coBaiGuiXe: Boolean
+	-cacTieuChiKhac: String
+	-khachHangYeuCau: String
+	-nhanVienPhuTrach: String
+	-trangThaiYeuCau: String
+	--
+	+getRequestById(maYeuCau: String): YeuCauDangKy
+}
+
+class HoSoDatCoc {
+	' Entity + Service (HoSoDatCoc / DepositService)
+	-maVanBan: String
+	-loaiVanBan: String
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	-chiNhanh: String
+	-nhanVienLap: String
+	-khachHangSoHuu: String
+	-mucTienCoc: BigDecimal
+	--
+	+getDepositById(maHoSoDatCoc: String): HoSoDatCoc
+	+getDepositByRequestId(maYeuCau: String): HoSoDatCoc
+	+markAsCheckedForReceipt(maHoSoDatCoc: String, checkedBy: String): HoSoDatCoc
+	+requestReceiptCreation(maHoSoDatCoc: String, requestedBy: String): HoSoDatCoc
+}
+
+class PhieuThanhToan {
+	' Entity + Service (PhieuThanhToan / TransactionService)
+	-maPhieuThanhToan: String
+	-hinhThucThanhToan: String
+	-ghiChu: String
+	-gioGiaoDich: LocalTime
+	-ngayGiaoDich: LocalDate
+	-trangThai: String
+	-loaiGiaoDich: String
+	-keToanLapPhieu: String
+	-quanLyDoiChung: String
+	-maChungTu: String
+	-soTienGiaoDich: BigDecimal
+	--
+	+getTransactionById(maPhieuThanhToan: String): PhieuThanhToan
+	+createReceiptFromDeposit(maHoSoDatCoc: String, amount: BigDecimal, createdBy: String): PhieuThanhToan
+	+generateReceiptDocument(maPhieuThanhToan: String): Binary
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class YeuCauDangKyDB {
+	' Repository (YeuCauDangKyRepository)
+	--
+	+findById(maYeuCau: String): YeuCauDangKy
+}
+
+class HoSoDatCocDB {
+	' Repository (HoSoDatCocRepository)
+	--
+	+findById(maHoSoDatCoc: String): HoSoDatCoc
+	+findByMaYeuCau(maYeuCau: String): HoSoDatCoc
+	+markChecked(maHoSoDatCoc: String, checkedBy: String): HoSoDatCoc
+}
+
+class PhieuThanhToanDB {
+	' Repository (PhieuThanhToanRepository)
+	--
+	+findById(maPhieuThanhToan: String): PhieuThanhToan
+	+findByHoSoDatCocId(maHoSoDatCoc: String): List<PhieuThanhToan>
+	+saveReceiptForDeposit(maHoSoDatCoc: String, phieu: PhieuThanhToan): PhieuThanhToan
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHTaoPhieuThu o-- HoSoDatCoc
+MHTaoPhieuThu o-- PhieuThanhToan
+MHTaoPhieuThu o-- YeuCauDangKy
+
+' (Điều hướng màn hình)
+' Không có điều hướng nội bộ vì use case chỉ có 1 màn hình modal
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+YeuCauDangKy o-- YeuCauDangKyDB
+HoSoDatCoc o-- HoSoDatCocDB
+PhieuThanhToan o-- PhieuThanhToanDB
+@enduml

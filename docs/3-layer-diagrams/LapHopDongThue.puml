@@ -1,0 +1,185 @@
+@startuml
+title Chức năng Lập hợp đồng thuê
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class "MH Danh sách Văn bản" as MHDanhSachVanBan {
+	' Màn hình danh sách hợp đồng (SaleContracts.tsx)
+	-searchInput: SearchBox
+	-filterType: Select
+	-documentTable: Grid
+	-pagination: Pagination
+	-btnTaoMoi: Button
+	-btnChiTiet: Button
+	--
+	+loadContracts(page: int, size: int, search: String): Promise<void>
+	+handleOpenDetail(maHopDongThue: String): Void
+	+handleOpenDraft(contract: ApiContract): Void
+	+reload(): Void
+}
+
+class "MH Biểu mẫu Soạn HĐ" as MHBieuMauSoanHD {
+	' Modal "Biểu mẫu Soạn hợp đồng" (ContractDraft component)
+	-thongTinHopDong: Panel
+	-giaThueInput: Input
+	-phiDichVu: GridInput (điện, nước, xe máy...)
+	-quyDinhNhaTro: TextArea
+	-btnHuy: Button
+	-btnLuuTrihKy: Button
+	--
+	+loadContractInfo(maHopDongThue: String): Promise<void>
+	+handleChangeFinance(field: String, value: String): Void
+	+handleChangeRules(text: String): Void
+	+handleSubmit(): Promise<void>
+	+validateBeforeSubmit(): Boolean
+}
+
+
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class HopDongThue {
+	' Entity + service hợp đồng thuê chính
+	-maHopDongThue: String
+	-hinhThucThue: String
+	-kyThanhToan: String
+	-soLuongThanhVien: Integer
+	-ngayKetThuc: LocalDate
+	-trangThaiThanhLy: String
+	--
+	+getContracts(page: int, size: int): List<HopDongThue>
+	+getContractById(maHopDongThue: String): HopDongThue
+	+createContract(request: CreateContractRequest): HopDongThue
+	+updateContract(maHopDongThue: String, request: UpdateContractRequest): HopDongThue
+	+getOperationalContracts(page: int, size: int): List<Map>
+}
+
+class ChungTu {
+	' Entity cơ sở lưu thông tin chung (ngayLap, chiNhanh, nhân viên...)
+	-maVanBan: String
+	-loaiVanBan: String
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	-chiNhanh: String
+	-nhanVienLap: String
+	-khachHangSoHuu: String
+	--
+	+getById(maVanBan: String): ChungTu
+	+update(maVanBan: String): ChungTu
+}
+
+class ChiTietThuePhong {
+	' Entity chi tiết phòng thuê liên kết với hợp đồng
+	-maCTTP: String
+	-maHopDongThue: String
+	-maPhong: String
+	--
+	+getByContractId(maHopDongThue: String): List<ChiTietThuePhong>
+	+saveDetails(maHopDongThue: String, phongList: List): Void
+}
+
+class ChiTietThueGiuong {
+	' Entity chi tiết giường thuê liên kết với hợp đồng
+	-maCTTG: String
+	-maHopDongThue: String
+	-maGiuong: String
+	--
+	+getByContractId(maHopDongThue: String): List<ChiTietThueGiuong>
+	+saveDetails(maHopDongThue: String, giuongList: List): Void
+}
+
+class ThanhVienNhom {
+	' Entity thành viên nhóm thuê liên kết với hợp đồng
+	-maThanhVien: String
+	-maHopDongThue: String
+	-maKhachHang: String
+	--
+	+getByContractId(maHopDongThue: String): List<ThanhVienNhom>
+	+saveMembers(maHopDongThue: String, memberList: List): Void
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class HopDongThueDB {
+	' Repository truy vấn HOPDONGTHUE
+	--
+	+findAll(pageable: Pageable): Page<HopDongThue>
+	+findById(maHopDongThue: String): HopDongThue
+	+findOperationalContracts(page: int, size: int): List<Map>
+	+save(entity: HopDongThue): HopDongThue
+	+delete(maHopDongThue: String): Void
+}
+
+class ChungTuDB {
+	' Repository truy vấn CHUNGTU + Join KHACHHANG
+	--
+	+findById(maVanBan: String): ChungTu
+	+findByNhanVienLap(nhanVienLap: String): List<ChungTu>
+	+save(entity: ChungTu): ChungTu
+}
+
+class ChiTietThuePhongDB {
+	' Repository truy vấn CHITIETTHUEPHONG
+	--
+	+findByMaHopDongThue(maHopDongThue: String): List<ChiTietThuePhong>
+	+save(entity: ChiTietThuePhong): ChiTietThuePhong
+	+deleteByMaHopDongThue(maHopDongThue: String): Void
+}
+
+class ChiTietThueGiuongDB {
+	' Repository truy vấn CHITIETTHUEGIUONG
+	--
+	+findByMaHopDongThue(maHopDongThue: String): List<ChiTietThueGiuong>
+	+save(entity: ChiTietThueGiuong): ChiTietThueGiuong
+	+deleteByMaHopDongThue(maHopDongThue: String): Void
+}
+
+class ThanhVienNhomDB {
+	' Repository truy vấn THANHVIENNHOM
+	--
+	+findByMaHopDongThue(maHopDongThue: String): List<ThanhVienNhom>
+	+save(entity: ThanhVienNhom): ThanhVienNhom
+	+deleteByMaHopDongThue(maHopDongThue: String): Void
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHDanhSachVanBan o-- HopDongThue
+MHDanhSachVanBan o-- ChungTu
+MHDanhSachVanBan o-- MHBieuMauSoanHD
+MHBieuMauSoanHD o-- HopDongThue
+MHBieuMauSoanHD o-- ChungTu
+MHBieuMauSoanHD o-- ChiTietThuePhong
+MHBieuMauSoanHD o-- ChiTietThueGiuong
+MHBieuMauSoanHD o-- ThanhVienNhom
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+HopDongThue o-- HopDongThueDB
+ChungTu o-- ChungTuDB
+ChiTietThuePhong o-- ChiTietThuePhongDB
+ChiTietThueGiuong o-- ChiTietThueGiuongDB
+ThanhVienNhom o-- ThanhVienNhomDB
+
+@enduml

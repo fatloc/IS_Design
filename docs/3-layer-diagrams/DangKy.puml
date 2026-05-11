@@ -1,0 +1,133 @@
+@startuml
+title Chức năng Đăng ký tài khoản
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHDangKy {
+	' Presentation (RegisterPage.tsx)
+	-thongTinCaNhanPanel: Panel
+	-hoTenInput: TextBox
+	-soDienThoaiInput: TextBox
+	-emailInput: TextBox
+	-cccdInput: TextBox
+	-gioiTinhCheckbox: Checkbox
+	-loaiNhanVienPanel: Panel
+	-quanLyCard: Card
+	-nhanVienSaleCard: Card
+	-keToanCard: Card
+	-taiKhoanDangNhapPanel: Panel
+	-tenDangNhapInput: TextBox
+	-matKhauInput: TextBox
+	-xacNhanMatKhauInput: TextBox
+	-btnDangKy: Button
+	-linkDangNhap: Link
+	--
+	+handleInputChange(field: String, value: Any): Void
+	+handleSelectGioiTinh(value: String): Void
+	+handleSelectRole(role: String): Void
+	+handleSubmitRegister(payload: RegisterRequest): Promise<void>
+	+validateForm(): Boolean
+	+validateEmail(email: String): Boolean
+	+validateUsername(username: String): Boolean
+	+validatePassword(password: String): Boolean
+	+validatePasswordStrength(password: String): Boolean
+	+validatePasswordMatch(pwd: String, confirmPwd: String): Boolean
+	+showDuplicateEmailError(): Void
+	+showPasswordMismatchError(): Void
+	+showInvalidUsernameError(): Void
+	+showWeakPasswordError(): Void
+	+navigateToLogin(): Void
+}
+
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class NhanVien {
+	' Entity + Service (NhanVien / UserService)
+	-maNhanVien: String
+	-hoTen: String
+	-soDienThoai: String
+	-email: String
+	-tenDangNhap: String
+	-phai: String
+	-cccd: String
+	-loaiNhanVien: String
+	-matKhau: String
+	-khoiTaoBoi: String
+	-ngayKhoiTao: LocalDateTime
+	--
+	+getUserById(maNhanVien: String): NhanVien
+	+getUserByEmail(email: String): NhanVien
+	+getUserByUsername(tenDangNhap: String): NhanVien
+	+save(entity: NhanVien): NhanVien
+}
+
+class AuthService {
+	' Service xử lý đăng ký
+	--
+	+registerNewUser(request: RegisterRequest): NhanVien
+	+validateEmailAvailable(email: String): Boolean
+	+validateUsernameAvailable(tenDangNhap: String): Boolean
+	+validateUsernameFormat(tenDangNhap: String): Boolean
+	+validatePasswordStrength(password: String): Boolean
+	+hashPassword(password: String): String
+	+generateUniqueUsername(email: String, hoTen: String): String
+	+sendVerificationEmail(email: String): Boolean
+	+verifyEmailToken(token: String): Boolean
+	+assignRoleByType(loaiNhanVien: String): String
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class NhanVienDB {
+	' Repository (NhanVienRepository)
+	--
+	+findById(maNhanVien: String): NhanVien
+	+findByEmail(email: String): NhanVien
+	+findByTenDangNhap(tenDangNhap: String): NhanVien
+	+existsByEmail(email: String): Boolean
+	+existsByTenDangNhap(tenDangNhap: String): Boolean
+	+save(entity: NhanVien): NhanVien
+}
+
+class VerificationTokenDB {
+	' Repository (VerificationTokenRepository)
+	--
+	+findByToken(token: String): VerificationToken
+	+save(entity: VerificationToken): VerificationToken
+	+deleteByEmail(email: String): Void
+	+deleteExpiredTokens(): Void
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHDangKy o-- AuthService
+MHDangKy o-- NhanVien
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+NhanVien o-- NhanVienDB
+AuthService o-- NhanVienDB
+AuthService o-- VerificationTokenDB
+
+@enduml

@@ -1,0 +1,258 @@
+@startuml
+title Chức năng Thanh lý hợp đồng
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHQuanLyThanhLyHopDong {
+	' Presentation (CheckoutSettlement.tsx - Settlement List Screen)
+	-searchInput: SearchBox
+	-filterStatus: Dropdown
+	-settlementTable: Grid
+	-pagination: Pagination
+	-btnRefresh: Button
+	-btnTaoDoiSoat: Button
+	-statusBadge: Badge
+	-countLabelChoDoiSoat: Label
+	--
+	+loadSettlementContracts(page: int, status: String): Promise<void>
+	+handleSearch(keyword: String): Void
+	+handleFilterStatus(status: String): Void
+	+handleRefresh(): Void
+	+handleOpenReconcile(row: ContractRow): Void
+	+reload(): Void
+}
+
+class MHBienBanThanhLyHopDong {
+	' Presentation (ReconcileModal - Settlement Reconciliation Modal)
+	-lblMaHopDong: Label
+	-lblTenKhachHang: Label
+	-lblPhongDuocThue: Label
+	-txtTienCoc: TextBox
+	-cboTyLeHoan: Dropdown
+	-txtKhauTruPhong: TextBox
+	-txtKhauTruDonDep: TextBox
+	-txtKhauTruHuHong: TextBox
+	-txtGhiChu: TextArea
+	-lblTienHoanKy: Label
+	-lblTongKhauTru: Label
+	-lblKetQua: Label
+	-btnXacNhan: Button
+	-btnHuy: Button
+	--
+	+open(row: ContractRow): Void
+	+calculateNet(): Number
+	+handleConfirm(): Promise<void>
+	+handleCancel(): Void
+	+close(): Void
+}
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class HopDongThue {
+	' Entity + Service (HopDongThue / ContractService)
+	' Attributes (từ ChungTu + HopDongThue)
+	-maVanBan: String
+	-loaiVanBan: String
+	-ngayLap: Date
+	-gioLap: Time
+	-chiNhanh: String
+	-nhanVienLap: String
+	-khachHangSoHuu: String
+	-hinhThucThue: String
+	-kyThanhToan: String
+	-soLuongThanhVien: Integer
+	-ngayKetThuc: Date
+	-trangThaiThanhLy: String
+	--
+	' Methods
+	+getSettlementContracts(trangThai: String): List<Map>
+	+getContractById(maHopDongThue: String): HopDongThue
+	+updateSettlementStatus(maHopDongThue: String, trangThai: String): HopDongThue
+	+seedSettlementStatus(): String
+	+search(keyword: String, page: int, size: int): Page<HopDongThue>
+}
+
+class BangDoiSoat {
+	' Entity + Service (BangDoiSoat / SettlementService)
+	' Attributes
+	-maBangDoiSoat: String
+	-maHopDongThue: String
+	-tiLeHoanCoc: Integer
+	-tongKhauTru: BigDecimal
+	-soTienThucTe: BigDecimal
+	-ngayLap: Date
+	-trangThai: String
+	--
+	' Methods
+	+getSettlementById(maBangDoiSoat: String): BangDoiSoat
+	+createSettlement(bangDoiSoat: BangDoiSoat): BangDoiSoat
+	+updateSettlement(maBangDoiSoat: String, data: BangDoiSoat): BangDoiSoat
+	+processPayment(maBangDoiSoat: String, action: String): Void
+	+getByStatus(trangThai: String): List<BangDoiSoat>
+	+deleteSettlement(maBangDoiSoat: String): Void
+}
+
+class KhachHang {
+	' Entity + Service (KhachHang / CustomerService)
+	' Attributes
+	-maKhachHang: String
+	-tenKhachHang: String
+	-soDienThoai: String
+	-email: String
+	-cccd: String
+	-diaChi: String
+	-loaiKhachHang: String
+	--
+	' Methods
+	+getCustomers(page: int, size: int): Page<KhachHang>
+	+getCustomerById(maKhachHang: String): KhachHang
+	+createCustomer(data: KhachHang): KhachHang
+	+updateCustomer(maKhachHang: String, data: KhachHang): KhachHang
+}
+
+class NhanVien {
+	' Entity + Service (NhanVien / EmployeeService)
+	' Attributes
+	-maNhanVien: String
+	-hoTen: String
+	-soDienThoai: String
+	-email: String
+	-tenDangNhap: String
+	-vaiTro: String
+	-phai: String
+	-cccd: String
+	-loaiNhanVien: String
+	-matKhau: String
+	-trangThai: String
+	--
+	' Methods
+	+getEmployees(page: int, size: int): List<NhanVien>
+	+getEmployeeById(maNhanVien: String): NhanVien
+	+createEmployee(data: NhanVien): NhanVien
+	+updateEmployee(maNhanVien: String, data: NhanVien): NhanVien
+}
+
+class GiaoDichThanhToan {
+	' Entity + Service (GiaoDichThanhToan / PaymentService)
+	' Attributes
+	-maGiaoDich: String
+	-maChungTu: String
+	-hinhThucThanhToan: String
+	-ngayGiaoDich: Date
+	-gioGiaoDich: Time
+	-soTienGiaoDich: BigDecimal
+	-loaiGiaoDich: String
+	-trangThai: String
+	-ghiChu: String
+	--
+	' Methods
+	+createTransaction(transaction: GiaoDichThanhToan): GiaoDichThanhToan
+	+getTransactionsByContract(maHopDongThue: String): List<GiaoDichThanhToan>
+	+updateTransactionStatus(maGiaoDich: String, trangThai: String): Void
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class HopDongThueDB {
+	' Repository
+	--
+	+findById(maVanBan: String): HopDongThue
+	+findAll(pageable: Pageable): Page<HopDongThue>
+	+save(entity: HopDongThue): HopDongThue
+	+update(maVanBan: String, entity: HopDongThue): HopDongThue
+	+delete(maVanBan: String): Void
+	+findByTrangThaiThanhLy(trangThai: String): List<HopDongThue>
+	+findByKhachHangSoHuu(maKhachHang: String): List<HopDongThue>
+	+findByFiltersWithSearch(keyword: String, trangThai: String, page: int, size: int): Page<HopDongThue>
+}
+
+class BangDoiSoatDB {
+	' Repository
+	--
+	+findById(maBangDoiSoat: String): BangDoiSoat
+	+findAll(pageable: Pageable): Page<BangDoiSoat>
+	+save(entity: BangDoiSoat): BangDoiSoat
+	+update(maBangDoiSoat: String, entity: BangDoiSoat): BangDoiSoat
+	+delete(maBangDoiSoat: String): Void
+	+findByMaHopDongThue(maHopDongThue: String): BangDoiSoat
+	+findByTrangThai(trangThai: String): List<BangDoiSoat>
+}
+
+class KhachHangDB {
+	' Repository
+	--
+	+findById(maKhachHang: String): KhachHang
+	+findAll(pageable: Pageable): Page<KhachHang>
+	+save(entity: KhachHang): KhachHang
+	+update(maKhachHang: String, entity: KhachHang): Void
+	+delete(maKhachHang: String): Void
+}
+
+class NhanVienDB {
+	' Repository
+	--
+	+findById(maNhanVien: String): NhanVien
+	+findAll(): List<NhanVien>
+	+save(entity: NhanVien): NhanVien
+	+update(maNhanVien: String, entity: NhanVien): Void
+}
+
+class GiaoDichThanhToanDB {
+	' Repository
+	--
+	+findById(maGiaoDich: String): GiaoDichThanhToan
+	+save(entity: GiaoDichThanhToan): GiaoDichThanhToan
+	+findByMaChungTu(maChungTu: String): List<GiaoDichThanhToan>
+	+findByMaHopDongThue(maHopDongThue: String): List<GiaoDichThanhToan>
+	+update(maGiaoDich: String, entity: GiaoDichThanhToan): Void
+}
+}
+
+' ================= LIÊN KẾT GIỮA CÁC TẦNG =================
+
+' 0. Giữa các màn hình
+MHQuanLyThanhLyHopDong o-- MHBienBanThanhLyHopDong
+
+' 1. Giao diện gọi Nghiệp vụ (UI -> BLL)
+MHQuanLyThanhLyHopDong o-- HopDongThue
+MHQuanLyThanhLyHopDong o-- BangDoiSoat
+MHBienBanThanhLyHopDong o-- HopDongThue
+MHBienBanThanhLyHopDong o-- BangDoiSoat
+MHBienBanThanhLyHopDong o-- GiaoDichThanhToan
+MHBienBanThanhLyHopDong o-- KhachHang
+
+' 2. Quan hệ nội bộ tầng Nghiệp vụ
+HopDongThue "1..1" -- "0..*" BangDoiSoat : tạo
+HopDongThue "1..1" -- "0..*" GiaoDichThanhToan : có
+HopDongThue "0..*" -- "1..1" KhachHang : sở hữu
+HopDongThue "0..*" -- "1..1" NhanVien : lập
+
+' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
+HopDongThue o-- HopDongThueDB
+BangDoiSoat o-- BangDoiSoatDB
+KhachHang o-- KhachHangDB
+NhanVien o-- NhanVienDB
+GiaoDichThanhToan o-- GiaoDichThanhToanDB
+
+@enduml

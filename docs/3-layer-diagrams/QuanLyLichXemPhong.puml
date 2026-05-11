@@ -1,0 +1,282 @@
+@startuml
+title Chức năng Quản lý lịch xem phòng
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHQuanLyLichXemPhong {
+	' Presentation (Showings.tsx / SaleAppointments.tsx)
+	-searchBox: SearchBox
+	-dateFilter: DatePicker
+	-btnLamMoi: Button
+	-tabYeuCauChoLenLich: Tab
+	-tabLichHenHienTai: Tab
+	-miniCalendar: Calendar
+	-appointmentList: List<AppointmentCard>
+	-schedulePanel: ScheduleForm
+	--
+	+loadAppointments(params: Map): Promise<void>
+	+loadPendingRequests(params: Map): Promise<void>
+	+handleReload(): Void
+	+handleTabChange(tab: String): Void
+	+handleSelectDate(date: Date): Void
+	+handleOpenRequest(requestId: String): Void
+	+handleOpenAppointment(maLichHen: String): Void
+	+handleDeleteAppointment(maLichHen: String): Promise<void>
+}
+
+class MHDanhSachYeuCauChoLenLich {
+	' PendingRequestsTab
+	-searchRequest: SearchBox
+	-requestCards: List<RequestCard>
+	-pagination: Pagination
+	-statusBadge: Badge
+	--
+	+reload(): Void
+	+selectRequest(maYeuCau: String): Void
+	+scheduleSelectedRequest(): Void
+}
+
+class MHLapLichXemPhong {
+	' NewAppointmentModal / form tạo lịch
+	-searchKhachHang: SearchBox
+	-cboLoaiPhong: Dropdown
+	-txtPhongMucTieu: TextBox
+	-cboNhanVienPhuTrach: Dropdown
+	-dtpNgayHen: DatePicker
+	-cboGioHen: TimePicker
+	-cboTrangThaiHen: Dropdown
+	-txtGhiChu: TextArea
+	-btnXacNhanTaoLich: Button
+	-btnDong: Button
+	--
+	+validate(): Boolean
+	+submitCreateAppointment(): Promise<void>
+	+selectCustomer(maKhachHang: String): Void
+	+selectRoom(maPhong: String): Void
+	+selectEmployee(maNhanVien: String): Void
+	+close(): Void
+}
+
+class MHChiTietLichHen {
+	' DetailModal / AppointmentCard detail view
+	-lblKhachHang: Label
+	-lblPhongMucTieu: Label
+	-lblNhanVienPhuTrach: Label
+	-lblNgayHen: Label
+	-lblGioHen: Label
+	-lblTrangThai: Badge
+	-txtGhiChu: TextArea
+	-btnXoaLich: Button
+	-btnDong: Button
+	--
+	+open(): Void
+	+close(): Void
+	+saveStatus(): Promise<void>
+	+deleteAppointment(): Promise<void>
+}
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class LichXemPhong {
+	' Entity + Service (LichXemPhong / AppointmentService)
+	' Attributes
+	-maLichHen: String
+	-thoiGianHen: String
+	-trangThaiHen: String
+	-ngayHen: Date
+	-khachHangXem: String
+	-maYeuCau: String
+	-nhanVienPhuTrach: String
+	-maPhong: String
+	-isOverdue: Boolean
+	--
+	' Methods
+	+getAppointments(page,size,month,year): ApiListResponse<LichXemPhong>
+	+getAppointmentById(maLichHen: String): LichXemPhong
+	+getAppointmentByMaYeuCau(maYeuCau: String): LichXemPhong
+	+createAppointment(req): LichXemPhong
+	+updateAppointment(maLichHen: String, req): LichXemPhong
+	+deleteAppointment(maLichHen: String): Void
+}
+
+class YeuCauDangKy {
+	' Entity + Service (YeuCauDangKy / RequestService)
+	' Attributes
+	-maYeuCau: String
+	-khuVuc: String
+	-mucGiaMongMuon: Number
+	-cacTieuChiKhac: String
+	-khachHangYeuCau: String
+	-nhanVienPhuTrach: String
+	-trangThaiYeuCau: String
+	-thoiGianBatDauThueDuKien: Date
+	-thoiGianBanGiaoPhongDuKien: Date
+	-coBaiGuiXe: Boolean
+	-coDieuHoa: Boolean
+	-soLuongNguoi: Integer
+	-gioiTinhYeuCau: String
+	-ngayTao: Date
+	-isOverdue: Boolean
+	--
+	' Methods
+	+getRequests(page,size,filters): ApiListResponse<YeuCauDangKy>
+	+getRequestById(maYeuCau: String): YeuCauDangKy
+	+createRequest(req): YeuCauDangKy
+	+updateRequest(maYeuCau: String, req): YeuCauDangKy
+	+deleteRequest(maYeuCau: String): Void
+	+getRequestStatusCounts(): Map<String, Long>
+}
+
+class KhachHang {
+	' Entity + Service (KhachHang / CustomerService)
+	' Attributes
+	-maKhachHang: String
+	-hoTen: String
+	-soDienThoai: String
+	-email: String
+	-cccd: String
+	-phai: String
+	-quocTich: String
+	--
+	' Methods
+	+getCustomers(page,size,search): ApiListResponse<KhachHang>
+	+getCustomerById(maKhachHang: String): KhachHang
+	+createCustomer(data: KhachHang): KhachHang
+	+updateCustomer(maKhachHang: String, data: KhachHang): KhachHang
+}
+
+class Phong {
+	' Entity + Service (Phong / RoomService)
+	' Attributes
+	-maPhong: String
+	-tenPhong: String
+	-loaiPhong: String
+	-trangThai: String
+	-khuVuc: String
+	-giaThue: Number
+	--
+	' Methods
+	+getRooms(page,size,search): ApiListResponse<Phong>
+	+getRoomById(maPhong: String): Phong
+	+getRoomAvailability(): List<Phong>
+}
+
+class NhanVien {
+	' Entity + Service (NhanVien / EmployeeService)
+	' Attributes
+	-maNhanVien: String
+	-hoTen: String
+	-soDienThoai: String
+	-email: String
+	-tenDangNhap: String
+	-vaiTro: String
+	-phai: String
+	-cccd: String
+	-loaiNhanVien: String
+	-matKhau: String
+	-trangThai: String
+	--
+	' Methods
+	+getEmployees(page,size,search): ApiListResponse<NhanVien>
+	+getEmployeeById(maNhanVien: String): NhanVien
+	+createEmployee(data: NhanVien): NhanVien
+	+updateEmployee(maNhanVien: String, data: NhanVien): NhanVien
+	+reload(): Void
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+class LichXemPhongDB {
+	--
+	+findAll(pageable): Page<LichXemPhong>
+	+findByNgayHenBetween(startDate,endDate,pageable): Page<LichXemPhong>
+	+findFirstByMaYeuCau(maYeuCau: String): Optional<LichXemPhong>
+	+findById(maLichHen: String): Optional<LichXemPhong>
+	+save(entity: LichXemPhong): LichXemPhong
+	+delete(entity: LichXemPhong): Void
+	+countByNgayHen(ngayHen: Date): Long
+}
+
+class YeuCauDangKyDB {
+	--
+	+findByFiltersWithSearch(...): Page<YeuCauDangKy>
+	+findByFiltersAndMonthWithSearch(...): Page<YeuCauDangKy>
+	+countByStatus(): List<Object[]>
+	+findById(maYeuCau: String): Optional<YeuCauDangKy>
+	+save(entity: YeuCauDangKy): YeuCauDangKy
+	+delete(entity: YeuCauDangKy): Void
+}
+
+class KhachHangDB {
+	--
+	+findAll(pageable): Page<KhachHang>
+	+findById(maKhachHang: String): Optional<KhachHang>
+	+save(entity: KhachHang): KhachHang
+}
+
+class PhongDB {
+	--
+	+findAll(pageable): Page<Phong>
+	+findById(maPhong: String): Optional<Phong>
+	+findByKhuVuc(khuVuc: String): List<Phong>
+}
+
+class NhanVienDB {
+	--
+	+findAll(pageable): Page<NhanVien>
+	+findById(maNhanVien: String): Optional<NhanVien>
+}
+}
+
+' ================= LIÊN KẾT GIỮA CÁC TẦNG =================
+
+' 0. Giữa các màn hình
+MHQuanLyLichXemPhong o-- MHDanhSachYeuCauChoLenLich
+MHQuanLyLichXemPhong o-- MHLapLichXemPhong
+MHQuanLyLichXemPhong o-- MHChiTietLichHen
+
+' 1. Giao diện gọi Nghiệp vụ (UI -> BLL)
+MHQuanLyLichXemPhong o-- LichXemPhong
+MHDanhSachYeuCauChoLenLich o-- YeuCauDangKy
+MHLapLichXemPhong o-- LichXemPhong
+MHLapLichXemPhong o-- YeuCauDangKy
+MHLapLichXemPhong o-- KhachHang
+MHLapLichXemPhong o-- Phong
+MHLapLichXemPhong o-- NhanVien
+MHChiTietLichHen o-- LichXemPhong
+
+' 2. Quan hệ nội bộ tầng Nghiệp vụ
+KhachHang "1..1" -- "0..*" YeuCauDangKy : có
+KhachHang "1..1" -- "0..*" LichXemPhong : có
+YeuCauDangKy "1..1" -- "0..1" LichXemPhong : tạo lịch
+Phong "1..1" -- "0..*" LichXemPhong : được xem
+NhanVien "1..1" -- "0..*" LichXemPhong : phụ trách
+
+' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
+LichXemPhong o-- LichXemPhongDB
+YeuCauDangKy o-- YeuCauDangKyDB
+KhachHang o-- KhachHangDB
+Phong o-- PhongDB
+NhanVien o-- NhanVienDB
+
+@enduml

@@ -1,0 +1,150 @@
+@startuml
+title Chức năng Lập biên bản bàn giao
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class "MH Vận hành" as MHVanhanh {
+	' Màn hình danh sách chờ bàn giao (Operations.tsx - CheckInTab)
+	-searchInput: SearchBox
+	-statusFilter: Select
+	-checkinTable: Grid
+	-pagination: Pagination
+	-btnLapBienBan: Button
+	--
+	+loadOperations(page: int, size: int, status: String, search: String): Promise<void>
+	+handleOpenHandoverModal(hoSoDatCocId: String): Void
+	+reload(): Void
+}
+
+class "MH Biên bản Bàn giao" as MHBienBanBanGiao {
+	' Modal "Biên bản Bàn giao" (Operations.tsx)
+	-thongTinPhong: Panel
+	-checklistTaiSan: List
+	-ghiChuInput: TextArea
+	-btnXacNhanBanGiao: Button
+	-btnHuy: Button
+	--
+	+loadHandoverDetail(hoSoDatCocId: String): Promise<void>
+	+handleToggleAssetPresent(index: int): Void
+	+handleChangeCondition(index: int, condition: String): Void
+	+handleConfirmHandover(payload: HandoverRequest): Promise<void>
+	+validateBeforeSubmit(): Boolean
+}
+
+note right of MHBienBanBanGiao
+Use case này chỉ có 2 màn hình:
+1) Màn hình Vận hành (danh sách chờ bàn giao)
+2) Modal Biên bản Bàn giao
+end note
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class HoSoDatCoc {
+	' Entity + service dữ liệu đầu vào bàn giao
+	-maHoSoDatCoc: String
+	-maKhachHang: String
+	-chiNhanh: String
+	-mucTienCoc: BigDecimal
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	--
+	+getCheckinQueue(): List<HoSoDatCoc>
+	+getById(maHoSoDatCoc: String): HoSoDatCoc
+}
+
+class BienBanBanGiaoTaiSan {
+	' Entity + service tạo biên bản bàn giao
+	-maBienBanBanGiao: String
+	-loaiVanBan: String
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	-chiNhanh: String
+	-khachHangSoHuu: String
+	--
+	+createFromDeposit(maHoSoDatCoc: String, request: HandoverRequest): BienBanBanGiaoTaiSan
+	+generateBienBanId(): String
+	+markRoomOrBedAsRented(roomOrBed: String): Void
+}
+
+class ChiTietBanGiao {
+	' Entity + service chi tiết kiểm kê tài sản
+	-maBienBanBanGiao: String
+	-maTaiSanBanGiao: String
+	-soLuong: Integer
+	-tinhTrang: String
+	-ghiChu: String
+	--
+	+saveChecklist(maBienBanBanGiao: String, assets: List<OperationAsset>): Void
+	+mapAssetNameToAssetId(assetName: String): String
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class HoSoDatCocDB {
+	' Truy vấn HOSODATCOC + CHUNGTU + chi tiết phòng/giường
+	--
+	+findAllWaitingCheckin(): List<HoSoDatCoc>
+	+findSourceDocument(maHoSoDatCoc: String): Map<String, Object>
+	+findRoomsByDeposit(maHoSoDatCoc: String): List<String>
+	+findBedsByDeposit(maHoSoDatCoc: String): List<String>
+}
+
+class BienBanBanGiaoDB {
+	' Ghi CHUNGTU và BIENBANBANGIAOTAISAN
+	--
+	+insertChungTu(maBienBan: String, loai: String, ngayLap: Date, gioLap: Time, chiNhanh: String, khachHang: String): Void
+	+insertBienBanBanGiao(maBienBan: String): Void
+}
+
+class ChiTietBanGiaoDB {
+	' Ghi CHITIETBANGIAO + mapping tài sản
+	--
+	+findAssetIdByName(tenTaiSan: String): String
+	+insertChiTiet(maBienBan: String, maTaiSan: String, soLuong: Integer): Void
+	+loadAssetTemplate(): List<OperationAsset>
+}
+
+class RoomBedStatusDB {
+	' Cập nhật trạng thái PHONG/GIUONG sau khi bàn giao
+	--
+	+updatePhongDaThue(maPhong: String): Void
+	+updateGiuongDaThue(maGiuong: String): Void
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHVanhanh o-- HoSoDatCoc
+MHVanhanh o-- MHBienBanBanGiao
+MHBienBanBanGiao o-- HoSoDatCoc
+MHBienBanBanGiao o-- BienBanBanGiaoTaiSan
+MHBienBanBanGiao o-- ChiTietBanGiao
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+HoSoDatCoc o-- HoSoDatCocDB
+BienBanBanGiaoTaiSan o-- BienBanBanGiaoDB
+ChiTietBanGiao o-- ChiTietBanGiaoDB
+BienBanBanGiaoTaiSan o-- RoomBedStatusDB
+
+@enduml

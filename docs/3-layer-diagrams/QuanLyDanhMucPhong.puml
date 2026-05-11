@@ -1,0 +1,157 @@
+@startuml
+title Chức năng Quản lý danh mục Phòng/Giường
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHQuanLyPhongGiuong {
+	' Presentation (Rooms.tsx + Settings.tsx)
+	-searchInput: SearchBox
+	-statusFilter: Dropdown
+	-branchFilter: Dropdown
+	-roomTable: Grid
+	-pagination: Pagination
+	-btnThem: Button
+	-btnSua: Button
+	-btnXoa: Button
+	-statusBadge: Badge
+	-availabilityLabel: Label
+	--
+	+loadRoomList(page: int, size: int, search: String): Promise<void>
+	+handleSearch(keyword: String): Void
+	+handleFilterStatus(status: String): Void
+	+handleFilterBranch(branch: String): Void
+	+handleOpenAddModal(): Void
+	+handleOpenEditModal(maPhong: String): Void
+	+handleOpenDeleteModal(maPhong: String): Void
+	+handleAddRoom(room: CreateRoomRequest): Promise<void>
+	+handleEditRoom(maPhong: String, room: UpdateRoomRequest): Promise<void>
+	+handleDeleteRoom(maPhong: String): Promise<void>
+	+reload(): Void
+}
+
+class MHThemPhong {
+	' Modal (Add Room - Rooms.tsx + Settings.tsx)
+	-maPhongInput: TextBox
+	-sucChuaInput: NumberBox
+	-giaThueInput: TextBox
+	-trangThaiDropdown: Dropdown
+	-chiNhanhDropdown: Dropdown
+	-btnThem: Button
+	-btnHuy: Button
+	--
+	+handleInputChange(field: String, value: Any): Void
+	+handleAddRoom(): Promise<void>
+	+handleCancel(): Void
+	+validateForm(): Boolean
+}
+
+class MHSuaPhong {
+	' Modal (Edit Room - Rooms.tsx + Settings.tsx)
+	-maPhongLabel: Label
+	-sucChuaInput: NumberBox
+	-giaThueInput: TextBox
+	-trangThaiDropdown: Dropdown
+	-chiNhanhDropdown: Dropdown
+	-btnLuu: Button
+	-btnHuy: Button
+	--
+	+handleInputChange(field: String, value: Any): Void
+	+handleUpdateRoom(): Promise<void>
+	+handleCancel(): Void
+	+loadRoomData(maPhong: String): Promise<void>
+	+validateForm(): Boolean
+}
+
+class MHXoaPhong {
+	' Modal (Delete Confirmation - Rooms.tsx + Settings.tsx)
+	-messageText: Label
+	-warningIcon: Icon
+	-btnXacNhan: Button
+	-btnHuy: Button
+	--
+	+handleConfirmDelete(): Promise<void>
+	+handleCancel(): Void
+	+showWarningMessage(message: String): Void
+}
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class Phong {
+	' Entity + Service (Phong / Room)
+	-maPhong: String
+	-sucChuaToiDa: Integer
+	-giaThuePhong: BigDecimal
+	-trangThai: String
+	-chiNhanh: String
+	--
+	+getRooms(page: int, size: int, search: String): Page<Phong>
+	+getRoomById(maPhong: String): Phong
+	+createRoom(request: CreateRoomRequest): Phong
+	+updateRoom(maPhong: String, request: UpdateRoomRequest): Phong
+	+deleteRoom(maPhong: String): Void
+	+getRoomAvailability(): List<RoomAvailability>
+	+validatePhongData(phong: Phong): Boolean
+	+checkDuplicatePhong(maPhong: String): Boolean
+	+canDeletePhong(maPhong: String): Boolean
+	+findAll(pageable: Pageable): Page<Phong>
+	+save(entity: Phong): Phong
+	+update(maPhong: String, entity: Phong): Phong
+	+delete(maPhong: String): Void
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class PhongDB {
+	' Repository (PhongRepository)
+	--
+	+findById(maPhong: String): Phong
+	+findAll(pageable: Pageable): Page<Phong>
+	+findByTrangThaiContainingIgnoreCase(trangThai: String, pageable: Pageable): Page<Phong>
+	+countByTrangThai(trangThai: String): long
+	+countRoomsByStatus(): List<Object[]>
+	+countCurrentOccupantsPerRoom(): List<Object[]>
+	+findRoomsWithAvailableSlots(soNguoi: int): List<Phong>
+	+save(entity: Phong): Phong
+	+update(maPhong: String, entity: Phong): Phong
+	+delete(maPhong: String): Void
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHQuanLyPhongGiuong o-- Phong
+MHThemPhong o-- Phong
+MHSuaPhong o-- Phong
+MHXoaPhong o-- Phong
+
+' (Modal relationships)
+MHQuanLyPhongGiuong o-- MHThemPhong 
+MHQuanLyPhongGiuong o-- MHSuaPhong 
+MHQuanLyPhongGiuong o-- MHXoaPhong
+
+' Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
+Phong o-- PhongDB
+
+
+@enduml

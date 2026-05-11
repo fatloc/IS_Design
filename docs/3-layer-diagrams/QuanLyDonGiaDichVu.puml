@@ -1,0 +1,119 @@
+@startuml
+title Chức năng Quản lý đơn giá dịch vụ
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHQuanLyDonGiaDichVu {
+	' Presentation (Settings.tsx - PriceTab)
+	-prices: PriceState
+	-saved: Boolean
+	-wholePrimaryInput: TextBox
+	-wholeDeluxeInput: TextBox
+	-bedBasicInput: TextBox
+	-bedPremiumInput: TextBox
+	-floorSurchargeInput: TextBox
+	-electricityInput: TextBox
+	-waterInput: TextBox
+	-motorbikeInput: TextBox
+	-bicycleInput: TextBox
+	-carInput: TextBox
+	-btnReset: Button
+	-btnSave: Button
+	--
+	+setField(key: String, value: String): Void
+	+handleSave(): Void
+	+handleReset(): Void
+	+validateCurrencyInput(value: String): Boolean
+	+showInputError(field: String): Void
+}
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class Phong {
+	' Entity + Service (room rent pricing)
+	-maPhong: String
+	-sucChuaToiDa: Integer
+	-giaThuePhong: BigDecimal
+	-trangThai: String
+	-chiNhanh: String
+	--
+	+getRooms(page: int, size: int, search: String): Page<Phong>
+	+getRoomById(maPhong: String): Phong
+	+updateRoom(maPhong: String, request: UpdateRoomRequest): Phong
+	+validateGiaThuePhong(gia: BigDecimal): Boolean
+	+findAll(pageable: Pageable): Page<Phong>
+	+save(entity: Phong): Phong
+	+update(maPhong: String, entity: Phong): Phong
+}
+
+class DichVu {
+	' Entity + Service (service pricing)
+	-maDichVu: String
+	-tenDichVu: String
+	-donGia: BigDecimal
+	-donViTinh: String
+	--
+	+findById(maDichVu: String): DichVu
+	+findAll(): List<DichVu>
+	+save(entity: DichVu): DichVu
+	+update(maDichVu: String, entity: DichVu): DichVu
+	+validateDonGia(donGia: BigDecimal): Boolean
+	+validateDonViTinh(donViTinh: String): Boolean
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class PhongDB {
+	' Repository (PhongRepository)
+	--
+	+findById(maPhong: String): Phong
+	+findAll(pageable: Pageable): Page<Phong>
+	+findByTrangThaiContainingIgnoreCase(trangThai: String, pageable: Pageable): Page<Phong>
+	+countByTrangThai(trangThai: String): long
+	+countRoomsByStatus(): List<Object[]>
+	+countCurrentOccupantsPerRoom(): List<Object[]>
+	+findRoomsWithAvailableSlots(soNguoi: int): List<Phong>
+	+save(entity: Phong): Phong
+}
+
+class DichVuDB {
+	' Repository (DichVuRepository)
+	--
+	+findById(maDichVu: String): DichVu
+	+findAll(): List<DichVu>
+	+save(entity: DichVu): DichVu
+	+delete(entity: DichVu): Void
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHQuanLyDonGiaDichVu o-- Phong
+MHQuanLyDonGiaDichVu o-- DichVu
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+Phong o-- PhongDB
+DichVu o-- DichVuDB
+
+@enduml

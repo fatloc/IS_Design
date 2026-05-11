@@ -1,0 +1,96 @@
+@startuml
+title Chức năng Cập nhật hồ sơ khách hàng
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHCapNhatHoSoKhachHang {
+	' Presentation (Customer Profile Update - SalesPage.tsx)
+	-hoTenInput: TextBox
+	-soDienThoaiInput: TextBox
+	-emailInput: TextBox
+	-cccdInput: TextBox
+	-quocTichInput: TextBox
+	-btnLuu: Button
+	-btnHuy: Button
+	-successMessage: Label
+	-errorMessage: Label
+	--
+	+loadCustomerProfile(maKhachHang: String): Promise<void>
+	+handleInputChange(field: String, value: String): Void
+	+handleSubmitUpdate(payload: UpdateCustomerRequest): Promise<void>
+	+validateForm(): Boolean
+	+validateEmail(email: String): Boolean
+	+validatePhoneNumber(phone: String): Boolean
+	+validateCCCD(cccd: String): Boolean
+	+showDuplicateEmailError(): Void
+	+showDuplicatePhoneError(): Void
+	+showDuplicateCCCDError(): Void
+	+showUpdateSuccessMessage(): Void
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class KhachHang {
+	' Entity + Service (KhachHang / CustomerService)
+	-maKhachHang: String
+	-hoTen: String
+	-soDienThoai: String
+	-email: String
+	-phai: String
+	-cccd: String
+	-quocTich: String
+	--
+	+getCustomerById(maKhachHang: String): KhachHang
+	+getCustomerByEmail(email: String): KhachHang
+	+updateCustomer(maKhachHang: String, request: UpdateCustomerRequest): KhachHang
+	+validateEmailAvailable(email: String, maKhachHangHienTai: String): Boolean
+	+validatePhoneAvailable(soDienThoai: String, maKhachHangHienTai: String): Boolean
+	+validateCCCDAvailable(cccd: String, maKhachHangHienTai: String): Boolean
+	+searchCustomers(keyword: String, page: int, size: int): Page<KhachHang>
+	+getCustomerInfo(): String
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class KhachHangDB {
+	' Repository (JpaRepository<KhachHang, String>)
+	--
+	+findById(maKhachHang: String): Optional<KhachHang>
+	+findByEmail(email: String): Optional<KhachHang>
+	+existsByEmail(email: String): Boolean
+	+existsBySoDienThoai(soDienThoai: String): Boolean
+	+existsByCccd(cccd: String): Boolean
+	+searchCustomers(q: String, pageable: Pageable): Page<KhachHang>
+	+save(entity: KhachHang): KhachHang
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHCapNhatHoSoKhachHang o-- KhachHang
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+KhachHang o-- KhachHangDB
+
+@enduml
+
