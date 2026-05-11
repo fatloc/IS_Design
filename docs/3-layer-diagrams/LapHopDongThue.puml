@@ -61,19 +61,6 @@ class MHQuanLyThongTinCuTru {
 	+checkRoomAvailability(criteria: String): Promise<void>
 }
 
-note right of MHDangNhap
-Use case này <<include>> Đăng nhập.
-Chi tiết đã mô tả ở
-diagram DangNhap.puml.
-end note
-
-note right of MHQuanLyThongTinCuTru
-Use case này <<include>>
-Quản lý thông tin cư trú.
-Điều kiện lưu trú được đối chiếu từ
-thông tin yêu cầu và sức chứa phòng.
-end note
-}
 
 ' ================= TẦNG NGHIỆP VỤ =================
 package "Tầng Nghiệp Vụ" as BLL_Layer {
