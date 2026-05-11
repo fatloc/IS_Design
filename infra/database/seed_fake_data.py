@@ -28,31 +28,33 @@ Faker.seed(42)
 # With Spring DelegatingPasswordEncoder this is treated as plain text and validated correctly.
 DEFAULT_SEEDED_PASSWORD = "{noop}123456"
 
+PRESENTATION_DATE = date(2026, 5, 12)
 
 ROW_PLAN = {
-    "CHINHANH": 20,
-    "PHONG": 1800,
-    "GIUONG": 7200,
-    "TAISAN": 9000,
-    "KHACHHANG": 25000,
-    "NHANVIEN": 500,
-    "CHUNGTU": 26000,
-    "HOPDONGTHUE": 9000,
-    "THANHVIENNHOM": 15000,
-    "YEUCAUDANGKY": 9000,
-    "LICHXEMPHONG": 7000,
-    "CHITIETLICHXEM": 10000,
-    "HOSODATCOC": 6000,
-    "CHITIETCOCPHONG": 4500,
-    "CHITIETCOCGIUONG": 5500,
-    "CHITIETTHUEPHONG": 8000,
-    "CHITIETTHUEGIUONG": 11000,
-    "PHIEUTHANHTOAN": 9000,
-    "BIENBANBANGIAOTAISAN": 3000,
-    "BIENBANTRAPHONG": 3000,
-    "CHITIETBANGIAO": 8000,
-    "DICHVU": 30,
-    "DICHVU_HOPDONGTHUE": 24450,
+    "CHINHANH": 25,
+    "PHONG": 2000,
+    "GIUONG": 8000,
+    "TAISAN": 10000,
+    "KHACHHANG": 30000,
+    "NHANVIEN": 600,
+    "CHUNGTU": 35000,
+    "HOPDONGTHUE": 12000,
+    "THANHVIENNHOM": 20000,
+    "YEUCAUDANGKY": 12000,
+    "LICHXEMPHONG": 10000,
+    "CHITIETLICHXEM": 15000,
+    "HOSODATCOC": 8000,
+    "CHITIETCOCPHONG": 6000,
+    "CHITIETCOCGIUONG": 7000,
+    "CHITIETTHUEPHONG": 10000,
+    "CHITIETTHUEGIUONG": 14000,
+    "PHIEUTHANHTOAN": 15000,
+    "BIENBANBANGIAOTAISAN": 4000,
+    "BIENBANTRAPHONG": 4000,
+    "CHITIETBANGIAO": 12000,
+    "DICHVU": 40,
+    "DICHVU_HOPDONGTHUE": 35000,
+    "BANGDOISOAT": 2000,
 }
 
 
@@ -86,6 +88,13 @@ def random_date(start: date, end: date) -> date:
     return start + timedelta(days=random.randint(0, max(0, delta_days)))
 
 
+def weighted_random_date(start: date, end: date, target_date: date, weight: float = 0.3) -> date:
+    """Returns target_date with 'weight' probability, else random_date."""
+    if random.random() < weight:
+        return target_date
+    return random_date(start, end)
+
+
 def random_time() -> time:
     return time(hour=random.randint(7, 20), minute=random.choice([0, 15, 30, 45]), second=0)
 
@@ -111,14 +120,14 @@ def generate_data():
     chi_nhanh_rows = [
         (
             cid,
-            f"Chi nhanh {cid}",
+            f"Chi nhánh {cid} - {fake.city()}",
             fake.address().replace("\n", ", ")[:100],
         )
         for cid in chinhanh_ids
     ]
 
     phong_ids = [id_code(i, 4) for i in range(1, ROW_PLAN["PHONG"] + 1)]
-    trang_thai_phong = ["Trong", "Da dat", "Dang thue", "Bao tri"]
+    trang_thai_phong = ["Trống", "Đã đặt", "Đang thuê", "Bảo trì"]
     phong_rows = []
     for pid in phong_ids:
         max_people = random.choice([2, 3, 4, 6, 8])
@@ -134,7 +143,7 @@ def generate_data():
         )
 
     giuong_ids = [id_code(i, 4) for i in range(1, ROW_PLAN["GIUONG"] + 1)]
-    trang_thai_giuong = ["Trong", "Da dat", "Dang su dung", "Bao tri"]
+    trang_thai_giuong = ["Trống", "Đã đặt", "Đang sử dụng", "Bảo trì"]
     giuong_rows = []
     for gid in giuong_ids:
         giuong_rows.append(
@@ -147,19 +156,19 @@ def generate_data():
         )
 
     tai_san_names = [
-        "Dieu hoa",
-        "Quat treo tuong",
-        "Ban hoc",
-        "Ghe nhua",
-        "Tu quan ao",
-        "Den ban",
-        "Rem cua",
-        "Binh nong lanh",
-        "May giat",
-        "Tu lanh mini",
+        "Điều hòa",
+        "Quạt treo tường",
+        "Bàn học",
+        "Ghế nhựa",
+        "Tủ quần áo",
+        "Đèn bàn",
+        "Rèm cửa",
+        "Bình nóng lạnh",
+        "Máy giặt",
+        "Tủ lạnh mini",
     ]
     taisan_ids = [id_code(i, 6) for i in range(1, ROW_PLAN["TAISAN"] + 1)]
-    tinh_trang_taisan = ["Tot", "Kha", "Can sua", "Hu hong"]
+    tinh_trang_taisan = ["Tốt", "Khá", "Cần sửa", "Hư hỏng"]
     taisan_rows = []
     for tid in taisan_ids:
         name = random.choice(tai_san_names)
@@ -167,7 +176,7 @@ def generate_data():
             (
                 tid,
                 name,
-                f"{name} tai phong {random.choice(phong_ids)}",
+                f"{name} tại phòng {random.choice(phong_ids)}",
                 random.choices(tinh_trang_taisan, weights=[55, 25, 15, 5], k=1)[0],
                 Decimal(random.randint(200_000, 6_000_000)),
                 random.choice(phong_ids),
@@ -186,17 +195,17 @@ def generate_data():
                 f"kh{kid.lower()}@mail.vn"[:30],
                 gender,
                 unique_cccd(i),
-                random.choice(["Viet Nam", "Han Quoc", "Nhat Ban", "Singapore", "Thai Lan"]),
+                random.choice(["Việt Nam", "Hàn Quốc", "Nhật Bản", "Singapore", "Thái Lan"]),
             )
         )
 
     nhanvien_ids = [id_code(i, 4) for i in range(1, ROW_PLAN["NHANVIEN"] + 1)]
     nhanvien_rows = []
-    loai_nhan_vien = ["Tu van", "Le tan", "Ke toan", "Quan ly", "Ky thuat"]
+    loai_nhan_vien = ["Tư vấn", "Lễ tân", "Kế toán", "Quản lý", "Kỹ thuật"]
     fixed_roles = {
-        1: "Quan ly",
-        2: "Tu van",
-        3: "Ke toan",
+        1: "Quản lý",
+        2: "Tư vấn",
+        3: "Kế toán",
     }
     base_idx = 70_000
     for i, nid in enumerate(nhanvien_ids, start=1):
@@ -217,13 +226,14 @@ def generate_data():
 
     # Transaction documents and dependent subtypes.
     chungtu_ids = [id_code(i, 6) for i in range(1, ROW_PLAN["CHUNGTU"] + 1)]
-    loai_van_ban_pool = ["Hop dong thue", "Ho so dat coc", "Ban giao tai san", "Bien ban tra phong", "Chung tu khac"]
+    loai_van_ban_pool = ["Hợp đồng thuê", "Hồ sơ đặt cọc", "Bàn giao tài sản", "Biên bản trả phòng", "Chứng từ khác"]
     chungtu_rows = []
-    start_d = date(2026, 5, 1)
-    end_d = date(2026, 6, 10)
+    start_d = date(2026, 4, 1)
+    end_d = date(2026, 6, 30)
     for cid in chungtu_ids:
         loai = random.choices(loai_van_ban_pool, weights=[35, 23, 12, 12, 18], k=1)[0]
-        d = random_date(start_d, end_d)
+        # Make a high density of documents on the presentation date
+        d = weighted_random_date(start_d, end_d, PRESENTATION_DATE, weight=0.4)
         chungtu_rows.append(
             (
                 cid,
@@ -253,16 +263,16 @@ def generate_data():
         + ROW_PLAN["BIENBANTRAPHONG"]
     ]
 
-    hinh_thuc_thue = ["Theo phong", "Theo giuong", "Ket hop"]
-    ky_thanh_toan = ["Thang", "Quy", "6 thang"]
+    hinh_thuc_thue = ["Theo phòng", "Theo giường", "Kết hợp"]
+    ky_thanh_toan = ["Tháng", "Quý", "6 tháng"]
     hopdong_rows = [
         (
             hid,
             random.choice(hinh_thuc_thue),
             random.choice(ky_thanh_toan),
             random.randint(1, 8),
-            random_date(date(2026, 6, 11), date(2027, 12, 31)),  # NgayKetThuc (luon sau khi seed dải ngày)
-            random.choice(["Chua thanh ly", "Dang doi soat", "Da thanh ly"])
+            random_date(date(2026, 6, 11), date(2027, 12, 31)),  # NgayKetThuc (luôn sau khi seed dải ngày)
+            random.choices(["Chua thanh ly", "Dang doi soat", "Da doi soat"], weights=[60, 25, 15], k=1)[0]
         )
         for hid in contract_ids
     ]
@@ -278,7 +288,7 @@ def generate_data():
                 unique_cccd(200_000 + i),
                 unique_phone(200_000 + i),
                 random.choice(["Nam", "Nữ"]),
-                random.choice(["Viet Nam", "Lao", "Campuchia", "Nhat Ban"]),
+                random.choice(["Việt Nam", "Lào", "Campuchia", "Nhật Bản"]),
                 random.choice(contract_ids),
                 None,  # MaYeuCau - will be linked later if needed
                 rep,
@@ -295,8 +305,8 @@ def generate_data():
     ]
     for i in range(1, ROW_PLAN["YEUCAUDANGKY"] + 1):
         yid = id_code(i, 6)
-        # NgayTao phải trước ThoiGianBatDauThueDuKien
-        ngay_tao = random_date(start_d, end_d - timedelta(days=5))
+        # NgayTao focus on presentation date
+        ngay_tao = weighted_random_date(start_d, end_d - timedelta(days=5), PRESENTATION_DATE, weight=0.3)
         start_rent = random_date(ngay_tao + timedelta(days=1), ngay_tao + timedelta(days=30))
         handover_date = start_rent + timedelta(days=random.randint(0, 7))
         yeu_cau_rows.append(
@@ -308,26 +318,26 @@ def generate_data():
                 start_rent,
                 handover_date,
                 random.randint(0, 1),
-                random.choice(["Gan trung tam", "Quan 7", "Thu Duc", "Binh Thanh", "Tan Binh"]),
+                random.choice(["Gần trung tâm", "Quận 7", "Thủ Đức", "Bình Thạnh", "Tân Bình"]),
                 Decimal(random.randint(1_500_000, 12_000_000)),
                 random.randint(0, 1),
                 random.choice([
-                    "Uu tien phong co cua so",
-                    "Can noi de xe may",
-                    "Can bep rieng",
-                    "Gan cho va sieu thi",
-                    "Can bao ve 24/7",
+                    "Ưu tiên phòng có cửa sổ",
+                    "Cần nơi để xe máy",
+                    "Cần bếp riêng",
+                    "Gần chợ và siêu thị",
+                    "Cần bảo vệ 24/7",
                 ]),
                 random.choice(khachhang_ids),
                 random.choice(nhanvien_ids),
-                random.choice(yeu_cau_statuses) if i <= 7000 else "Mới tạo",
+                random.choice(yeu_cau_statuses) if i <= 10000 else "Yêu cầu mới",
                 random.choice([1, 3, 6, None]),  # ThoiHanThue
                 random.choice(phong_ids) if random.random() < 0.4 else None,  # MaPhongDeXuat
             )
         )
 
     lichxem_ids = [id_code(i, 6) for i in range(1, ROW_PLAN["LICHXEMPHONG"] + 1)]
-    linked_request_ids = [row[0] for row in yeu_cau_rows if row[13] != "Mới tạo"]  # index 13 = TrangThaiYeuCau
+    linked_request_ids = [row[0] for row in yeu_cau_rows if row[13] != "Yêu cầu mới"]
     if len(linked_request_ids) < len(lichxem_ids):
         used_ids = set(linked_request_ids)
         linked_request_ids.extend(row[0] for row in yeu_cau_rows if row[0] not in used_ids)
@@ -335,13 +345,13 @@ def generate_data():
     lich_xem_rows = []
     for lid, req_id in zip(lichxem_ids, linked_request_ids):
         request_row = next(row for row in yeu_cau_rows if row[0] == req_id)
-        # Lịch xem phải sau hoặc cùng ngày với ngày tạo yêu cầu
-        d = random_date(request_row[1], end_d)
+        # Lịch xem focus on presentation date
+        d = weighted_random_date(request_row[1], end_d, PRESENTATION_DATE, weight=0.5)
         lich_xem_rows.append(
             (
                 lid,
                 random_time(),
-                random.choice(["Da xac nhan", "Cho xac nhan", "Da huy", "Da xem"]),
+                random.choice(["Đã xác nhận", "Chờ xác nhận", "Đã hủy", "Đã xem"]),
                 d,
                 request_row[11],
                 req_id,
@@ -359,9 +369,9 @@ def generate_data():
     thue_phong_pairs = pick_pairs(phong_ids, contract_ids, ROW_PLAN["CHITIETTHUEPHONG"])
     thue_giuong_pairs = pick_pairs(giuong_ids, contract_ids, ROW_PLAN["CHITIETTHUEGIUONG"])
 
-    hinh_thuc_tt = ["Tien mat", "Chuyen khoan", "The ngan hang", "Vi dien tu"]
-    trang_thai_tt = ["Thanh cong", "Cho xu ly", "That bai", "Hoan tien"]
-    loai_giao_dich = ["Thu tien coc", "Thu tien thue", "Phu thu", "Hoan coc"]
+    hinh_thuc_tt = ["Tiền mặt", "Chuyển khoản", "Thẻ ngân hàng", "Ví điện tử"]
+    trang_thai_tt = ["Thành công", "Chờ xử lý", "Thất bại", "Hoàn tiền"]
+    loai_giao_dich = ["Thu tiền cọc", "Thu tiền thuê", "Phụ thu", "Hoàn cọc", "Doi soat"]
     phieu_rows = []
     # Tạo map để tra cứu ngày của chứng từ
     chungtu_date_map = {row[0]: row[2] for row in chungtu_rows}
@@ -370,13 +380,13 @@ def generate_data():
         target_chungtu = random.choice(chungtu_ids)
         ct_date = chungtu_date_map[target_chungtu]
         
-        # Ngày thanh toán thường là sau hoặc cùng ngày với chứng từ
-        d = random_date(ct_date, end_d)
+        # Ngày thanh toán focus on presentation date
+        d = weighted_random_date(ct_date, end_d, PRESENTATION_DATE, weight=0.4)
         phieu_rows.append(
             (
                 pid,
                 random.choice(hinh_thuc_tt),
-                random.choice(["", "Thu dung han", "Da doi soat", "Can kiem tra lai"]),
+                random.choice(["", "Thu đúng hạn", "Đã đối soát", "Cần kiểm tra lại"]),
                 random_time(),
                 d,
                 random.choice(trang_thai_tt),
@@ -384,37 +394,52 @@ def generate_data():
                 random.choice(nhanvien_ids),
                 random.choice(nhanvien_ids),
                 target_chungtu,
+                Decimal(random.randint(100_000, 20_000_000)), # SoTienGiaoDich
             )
         )
 
     bbbg_rows = [(x,) for x in handover_ids]
-    bbtp_rows = [(x,) for x in return_ids]
+    # Fixed: BIENBANTRAPHONG needs MaHopDongThue
+    bbtp_rows = [(x, random.choice(contract_ids)) for x in return_ids]
 
     chitiet_bangiao_pairs = pick_pairs(handover_ids, taisan_ids, ROW_PLAN["CHITIETBANGIAO"])
     chitiet_bangiao_rows = [(bb, ts, random.randint(1, 4)) for (bb, ts) in chitiet_bangiao_pairs]
 
     dichvu_rows = []
     service_names = [
-        "Giu xe",
+        "Giữ xe",
         "Internet",
-        "Ve sinh",
-        "Giat ui",
-        "Dien",
-        "Nuoc",
-        "Thang may",
-        "Bao tri",
-        "Don phong",
+        "Vệ sinh",
+        "Giặt ủi",
+        "Điện",
+        "Nước",
+        "Thang máy",
+        "Bảo trì",
+        "Dọn phòng",
         "An ninh",
     ]
     for i in range(1, ROW_PLAN["DICHVU"] + 1):
         sid = id_code(i, 3)
         name = random.choice(service_names) + f" {i}"
-        unit = random.choice(["Lan", "Thang", "kWh", "m3", "Suat"])
+        unit = random.choice(["Lần", "Tháng", "kWh", "m3", "Suất"])
         dichvu_rows.append((sid, name[:100], Decimal(random.randint(10_000, 500_000)), unit))
 
     dichvu_ids = [row[0] for row in dichvu_rows]
     dv_hd_pairs = pick_pairs(dichvu_ids, contract_ids, ROW_PLAN["DICHVU_HOPDONGTHUE"])
     dv_hd_rows = [(dv, hd, random.randint(1, 10)) for dv, hd in dv_hd_pairs]
+
+    # Added: BANGDOISOAT
+    bang_doi_soat_rows = []
+    for i in range(1, ROW_PLAN["BANGDOISOAT"] + 1):
+        bid = id_code(i, 7)
+        hd_id = random.choice(contract_ids)
+        ti_le = random.randint(50, 100)
+        tong_khau_tru = Decimal(random.randint(0, 2_000_000))
+        so_tien_thuc_te = Decimal(random.randint(1_000_000, 10_000_000))
+        # Focus on presentation date
+        ngay_lap = weighted_random_date(start_d, end_d, PRESENTATION_DATE, weight=0.6)
+        status = random.choice(["Chờ đối soát", "Đã đối soát", "Đã hoàn tất"])
+        bang_doi_soat_rows.append((bid, hd_id, ti_le, tong_khau_tru, so_tien_thuc_te, ngay_lap, status))
 
     return {
         "CHINHANH": chi_nhanh_rows,
@@ -440,6 +465,7 @@ def generate_data():
         "CHITIETBANGIAO": chitiet_bangiao_rows,
         "DICHVU": dichvu_rows,
         "DICHVU_HOPDONGTHUE": dv_hd_rows,
+        "BANGDOISOAT": bang_doi_soat_rows,
     }
 
 
@@ -462,6 +488,7 @@ def insert_all(connection, data):
         "CHITIETLICHXEM",
         "LICHXEMPHONG",
         "YEUCAUDANGKY",
+        "BANGDOISOAT",
         "THANHVIENNHOM",
         "HOPDONGTHUE",
         "CHUNGTU",
@@ -500,12 +527,13 @@ def insert_all(connection, data):
         "CHITIETCOCGIUONG": "INSERT INTO CHITIETCOCGIUONG (MaGiuong, MaHoSoCoc) VALUES (%s, %s)",
         "CHITIETTHUEPHONG": "INSERT INTO CHITIETTHUEPHONG (MaPhong, MaHopDongThue) VALUES (%s, %s)",
         "CHITIETTHUEGIUONG": "INSERT INTO CHITIETTHUEGIUONG (MaGiuong, MaHopDongThue) VALUES (%s, %s)",
-        "PHIEUTHANHTOAN": "INSERT INTO PHIEUTHANHTOAN (MaPhieuThanhToan, HinhThucThanhToan, GhiChu, GioGiaoDich, NgayGiaoDich, TrangThai, LoaiGiaoDich, KeToanLapPhieu, QuanLyDoiChung, MaChungTu) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "PHIEUTHANHTOAN": "INSERT INTO PHIEUTHANHTOAN (MaPhieuThanhToan, HinhThucThanhToan, GhiChu, GioGiaoDich, NgayGiaoDich, TrangThai, LoaiGiaoDich, KeToanLapPhieu, QuanLyDoiChung, MaChungTu, SoTienGiaoDich) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "BIENBANBANGIAOTAISAN": "INSERT INTO BIENBANBANGIAOTAISAN (MaBienBanBanGiao) VALUES (%s)",
-        "BIENBANTRAPHONG": "INSERT INTO BIENBANTRAPHONG (MaBienBanTraPhong) VALUES (%s)",
+        "BIENBANTRAPHONG": "INSERT INTO BIENBANTRAPHONG (MaBienBanTraPhong, MaHopDongThue) VALUES (%s, %s)",
         "CHITIETBANGIAO": "INSERT INTO CHITIETBANGIAO (MaBienBanBanGiao, MaTaiSanBanGiao, SoLuong) VALUES (%s, %s, %s)",
         "DICHVU": "INSERT INTO DICHVU (MaDichVu, TenDichVu, DonGia, DonViTinh) VALUES (%s, %s, %s, %s)",
         "DICHVU_HOPDONGTHUE": "INSERT INTO DICHVU_HOPDONGTHUE (MaDichVu, MaHopDongThue, SoLuongDichVu) VALUES (%s, %s, %s)",
+        "BANGDOISOAT": "INSERT INTO BANGDOISOAT (MaBangDoiSoat, MaHopDongThue, TiLeHoanCoc, TongKhauTru, SoTienThucTe, NgayLap, TrangThai) VALUES (%s, %s, %s, %s, %s, %s, %s)",
     }
 
     insert_order = [
@@ -532,6 +560,7 @@ def insert_all(connection, data):
         "CHITIETBANGIAO",
         "DICHVU",
         "DICHVU_HOPDONGTHUE",
+        "BANGDOISOAT",
     ]
 
     total = 0
@@ -545,7 +574,7 @@ def insert_all(connection, data):
     print(f"[3/4] Commit done. Total inserted: {total:,} rows")
 
     print("[4/4] Quick table counts:")
-    for table in ["KHACHHANG", "CHUNGTU", "HOPDONGTHUE", "PHIEUTHANHTOAN", "DICHVU_HOPDONGTHUE"]:
+    for table in ["KHACHHANG", "CHUNGTU", "HOPDONGTHUE", "PHIEUTHANHTOAN", "DICHVU_HOPDONGTHUE", "BANGDOISOAT"]:
         cursor.execute(f"SELECT COUNT(*) FROM {table}")
         print(f"  - {table}: {cursor.fetchone()[0]:,}")
 
