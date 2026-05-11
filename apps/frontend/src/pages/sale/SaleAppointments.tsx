@@ -302,7 +302,7 @@ function ApptRow({ appt, userMap, onUpdate }: {
 // ── Pending Requests Tab ───────────────────────────────────────────────────
 function PendingRequestsTab({ onScheduled }: { onScheduled: () => void }) {
   const { items: pendingRequests, loading, reload } = usePagedList<Request>(getRequests, 5000, {
-    trangThaiYeuCau: "Mới tạo",
+    trangThaiYeuCau: "Yêu cầu mới",
   });
   const { addToast } = useToast();
   const { items: rawEmployees } = usePagedList<any>(getUsers, 500);
