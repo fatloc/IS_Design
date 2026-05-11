@@ -174,8 +174,8 @@ MHBienBanThanhLyHopDong o-- HopDongThue
 MHBienBanThanhLyHopDong o-- PhieuThanhToan
 
 ' 2. Quan hệ nội bộ tầng Nghiệp vụ
-HopDongThue "*" -- "1" KhachHang : thuộc
-HopDongThue "1" -- "0..*" PhieuThanhToan : có
+HopDongThue "0..*" -- "1..1" KhachHang : thuộc
+HopDongThue "1..1" -- "0..*" PhieuThanhToan : có
 
 ' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
 HopDongThue o-- HopDongThueDB
