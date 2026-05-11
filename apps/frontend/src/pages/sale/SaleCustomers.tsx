@@ -4,7 +4,7 @@ import {
   Shield, X, Save, Clock, RotateCcw,
 } from "lucide-react";
 import { usePagedList } from "../../hooks/usePagedList";
-import { getCustomers, updateCustomer } from "../../services/api";
+import { getCustomers, updateCustomer, deleteCustomer } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
 import { toast } from "sonner";
 import type { Customer } from "../../types";
@@ -147,6 +147,50 @@ function EditCustomerModal({ customer, isOpen, onClose, onSave }: {
   );
 }
 
+function ConfirmDeleteModal({ isOpen, onClose, onConfirm, customerName, isDeleting }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  customerName: string;
+  isDeleting: boolean;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="w-full max-w-sm bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-500">
+        <div className="p-8 text-center">
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle size={40} className="text-red-500 animate-pulse" />
+          </div>
+          <h3 className="text-xl font-black text-slate-900 mb-2">Xác nhận xóa?</h3>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Bạn có chắc chắn muốn xóa khách hàng <span className="font-bold text-slate-900">{customerName}</span>? 
+            Hành động này <span className="text-red-600 font-semibold underline decoration-2 underline-offset-4">không thể hoàn tác</span>.
+          </p>
+        </div>
+        
+        <div className="p-6 bg-slate-50/50 flex gap-3">
+          <button 
+            onClick={onClose}
+            disabled={isDeleting}
+            className="flex-1 py-4 px-6 rounded-2xl font-bold text-slate-600 hover:bg-slate-100 transition-all active:scale-95 text-[0.85rem]"
+          >
+            Hủy bỏ
+          </button>
+          <button 
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="flex-1 py-4 px-6 rounded-2xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95 flex items-center justify-center gap-2 text-[0.85rem]"
+          >
+            {isDeleting ? <RotateCcw size={16} className="animate-spin" /> : "Xác nhận xóa"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Profile Panel ──────────────────────────────────────────────────────────
 function ProfilePanel({ customer, onUpdate, onDelete }: { 
   customer: Customer; 
@@ -156,15 +200,15 @@ function ProfilePanel({ customer, onUpdate, onDelete }: {
   const status = calcStatus(customer);
   const cfg    = STATUS_CFG[status];
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ khách hàng ${customer.hoTen}? Thao tác này không thể hoàn tác.`)) return;
-    
     setIsDeleting(true);
     try {
       await onDelete(customer.maKhachHang);
       toast.success("Đã xóa khách hàng");
+      setIsDeleteModalOpen(false);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Lỗi khi xóa khách hàng");
     } finally {
@@ -198,7 +242,7 @@ function ProfilePanel({ customer, onUpdate, onDelete }: {
                 <Save size={14}/>
               </button>
               <button 
-                onClick={handleDelete}
+                onClick={() => setIsDeleteModalOpen(true)}
                 disabled={isDeleting}
                 className="p-1.5 hover:bg-white rounded-lg transition-colors text-slate-500 hover:text-red-600 border border-transparent hover:border-red-200"
                 title="Xóa hồ sơ">
@@ -215,6 +259,14 @@ function ProfilePanel({ customer, onUpdate, onDelete }: {
         isOpen={isEditOpen} 
         onClose={() => setIsEditOpen(false)}
         onSave={(data) => onUpdate(customer.maKhachHang, data)}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDelete}
+        customerName={customer.hoTen || "khách hàng"}
+        isDeleting={isDeleting}
       />
 
       {/* Info */}
