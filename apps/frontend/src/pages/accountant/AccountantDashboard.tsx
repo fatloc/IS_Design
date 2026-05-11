@@ -109,6 +109,20 @@ function RecentItem({ id, name, sub, amount, status, statusColor, statusBg }: {
   );
 }
 
+function normalizeSettlementStatus(value: string | null | undefined) {
+  const text = (value ?? "")
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+
+  if (text.includes("da doi soat")) return "Đã đối soát";
+  if (text.includes("dang doi soat")) return "Chờ đối soát";
+  if (text.includes("chua thanh ly") || text.includes("cho thanh ly")) return "Chờ đối soát";
+  return value ?? "";
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export default function AccountantDashboard() {
   const [loading, setLoading] = useState(true);
@@ -158,11 +172,15 @@ export default function AccountantDashboard() {
       // Settlement stats
       if (settlements.status === "fulfilled") {
         const data = settlements.value as any[];
+        const normalizedSettlements = data.map(r => ({
+          ...r,
+          TrangThaiThanhLy: normalizeSettlementStatus(r.TrangThaiThanhLy ?? r.trangThaiThanhLy),
+        }));
         setSettlementStats({
-          choDoiSoatCount: data.filter(r => (r.TrangThaiThanhLy ?? r.trangThaiThanhLy) === "Chờ đối soát").length,
-          daDoiSoatCount: data.filter(r => (r.TrangThaiThanhLy ?? r.trangThaiThanhLy) === "Đã đối soát").length,
+          choDoiSoatCount: normalizedSettlements.filter(r => r.TrangThaiThanhLy === "Chờ đối soát").length,
+          daDoiSoatCount: normalizedSettlements.filter(r => r.TrangThaiThanhLy === "Đã đối soát").length,
         });
-        setRecentSettlements(data.filter(r => (r.TrangThaiThanhLy ?? r.trangThaiThanhLy) === "Chờ đối soát").slice(0, 4));
+        setRecentSettlements(normalizedSettlements.filter(r => r.TrangThaiThanhLy === "Chờ đối soát").slice(0, 4));
       }
     } finally {
       setLoading(false);

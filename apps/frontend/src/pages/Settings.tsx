@@ -143,6 +143,15 @@ function formatCurrency(value: number | string | null | undefined) {
   return numeric.toLocaleString("vi-VN");
 }
 
+function statusStyle(status: string | null | undefined) {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized.includes("trong")) return { label: "Trống", bg: "#ECFDF5", color: "#059669" };
+  if (normalized.includes("da dat")) return { label: "Đã đặt", bg: "#FFFBEB", color: "#D97706" };
+  if (normalized.includes("dang thue")) return { label: "Đang thuê", bg: "#EFF6FF", color: "#2563EB" };
+  if (normalized.includes("bao tri")) return { label: "Bảo trì", bg: "#F8FAFC", color: "#64748B" };
+  return { label: status ?? "Không rõ", bg: "#F1F5F9", color: "#334155" };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  TAB 1 — Room Management
 // ═══════════════════════════════════════════════════════════════════════════
