@@ -2,11 +2,11 @@ import { useState, useMemo, useEffect } from "react";
 import {
   FileText, ChevronLeft, DollarSign, Shield, AlertTriangle,
   CheckCircle, Calendar, Zap, Droplets, Car, Bike,
-  BadgeCheck, Clock, Send, RotateCcw, Search, X, Pencil
+  BadgeCheck, Clock, Send, RotateCcw, Search, X, Pencil, Home
 } from "lucide-react";
 import { formatVNDInput } from "../../utils/format";
 import { usePagedList } from "../../hooks/usePagedList";
-import { updateContract, getUsers, getContractStats, getContracts } from "../../services/api";
+import { updateContract, getUsers, getContractStats, getContracts, getContractDetails, type ContractDetail } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
 import { useToast } from "../../components/ToastProvider";
 import type { ApiContract } from "../../services/api";
@@ -225,6 +225,19 @@ function DocumentDetailModal({ contract, onClose, onDraft, userMap }: {
   const loai = contract.loaiVanBan || "Chưa rõ";
   const isDraftable = (loai.includes("Hop dong") || loai.includes("Hợp đồng") || loai === "Chưa rõ");
 
+  const [details, setDetails] = useState<ContractDetail | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    const id = contract.maHopDongThue || contract.maVanBan;
+    if (!id) return;
+    setLoadingDetails(true);
+    getContractDetails(id)
+      .then(d => setDetails(d))
+      .catch(() => setDetails(null))
+      .finally(() => setLoadingDetails(false));
+  }, [contract.maHopDongThue, contract.maVanBan]);
+
   const FIELDS = [
     { key: "maHopDongThue", label: "Mã VB/HĐ" },
     { key: "loaiVanBan", label: "Loại văn bản" },
@@ -256,8 +269,9 @@ function DocumentDetailModal({ contract, onClose, onDraft, userMap }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ background:"rgba(15,23,42,0.55)", backdropFilter:"blur(5px)" }} onClick={onClose}>
-      <div className="relative w-full bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" style={{ maxWidth:680, margin:"0 1rem", border:"1px solid #E0E7FF" }} onClick={e=>e.stopPropagation()}>
-        <div className="flex items-center gap-3 px-6 py-4" style={{ background:"linear-gradient(135deg,#EEF2FF,#F5F3FF)", borderBottom:"1px solid #E0E7FF" }}>
+      <div className="relative w-full bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" style={{ maxWidth:720, margin:"0 1rem", border:"1px solid #E0E7FF", maxHeight:"90vh", display:"flex", flexDirection:"column" }} onClick={e=>e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0" style={{ background:"linear-gradient(135deg,#EEF2FF,#F5F3FF)", borderBottom:"1px solid #E0E7FF" }}>
           <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: bg }}>
             <FileText size={18} style={{ color }}/>
           </div>
@@ -276,8 +290,12 @@ function DocumentDetailModal({ contract, onClose, onDraft, userMap }: {
           </button>
         </div>
 
-        <div className="p-6">
-           <div className="grid grid-cols-2 gap-3 mb-5">
+        {/* Body — scrollable */}
+        <div className="overflow-y-auto flex-1 p-6 space-y-5">
+          {/* Thông tin hợp đồng */}
+          <div>
+            <div className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">Thông tin hợp đồng</div>
+            <div className="grid grid-cols-2 gap-3">
               {FIELDS.map(f => (
                 <div key={f.key} className="rounded-xl p-3" style={{ background:"#F8FAFC", border:"1px solid #E2E8F0" }}>
                   <div style={{ fontSize:"0.65rem", color:"#94A3B8", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>{f.label}</div>
@@ -286,21 +304,104 @@ function DocumentDetailModal({ contract, onClose, onDraft, userMap }: {
                   </div>
                 </div>
               ))}
-           </div>
-           
-           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-             <button onClick={onClose} className="py-2.5 px-6 rounded-xl hover:bg-slate-50 transition" style={{ border:"1.5px solid #E2E8F0", background:"white", color:"#64748B", fontSize:"0.82rem", fontWeight:700 }}>
-                Đóng
-             </button>
-             {isDraftable && (
-               <button onClick={() => { onClose(); onDraft(); }}
-                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white transition hover:brightness-110"
-                 style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontSize:"0.82rem", fontWeight:800, boxShadow:`0 4px 14px ${O}40` }}>
-                 <Pencil size={14}/>
-                 Soạn hợp đồng
-               </button>
-             )}
-           </div>
+            </div>
+          </div>
+
+          {/* Thông tin lưu trú */}
+          <div>
+            <div className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Home size={12} className="text-indigo-400"/>
+              Thông tin lưu trú
+            </div>
+            {loadingDetails ? (
+              <div className="rounded-xl p-4 text-center text-sm text-slate-400 italic" style={{ background:"#F8FAFC", border:"1px solid #E2E8F0" }}>
+                Đang tải...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Phòng */}
+                <div className="rounded-xl p-3" style={{ background:"#EEF2FF", border:"1px solid #C7D2FE" }}>
+                  <div style={{ fontSize:"0.65rem", color:"#6366F1", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Phòng đang thuê</div>
+                  <div style={{ fontSize:"0.88rem", color:"#1E293B", fontWeight:700 }}>
+                    {details?.danhSachPhong?.length
+                      ? details.danhSachPhong.map(p => (
+                          <span key={p} className="inline-flex items-center gap-1 mr-2 px-2 py-0.5 rounded-lg text-xs font-bold" style={{ background:"#4F46E5", color:"white" }}>
+                            <Home size={10}/> {p}
+                          </span>
+                        ))
+                      : <span className="text-slate-400 text-sm">Chưa có phòng</span>
+                    }
+                  </div>
+                </div>
+
+                {/* Giường */}
+                {(details?.danhSachGiuong?.length ?? 0) > 0 && (
+                  <div className="rounded-xl p-3" style={{ background:"#F0FDF4", border:"1px solid #BBF7D0" }}>
+                    <div style={{ fontSize:"0.65rem", color:"#059669", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Giường đang thuê</div>
+                    <div>
+                      {details!.danhSachGiuong.map(g => (
+                        <span key={g} className="inline-flex items-center gap-1 mr-2 px-2 py-0.5 rounded-lg text-xs font-bold" style={{ background:"#059669", color:"white" }}>
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Thành viên */}
+                <div className="rounded-xl overflow-hidden" style={{ border:"1px solid #E2E8F0" }}>
+                  <div className="px-3 py-2 flex items-center justify-between" style={{ background:"#F8FAFC", borderBottom:"1px solid #E2E8F0" }}>
+                    <div style={{ fontSize:"0.65rem", color:"#94A3B8", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em" }}>Thành viên nhóm</div>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background:"#EEF2FF", color:"#4F46E5" }}>
+                      {details?.thanhVienList?.length ?? 0} người
+                    </span>
+                  </div>
+                  {details?.thanhVienList?.length ? (
+                    <div className="divide-y divide-slate-50">
+                      {details.thanhVienList.map(tv => (
+                        <div key={tv.maThanhVien} className="flex items-center gap-3 px-3 py-2.5">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                            style={{ background: tv.nguoiDaiDien ? "linear-gradient(135deg,#4F46E5,#7C3AED)" : "#94A3B8", fontSize:"0.65rem", fontWeight:800 }}>
+                            {tv.hoTen?.split(" ").pop()?.charAt(0) ?? "?"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span style={{ fontSize:"0.82rem", fontWeight:700, color:"#1E293B" }}>{tv.hoTen ?? "--"}</span>
+                              {tv.nguoiDaiDien && (
+                                <span className="text-[0.6rem] font-bold px-1.5 py-0.5 rounded" style={{ background:"#EEF2FF", color:"#4F46E5" }}>Đại diện</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5" style={{ fontSize:"0.72rem", color:"#94A3B8" }}>
+                              {tv.soDienThoai && <span>📞 {tv.soDienThoai}</span>}
+                              {tv.cccd && <span>🪪 {tv.cccd}</span>}
+                              {tv.phai && <span>{tv.phai}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-4 text-center text-sm text-slate-400 italic">Chưa có thành viên</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 px-6 py-4 flex-shrink-0" style={{ borderTop:"1px solid #F1F5F9", background:"#FAFBFD" }}>
+          <button onClick={onClose} className="py-2.5 px-6 rounded-xl hover:bg-slate-50 transition" style={{ border:"1.5px solid #E2E8F0", background:"white", color:"#64748B", fontSize:"0.82rem", fontWeight:700 }}>
+            Đóng
+          </button>
+          {isDraftable && (
+            <button onClick={() => { onClose(); onDraft(); }}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white transition hover:brightness-110"
+              style={{ background:`linear-gradient(135deg,${O},#DC2626)`, fontSize:"0.82rem", fontWeight:800, boxShadow:`0 4px 14px ${O}40` }}>
+              <Pencil size={14}/>
+              Soạn hợp đồng
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -3,8 +3,12 @@ package com.homestay.dorm.service.impl;
 import com.homestay.dorm.dto.request.CreateContractRequest;
 import com.homestay.dorm.dto.request.UpdateContractRequest;
 import com.homestay.dorm.dto.response.ApiListResponse;
+import com.homestay.dorm.dto.response.ContractDetailResponse;
 import com.homestay.dorm.entity.HopDongThue;
+import com.homestay.dorm.repository.ChiTietThueGiuongRepository;
+import com.homestay.dorm.repository.ChiTietThuePhongRepository;
 import com.homestay.dorm.repository.HopDongThueRepository;
+import com.homestay.dorm.repository.ThanhVienNhomRepository;
 import com.homestay.dorm.service.ContractService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,6 +22,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +30,9 @@ public class ContractServiceImpl implements ContractService {
 
     private final HopDongThueRepository repository;
     private final JdbcTemplate jdbcTemplate;
+    private final ChiTietThuePhongRepository chiTietThuePhongRepository;
+    private final ChiTietThueGiuongRepository chiTietThueGiuongRepository;
+    private final ThanhVienNhomRepository thanhVienNhomRepository;
 
     @Override
     public ApiListResponse<HopDongThue> getContracts(int page, int size) {
@@ -133,6 +141,46 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    public ContractDetailResponse getContractDetails(String maHopDongThue) {
+        // Dùng SQL trực tiếp để lấy phòng, giường, thành viên — đảm bảo khớp với data thực tế
+        String danhSachPhongStr = jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(MaPhong ORDER BY MaPhong SEPARATOR ',') FROM CHITIETTHUEPHONG WHERE MaHopDongThue = ?",
+                String.class, maHopDongThue);
+        List<String> danhSachPhong = (danhSachPhongStr != null && !danhSachPhongStr.isBlank())
+                ? java.util.Arrays.asList(danhSachPhongStr.split(","))
+                : java.util.Collections.emptyList();
+
+        String danhSachGiuongStr = jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(MaGiuong ORDER BY MaGiuong SEPARATOR ',') FROM CHITIETTHUEGIUONG WHERE MaHopDongThue = ?",
+                String.class, maHopDongThue);
+        List<String> danhSachGiuong = (danhSachGiuongStr != null && !danhSachGiuongStr.isBlank())
+                ? java.util.Arrays.asList(danhSachGiuongStr.split(","))
+                : java.util.Collections.emptyList();
+
+        // Thành viên nhóm — join với KHACHHANG để lấy tên đầy đủ nếu có
+        List<ContractDetailResponse.ThanhVienInfo> thanhVienList = jdbcTemplate.query(
+                "SELECT tv.MaThanhVien, tv.HoTen, tv.SoDienThoai, tv.Phai, tv.CCCD, tv.QuocTich, tv.NguoiDaiDien " +
+                "FROM THANHVIENNHOM tv WHERE tv.MaHopDongThue = ? ORDER BY tv.NguoiDaiDien DESC, tv.MaThanhVien ASC",
+                (rs, rowNum) -> ContractDetailResponse.ThanhVienInfo.builder()
+                        .maThanhVien(rs.getString("MaThanhVien"))
+                        .hoTen(rs.getString("HoTen"))
+                        .soDienThoai(rs.getString("SoDienThoai"))
+                        .phai(rs.getString("Phai"))
+                        .cccd(rs.getString("CCCD"))
+                        .quocTich(rs.getString("QuocTich"))
+                        .nguoiDaiDien(rs.getString("NguoiDaiDien") != null)
+                        .build(),
+                maHopDongThue);
+
+        return ContractDetailResponse.builder()
+                .maHopDongThue(maHopDongThue)
+                .danhSachPhong(danhSachPhong)
+                .danhSachGiuong(danhSachGiuong)
+                .thanhVienList(thanhVienList)
+                .build();
+    }
+
+    @Override
     public HopDongThue createContract(CreateContractRequest req) {
         String newId = "HD" + UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
 
@@ -168,6 +216,20 @@ public class ContractServiceImpl implements ContractService {
         if (req.getSoLuongThanhVien() != null) hk.setSoLuongThanhVien(req.getSoLuongThanhVien());
 
         return repository.save(hk);
+    }
+
+    @Override
+    public java.util.Map<String, Long> getContractStats() {
+        // Đếm theo LoaiVanBan trong CHUNGTU join HOPDONGTHUE
+        java.util.Map<String, Long> stats = new java.util.LinkedHashMap<>();
+        stats.put("total", jdbcTemplate.queryForObject("SELECT COUNT(*) FROM HOPDONGTHUE", Long.class));
+        stats.put("contract", jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM CHUNGTU WHERE LoaiVanBan LIKE '%Hợp đồng%' OR LoaiVanBan LIKE '%Hop dong%'", Long.class));
+        stats.put("handover", jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM CHUNGTU WHERE LoaiVanBan LIKE '%Bàn giao%' OR LoaiVanBan LIKE '%Ban giao%'", Long.class));
+        stats.put("deposit", jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM CHUNGTU WHERE LoaiVanBan LIKE '%đặt cọc%' OR LoaiVanBan LIKE '%dat coc%' OR LoaiVanBan LIKE '%Hồ sơ%'", Long.class));
+        return stats;
     }
 
     @Override
