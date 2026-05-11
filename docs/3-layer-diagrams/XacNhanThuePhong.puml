@@ -1,0 +1,227 @@
+@startuml
+title Chức năng Xác nhận thuê phòng
+
+hide circle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+skinparam class {
+	BorderColor #4C6E8B
+	BackgroundColor #E6F2FF
+	FontColor #222222
+}
+
+skinparam package {
+	BorderColor #888888
+	FontColor #333333
+	FontSize 14
+	Style rectangle
+}
+
+' ================= TẦNG GIAO DIỆN =================
+package "Tầng Giao Diện" as UI_Layer {
+class MHXacNhanThuePhong {
+	' Màn hình sale chốt phòng (ApprovalHub.tsx)
+	-searchInput: SearchBox
+	-requestTable: Grid
+	-pagination: Pagination
+	-btnChiTiet: Button
+	-btnChotPhong: Button
+	-btnTuChoi: Button
+	-statusBadge: Badge
+	--
+	+loadRequests(page: int, size: int, status: String): Promise<void>
+	+handleOpenDetail(requestId: String): Void
+	+handleStartCheckout(requestId: String): Void
+	+handleReject(requestId: String): Void
+	+reload(): Void
+}
+
+class MHThanhToanTienCoc {
+	' Màn hình kế toán thu cọc (AccountingWorkflowPage.tsx - mode=deposit)
+	-searchInput: SearchBox
+	-depositTable: Grid
+	-pagination: Pagination
+	-btnXacNhan: Button
+	-btnHuyGiaoDich: Button
+	-btnReload: Button
+	-statusBadge: Badge
+	--
+	+loadDepositQueue(page: int, size: int): Promise<void>
+	+handleOpenDepositModal(requestId: String): Void
+	+handleConfirmDeposit(requestId: String, amount: BigDecimal): Promise<void>
+	+handleCancelTransaction(): Void
+	+reload(): Void
+}
+
+class MHPheDuyetThuePhong {
+	' Màn hình quản lý duyệt thuê (ApprovalHub.tsx - Manager)
+	-requestTable: Grid
+	-btnDongYChoThue: Button
+	-btnTuChoi: Button
+	-approveStatusBadge: Badge
+	--
+	+loadApprovalQueue(page: int, size: int): Promise<void>
+	+handleApprove(requestId: String): Promise<void>
+	+handleOpenRejectModal(requestId: String): Void
+	+reload(): Void
+}
+
+class MHTuChoiThuePhong {
+	' Modal nhập lý do từ chối
+	-rejectReasonInput: TextArea
+	-btnXacNhan: Button
+	-btnHuy: Button
+	-warningText: Label
+	--
+	+handleInputChange(value: String): Void
+	+handleConfirmReject(requestId: String): Promise<void>
+	+handleCancel(): Void
+	+validateReason(): Boolean
+}
+}
+
+' ================= TẦNG NGHIỆP VỤ =================
+package "Tầng Nghiệp Vụ" as BLL_Layer {
+
+class YeuCauDangKy {
+	' Entity + Service (YeuCauDangKy / RequestService)
+	-maYeuCau: String
+	-soLuongNguoi: Integer
+	-gioiTinhYeuCau: String
+	-thoiGianBatDauThueDuKien: LocalDate
+	-thoiGianBanGiaoPhongDuKien: LocalDate
+	-coDieuHoa: Boolean
+	-khuVuc: String
+	-mucGiaMongMuon: BigDecimal
+	-coBaiGuiXe: Boolean
+	-cacTieuChiKhac: String
+	-khachHangYeuCau: String
+	-nhanVienPhuTrach: String
+	-trangThaiYeuCau: String
+	--
+	+getRequests(page: int, size: int, nhanVienPhuTrach: String, trangThaiYeuCau: String): Page<YeuCauDangKy>
+	+getRequestById(maYeuCau: String): YeuCauDangKy
+	+createRequest(request: CreateYeuCauRequest): YeuCauDangKy
+	+updateRequest(maYeuCau: String, request: UpdateYeuCauRequest): YeuCauDangKy
+	+deleteRequest(maYeuCau: String): Void
+	+approveRequest(maYeuCau: String): YeuCauDangKy
+	+rejectRequest(maYeuCau: String, reason: String): YeuCauDangKy
+	+validateCustomerProfile(khachHang: String): Boolean
+}
+
+class HoSoDatCoc {
+	' Entity + Service (HoSoDatCoc / DepositService)
+	-maVanBan: String
+	-loaiVanBan: String
+	-ngayLap: LocalDate
+	-gioLap: LocalTime
+	-chiNhanh: String
+	-nhanVienLap: String
+	-khachHangSoHuu: String
+	-mucTienCoc: BigDecimal
+	--
+	+getDeposits(page: int, size: int): Page<HoSoDatCoc>
+	+getDepositById(maHoSoDatCoc: String): HoSoDatCoc
+	+createDeposit(request: CreateDepositRequest): HoSoDatCoc
+	+updateDeposit(maHoSoDatCoc: String, request: UpdateDepositRequest): HoSoDatCoc
+	+deleteDeposit(maHoSoDatCoc: String): Void
+	+calculateDepositAmount(monthlyRent: BigDecimal, bedCount: int): BigDecimal
+}
+
+class PhieuThanhToan {
+	' Entity + Service (PhieuThanhToan / TransactionService)
+	-maPhieuThanhToan: String
+	-hinhThucThanhToan: String
+	-ghiChu: String
+	-gioGiaoDich: LocalTime
+	-ngayGiaoDich: LocalDate
+	-trangThai: String
+	-loaiGiaoDich: String
+	-keToanLapPhieu: String
+	-quanLyDoiChung: String
+	-maChungTu: String
+	-soTienGiaoDich: BigDecimal
+	--
+	+getTransactions(page: int, size: int, loaiGiaoDich: String, trangThai: String): Page<PhieuThanhToan>
+	+getTransactionById(maPhieuThanhToan: String): PhieuThanhToan
+	+createTransaction(request: CreateTransactionRequest): PhieuThanhToan
+	+updateTransaction(maPhieuThanhToan: String, request: UpdateTransactionRequest): PhieuThanhToan
+	+deleteTransaction(maPhieuThanhToan: String): Void
+}
+}
+
+' ================= TẦNG TRUY CẬP DỮ LIỆU =================
+package "Tầng Truy Cập Dữ Liệu" as DAL_Layer {
+
+class YeuCauDangKyDB {
+	' Repository (YeuCauDangKyRepository)
+	--
+	+findById(maYeuCau: String): YeuCauDangKy
+	+findAll(pageable: Pageable): Page<YeuCauDangKy>
+	+findByNhanVienPhuTrach(nhanVienPhuTrach: String, pageable: Pageable): Page<YeuCauDangKy>
+	+findByTrangThaiYeuCau(trangThaiYeuCau: String, pageable: Pageable): Page<YeuCauDangKy>
+	+findByNhanVienPhuTrachAndTrangThaiYeuCau(nhanVienPhuTrach: String, trangThaiYeuCau: String, pageable: Pageable): Page<YeuCauDangKy>
+	+countByThoiGianBatDauThueDuKienAfter(date: LocalDate): long
+	+save(entity: YeuCauDangKy): YeuCauDangKy
+}
+
+class HoSoDatCocDB {
+	' Repository (HoSoDatCocRepository)
+	--
+	+findById(maHoSoDatCoc: String): HoSoDatCoc
+	+findAll(pageable: Pageable): Page<HoSoDatCoc>
+	+save(entity: HoSoDatCoc): HoSoDatCoc
+	+delete(entity: HoSoDatCoc): Void
+}
+
+class PhieuThanhToanDB {
+	' Repository (PhieuThanhToanRepository)
+	--
+	+findById(maPhieuThanhToan: String): PhieuThanhToan
+	+findAll(pageable: Pageable): Page<PhieuThanhToan>
+	+findByLoaiGiaoDichAndTrangThai(loaiGiaoDich: String, trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
+	+findByLoaiGiaoDich(loaiGiaoDich: String, pageable: Pageable): Page<PhieuThanhToan>
+	+findByTrangThai(trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
+	+save(entity: PhieuThanhToan): PhieuThanhToan
+}
+}
+
+' ================= RELATIONSHIPS =================
+' (Tầng Giao Diện -> Tầng Nghiệp Vụ)
+MHXacNhanThuePhong o-- YeuCauDangKy
+MHXacNhanThuePhong o-- HoSoDatCoc
+MHXacNhanThuePhong o-- PhieuThanhToan
+MHThanhToanTienCoc o-- YeuCauDangKy
+MHThanhToanTienCoc o-- HoSoDatCoc
+MHThanhToanTienCoc o-- PhieuThanhToan
+MHPheDuyetThuePhong o-- YeuCauDangKy
+MHPheDuyetThuePhong o-- PhieuThanhToan
+MHTuChoiThuePhong o-- YeuCauDangKy
+
+' (Điều hướng màn hình)
+MHXacNhanThuePhong --> MHThanhToanTienCoc : chốt phòng
+MHThanhToanTienCoc --> MHPheDuyetThuePhong : chuyển duyệt
+MHPheDuyetThuePhong --> MHTuChoiThuePhong : từ chối
+
+' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
+YeuCauDangKy o-- YeuCauDangKyDB
+HoSoDatCoc o-- HoSoDatCocDB
+PhieuThanhToan o-- PhieuThanhToanDB
+
+note bottom of MHXacNhanThuePhong
+Use case này <<include>> Đăng nhập trước khi truy cập.
+Nếu chốt phòng thành công, hệ thống chuyển sang màn thanh toán tiền cọc.
+end note
+
+note bottom of MHPheDuyetThuePhong
+Sau khi thu cọc, quản lý xem xét và quyết định đồng ý cho thuê hay từ chối.
+A6: từ chối phê duyệt -> ghi nhận lý do và trả yêu cầu về trạng thái chờ xử lý.
+end note
+
+note bottom of HoSoDatCoc
+A3.1: số tiền thanh toán không đủ -> từ chối lưu và báo lỗi.
+A3.2: hủy giao dịch -> không lưu dữ liệu, trả kết quả thất bại.
+end note
+
+@enduml
