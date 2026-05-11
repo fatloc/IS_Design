@@ -27,13 +27,11 @@ class MHXacNhanThuePhong {
 	-pagination: Pagination
 	-btnChiTiet: Button
 	-btnChotPhong: Button
-	-btnTuChoi: Button
 	-statusBadge: Badge
 	--
 	+loadRequests(page: int, size: int, status: String): Promise<void>
 	+handleOpenDetail(requestId: String): Void
 	+handleStartCheckout(requestId: String): Void
-	+handleReject(requestId: String): Void
 	+reload(): Void
 }
 
@@ -43,14 +41,17 @@ class MHThanhToanTienCoc {
 	-depositTable: Grid
 	-pagination: Pagination
 	-btnXacNhan: Button
-	-btnHuyGiaoDich: Button
+	-btnKiemTraPhatPhieu: Button
+	-btnTaoPhieuThu: Button
 	-btnReload: Button
 	-statusBadge: Badge
 	--
 	+loadDepositQueue(page: int, size: int): Promise<void>
 	+handleOpenDepositModal(requestId: String): Void
 	+handleConfirmDeposit(requestId: String, amount: BigDecimal): Promise<void>
-	+handleCancelTransaction(): Void
+	+handleCheckAndIssueReceipt(requestId: String): Promise<void>
+	+handleOpenCreateReceiptModal(requestId: String): Void
+	+handleConfirmCreateReceipt(requestId: String, amount: BigDecimal): Promise<void>
 	+reload(): Void
 }
 
@@ -67,17 +68,16 @@ class MHPheDuyetThuePhong {
 	+reload(): Void
 }
 
-class MHTuChoiThuePhong {
-	' Modal nhập lý do từ chối
-	-rejectReasonInput: TextArea
+class MHTaoPhieuThu {
+	' Modal tạo phiếu thu (Tạo Phiếu Thu)
+	-amountInput: Input
+	-noteInput: TextArea
 	-btnXacNhan: Button
 	-btnHuy: Button
-	-warningText: Label
 	--
-	+handleInputChange(value: String): Void
-	+handleConfirmReject(requestId: String): Promise<void>
+	+handleInputChange(name: String, value: String): Void
+	+handleConfirmCreateReceipt(requestId: String, amount: BigDecimal): Promise<void>
 	+handleCancel(): Void
-	+validateReason(): Boolean
 }
 }
 
@@ -123,9 +123,12 @@ class HoSoDatCoc {
 	--
 	+getDeposits(page: int, size: int): Page<HoSoDatCoc>
 	+getDepositById(maHoSoDatCoc: String): HoSoDatCoc
+	+getDepositByRequestId(maYeuCau: String): HoSoDatCoc
 	+createDeposit(request: CreateDepositRequest): HoSoDatCoc
 	+updateDeposit(maHoSoDatCoc: String, request: UpdateDepositRequest): HoSoDatCoc
 	+deleteDeposit(maHoSoDatCoc: String): Void
+	+markAsCheckedForReceipt(maHoSoDatCoc: String, checkedBy: String): HoSoDatCoc
+	+requestReceiptCreation(maHoSoDatCoc: String, requestedBy: String): HoSoDatCoc
 	+calculateDepositAmount(monthlyRent: BigDecimal, bedCount: int): BigDecimal
 }
 
@@ -146,6 +149,8 @@ class PhieuThanhToan {
 	+getTransactions(page: int, size: int, loaiGiaoDich: String, trangThai: String): Page<PhieuThanhToan>
 	+getTransactionById(maPhieuThanhToan: String): PhieuThanhToan
 	+createTransaction(request: CreateTransactionRequest): PhieuThanhToan
+	+createReceiptFromDeposit(maHoSoDatCoc: String, amount: BigDecimal, createdBy: String): PhieuThanhToan
+	+generateReceiptDocument(maPhieuThanhToan: String): Binary
 	+updateTransaction(maPhieuThanhToan: String, request: UpdateTransactionRequest): PhieuThanhToan
 	+deleteTransaction(maPhieuThanhToan: String): Void
 }
@@ -170,8 +175,10 @@ class HoSoDatCocDB {
 	' Repository (HoSoDatCocRepository)
 	--
 	+findById(maHoSoDatCoc: String): HoSoDatCoc
+	+findByMaYeuCau(maYeuCau: String): HoSoDatCoc
 	+findAll(pageable: Pageable): Page<HoSoDatCoc>
 	+save(entity: HoSoDatCoc): HoSoDatCoc
+	+markChecked(maHoSoDatCoc: String, checkedBy: String): HoSoDatCoc
 	+delete(entity: HoSoDatCoc): Void
 }
 
@@ -180,10 +187,12 @@ class PhieuThanhToanDB {
 	--
 	+findById(maPhieuThanhToan: String): PhieuThanhToan
 	+findAll(pageable: Pageable): Page<PhieuThanhToan>
+	+findByHoSoDatCocId(maHoSoDatCoc: String): List<PhieuThanhToan>
 	+findByLoaiGiaoDichAndTrangThai(loaiGiaoDich: String, trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
 	+findByLoaiGiaoDich(loaiGiaoDich: String, pageable: Pageable): Page<PhieuThanhToan>
 	+findByTrangThai(trangThai: String, pageable: Pageable): Page<PhieuThanhToan>
 	+save(entity: PhieuThanhToan): PhieuThanhToan
+	+saveReceiptForDeposit(maHoSoDatCoc: String, phieu: PhieuThanhToan): PhieuThanhToan
 }
 }
 
@@ -197,31 +206,17 @@ MHThanhToanTienCoc o-- HoSoDatCoc
 MHThanhToanTienCoc o-- PhieuThanhToan
 MHPheDuyetThuePhong o-- YeuCauDangKy
 MHPheDuyetThuePhong o-- PhieuThanhToan
-MHTuChoiThuePhong o-- YeuCauDangKy
+MHThanhToanTienCoc o-- MHTaoPhieuThu
+PhieuThanhToan "1..1" -- "0..*" HoSoDatCoc
 
-' (Điều hướng màn hình)
-MHXacNhanThuePhong --> MHThanhToanTienCoc : chốt phòng
-MHThanhToanTienCoc --> MHPheDuyetThuePhong : chuyển duyệt
-MHPheDuyetThuePhong --> MHTuChoiThuePhong : từ chối
 
 ' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
 YeuCauDangKy o-- YeuCauDangKyDB
 HoSoDatCoc o-- HoSoDatCocDB
 PhieuThanhToan o-- PhieuThanhToanDB
 
-note bottom of MHXacNhanThuePhong
-Use case này <<include>> Đăng nhập trước khi truy cập.
-Nếu chốt phòng thành công, hệ thống chuyển sang màn thanh toán tiền cọc.
-end note
+' Additional BLL methods to support receipts
+PhieuThanhToan : +createReceiptFromDeposit(maHoSoDatCoc: String, amount: BigDecimal): PhieuThanhToan
 
-note bottom of MHPheDuyetThuePhong
-Sau khi thu cọc, quản lý xem xét và quyết định đồng ý cho thuê hay từ chối.
-A6: từ chối phê duyệt -> ghi nhận lý do và trả yêu cầu về trạng thái chờ xử lý.
-end note
-
-note bottom of HoSoDatCoc
-A3.1: số tiền thanh toán không đủ -> từ chối lưu và báo lỗi.
-A3.2: hủy giao dịch -> không lưu dữ liệu, trả kết quả thất bại.
-end note
 
 @enduml

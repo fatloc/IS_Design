@@ -24,19 +24,23 @@ class MHQuanLyTaiKhoanNguoiDung {
 	' Presentation (Settings.tsx - StaffTab)
 	-searchInput: SearchBox
 	-roleFilter: Dropdown
+	-statusFilter: Dropdown
 	-staffTable: Grid
 	-pagination: Pagination
 	-btnReload: Button
 	-btnThemTaiKhoan: Button
 	-btnCapNhatQuyen: Button
 	-btnTamDung: Button
+	-btnResetPassword: Button
 	--
-	+loadUsers(page: int, size: int): Promise<void>
+	+loadUsers(page: int, size: int, role: String, status: String): Promise<void>
 	+handleSearch(keyword: String): Void
 	+handleFilterRole(role: String): Void
+	+handleFilterStatus(status: String): Void
 	+handleOpenCreateModal(): Void
 	+handleOpenEditModal(maNhanVien: String): Void
 	+handleOpenLockModal(maNhanVien: String): Void
+	+handleOpenResetPasswordModal(maNhanVien: String): Void
 	+handleToggleStatus(maNhanVien: String): Void
 	+reload(): Void
 }
@@ -56,6 +60,7 @@ class MHThemTaiKhoanNhanSu {
 	+handleCreateUser(payload: CreateUserRequest): Promise<void>
 	+validateForm(): Boolean
 	+showDuplicateUsernameError(): Void
+	+suggestUsername(email: String): String
 }
 
 class MHCapNhatTaiKhoan {
@@ -71,6 +76,7 @@ class MHCapNhatTaiKhoan {
 	+loadUser(maNhanVien: String): Promise<void>
 	+handleInputChange(field: String, value: Any): Void
 	+handleUpdateUser(maNhanVien: String, payload: UpdateUserRequest): Promise<void>
+	+assignRoles(maNhanVien: String, roles: List<String>): Promise<void>
 	+validateForm(): Boolean
 	+showDuplicateUsernameError(): Void
 }
@@ -81,7 +87,7 @@ class MHTamDungTaiKhoan {
 	-btnXacNhan: Button
 	-btnHuy: Button
 	--
-	+handleConfirmAction(maNhanVien: String): Promise<void>
+	+handleConfirmAction(maNhanVien: String, action: String): Promise<void>
 	+handleCancel(): Void
 	+showPermissionError(): Void
 }
@@ -102,11 +108,14 @@ class NhanVien {
 	-loaiNhanVien: String
 	-matKhau: String
 	--
-	+getUsers(page: int, size: int): Page<NhanVien>
+	+getUsers(page: int, size: int, role: String, status: String): Page<NhanVien>
 	+getUserById(maNhanVien: String): NhanVien
 	+createUser(request: CreateUserRequest): NhanVien
 	+updateUser(maNhanVien: String, request: UpdateUserRequest): NhanVien
 	+deleteUser(maNhanVien: String): Void
+	+lockUser(maNhanVien: String, lockedBy: String): NhanVien
+	+unlockUser(maNhanVien: String, unlockedBy: String): NhanVien
+	+resetPassword(maNhanVien: String, tempPassword: String): Boolean
 	+generateUniqueUsername(email: String, fallbackId: String): String
 	+validateTenDangNhap(tenDangNhap: String): Boolean
 	+validateAdminPermission(currentRole: String): Boolean
@@ -124,10 +133,15 @@ class NhanVienDB {
 	--
 	+findById(maNhanVien: String): NhanVien
 	+findAll(pageable: Pageable): Page<NhanVien>
+	+findByRole(role: String, pageable: Pageable): Page<NhanVien>
+	+findByStatus(status: String, pageable: Pageable): Page<NhanVien>
 	+findByEmail(email: String): NhanVien
 	+findByTenDangNhap(tenDangNhap: String): NhanVien
 	+existsByEmail(email: String): Boolean
 	+existsByTenDangNhap(tenDangNhap: String): Boolean
+	+lockUser(maNhanVien: String, lockedBy: String): NhanVien
+	+unlockUser(maNhanVien: String, unlockedBy: String): NhanVien
+	+resetPassword(maNhanVien: String, tempPasswordHash: String): Boolean
 	+save(entity: NhanVien): NhanVien
 	+delete(entity: NhanVien): Void
 }
@@ -144,6 +158,7 @@ MHTamDungTaiKhoan o-- NhanVien
 MHQuanLyTaiKhoanNguoiDung o-- MHThemTaiKhoanNhanSu
 MHQuanLyTaiKhoanNguoiDung o-- MHCapNhatTaiKhoan 
 MHQuanLyTaiKhoanNguoiDung o-- MHTamDungTaiKhoan
+
 
 ' (Tầng Nghiệp Vụ -> Tầng Truy Cập Dữ Liệu)
 NhanVien o-- NhanVienDB
