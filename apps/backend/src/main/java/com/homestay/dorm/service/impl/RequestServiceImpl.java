@@ -7,14 +7,15 @@ import com.homestay.dorm.entity.YeuCauDangKy;
 import com.homestay.dorm.repository.YeuCauDangKyRepository;
 import com.homestay.dorm.service.RequestService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class RequestServiceImpl implements RequestService {
     private static final String DEFAULT_REQUEST_STATUS = "Yêu cầu mới";
