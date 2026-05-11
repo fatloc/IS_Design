@@ -30,6 +30,11 @@ public class RequestController {
         return requestService.getRequests(page, size, nhanVienPhuTrach, trangThaiYeuCau, search);
     }
 
+    @GetMapping("/status-counts")
+    public ApiResponse<java.util.Map<String, Long>> getRequestStatusCounts() {
+        return ApiResponse.ok(requestService.getRequestStatusCounts());
+    }
+
     @GetMapping("/{maYeuCau}")
     public ApiResponse<YeuCauDangKy> getRequestById(@PathVariable String maYeuCau) {
         return ApiResponse.ok(requestService.getRequestById(maYeuCau));

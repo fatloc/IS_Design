@@ -369,6 +369,26 @@ export async function getContracts(params?: Record<string, unknown>) {
   return response.data;
 }
 
+export type ContractDetail = {
+  maHopDongThue: string;
+  danhSachPhong: string[];
+  danhSachGiuong: string[];
+  thanhVienList: {
+    maThanhVien: string;
+    hoTen: string | null;
+    soDienThoai: string | null;
+    phai: string | null;
+    cccd: string | null;
+    quocTich: string | null;
+    nguoiDaiDien: boolean;
+  }[];
+};
+
+export async function getContractDetails(maHopDongThue: string) {
+  const response = await api.get<ApiResponse<ContractDetail>>(`/contracts/${maHopDongThue}/details`);
+  return response.data.data;
+}
+
 export async function getContractStats() {
   const response = await api.get<ApiResponse<Record<string, number>>>("/contracts/stats");
   return response.data.data;
