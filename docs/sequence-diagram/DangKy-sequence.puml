@@ -1,0 +1,112 @@
+@startuml
+title Chuc nang Dang ky tai khoan
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+	ArrowColor #8A2E5D
+	LifeLineBorderColor #666666
+	LifeLineBackgroundColor #FFFFFF
+	ParticipantBorderColor #666666
+	ParticipantBackgroundColor #F6F3C9
+	ParticipantFontColor #222222
+	ActivationBorderColor #8A2E5D
+	ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien" as User
+boundary ": MHDangKy" as UI_Register
+
+control ": AuthService" as S_Auth
+control ": NhanVien" as S_User
+
+database ": NhanVienDB" as DB_User
+database ": VerificationTokenDB" as DB_Token
+
+== Mo man hinh dang ky ==
+User -> UI_Register: openRegisterPage()
+activate User
+activate UI_Register
+UI_Register --> User: render form dang ky
+deactivate UI_Register
+deactivate User
+
+== Dang ky tai khoan ==
+User -> UI_Register: handleSubmitRegister(payload)
+activate User
+activate UI_Register
+
+UI_Register -> UI_Register: validateForm()
+
+alt Du lieu dau vao khong hop le
+	UI_Register -> UI_Register: showInvalidUsernameError()/showWeakPasswordError()/showPasswordMismatchError()
+	UI_Register --> User: hien thi thong bao loi du lieu
+
+else Du lieu dau vao hop le
+	UI_Register -> S_Auth: registerNewUser(request)
+	activate S_Auth
+
+	S_Auth -> S_Auth: validateUsernameFormat(tenDangNhap)
+	S_Auth -> S_Auth: validatePasswordStrength(matKhau)
+
+	alt Sai dinh dang ten dang nhap hoac mat khau yeu
+		S_Auth --> UI_Register: registerNewUser(...): ValidationError
+		UI_Register -> UI_Register: showInvalidUsernameError()/showWeakPasswordError()
+		UI_Register --> User: hien thi thong bao loi xac thuc
+
+	else Dinh dang hop le
+		S_Auth -> DB_User: existsByEmail(email)
+		activate DB_User
+		DB_User --> S_Auth: existsByEmail(...): Boolean
+		deactivate DB_User
+
+		alt Email da ton tai
+			S_Auth --> UI_Register: registerNewUser(...): DuplicateEmailError
+			UI_Register -> UI_Register: showDuplicateEmailError()
+			UI_Register --> User: thong bao email da duoc su dung
+
+		else Email chua ton tai
+			S_Auth -> DB_User: existsByTenDangNhap(tenDangNhap)
+			activate DB_User
+			DB_User --> S_Auth: existsByTenDangNhap(...): Boolean
+			deactivate DB_User
+
+			alt Ten dang nhap da ton tai
+				S_Auth -> S_Auth: generateUniqueUsername(email, hoTen)
+			else Ten dang nhap hop le va chua ton tai
+			end
+
+			S_Auth -> S_Auth: assignRoleByType(loaiNhanVien)
+			S_Auth -> S_Auth: hashPassword(matKhau)
+			S_Auth -> S_User: save(entity: NhanVien)
+			activate S_User
+			S_User -> DB_User: save(entity: NhanVien)
+			activate DB_User
+			DB_User --> S_User: save(...): NhanVien
+			deactivate DB_User
+			S_User --> S_Auth: save(...): NhanVien
+			deactivate S_User
+
+			S_Auth -> S_Auth: sendVerificationEmail(email)
+			S_Auth -> DB_Token: save(entity: VerificationToken)
+			activate DB_Token
+			DB_Token --> S_Auth: save(...): VerificationToken
+			deactivate DB_Token
+
+			S_Auth --> UI_Register: registerNewUser(...): NhanVien
+			UI_Register --> User: thong bao dang ky thanh cong
+			UI_Register -> UI_Register: navigateToLogin()
+			UI_Register --> User: chuyen den man hinh dang nhap
+		end
+	end
+
+	deactivate S_Auth
+end
+
+deactivate UI_Register
+deactivate User
+
+@enduml

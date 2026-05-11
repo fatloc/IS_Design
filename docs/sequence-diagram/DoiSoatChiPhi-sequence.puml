@@ -1,0 +1,151 @@
+@startuml
+title Chức năng Đối soát chi phí thanh lý
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien KeToan" as KeToan
+boundary ": MHQuanLyThanhLyHopDong" as UI_Main
+boundary ": MHBienBanThanhLyHopDong" as UI_Modal
+
+control ": HopDongThue" as S_Contract
+control ": BangDoiSoat" as S_Settlement
+control ": PhieuThanhToan" as S_Payment
+
+database ": HopDongThueDB" as DB_Contract
+database ": BangDoiSoatDB" as DB_Settlement
+database ": PhieuThanhToanDB" as DB_Payment
+
+== Tải danh sách hợp đồng chờ đối soát ==
+KeToan -> UI_Main: loadPendingContracts(params)
+activate KeToan
+activate UI_Main
+UI_Main -> S_Contract: getSettlementContracts(page, size, filters)
+activate S_Contract
+S_Contract -> DB_Contract: findByTrangThaiThanhLy(trangThai, pageable)
+activate DB_Contract
+DB_Contract --> S_Contract: Page<HopDongThue>
+deactivate DB_Contract
+S_Contract --> UI_Main: ApiListResponse<HopDongThue>
+deactivate S_Contract
+UI_Main --> KeToan: render contractTable + pagination
+deactivate UI_Main
+deactivate KeToan
+
+== Mở modal biên bản thanh lý (đối soát) ==
+KeToan -> UI_Main: handleOpenReconcileModal(maHopDong)
+activate KeToan
+activate UI_Main
+UI_Main -> S_Contract: getContractById(maHopDong)
+activate S_Contract
+S_Contract -> DB_Contract: findById(maHopDong)
+activate DB_Contract
+DB_Contract --> S_Contract: HopDongThue
+deactivate DB_Contract
+S_Contract --> UI_Main: HopDongThue
+deactivate S_Contract
+
+UI_Main -> UI_Modal: open(contract)
+activate UI_Modal
+
+UI_Modal -> S_Payment: getPaymentsByContract(maHopDong)
+activate S_Payment
+S_Payment -> DB_Payment: findByMaChungTu(maHopDong)
+activate DB_Payment
+DB_Payment --> S_Payment: List<PhieuThanhToan>
+deactivate DB_Payment
+S_Payment --> UI_Modal: ApiListResponse<PhieuThanhToan>
+deactivate S_Payment
+
+UI_Modal --> UI_Main: render formBiênBan + paymentList
+deactivate UI_Modal
+deactivate UI_Main
+deactivate KeToan
+
+== Người dùng tính toán và xác nhận đối soát ==
+KeToan -> UI_Modal: submitReconcile(payload)
+activate KeToan
+activate UI_Modal
+UI_Modal -> UI_Modal: validate()
+
+alt Dữ liệu hợp lệ
+  UI_Modal -> S_Settlement: reconcile(request)
+  activate S_Settlement
+  S_Settlement -> DB_Settlement: save(entity: BangDoiSoat)
+  activate DB_Settlement
+  DB_Settlement --> S_Settlement: BangDoiSoat
+  deactivate DB_Settlement
+
+  alt Sinh giao dịch thanh toán
+    S_Settlement -> S_Payment: createPayment(paymentRequest)
+    activate S_Payment
+    S_Payment -> DB_Payment: save(entity: PhieuThanhToan)
+    activate DB_Payment
+    DB_Payment --> S_Payment: PhieuThanhToan
+    deactivate DB_Payment
+    S_Payment --> S_Settlement: PhieuThanhToan
+    deactivate S_Payment
+  end
+
+  S_Settlement --> UI_Modal: reconcile(...): BangDoiSoat
+  deactivate S_Settlement
+
+  UI_Modal -> UI_Main: loadPendingContracts(params)
+  activate UI_Main
+  UI_Main --> UI_Modal: render updated contractTable
+  deactivate UI_Main
+
+  UI_Modal -> UI_Main: showToast("Đối soát thành công", "success")
+  activate UI_Main
+  UI_Main --> KeToan: showToast("Đối soát thành công", "success")
+  deactivate UI_Main
+
+  UI_Modal -> UI_Modal: close()
+
+else Dữ liệu không hợp lệ
+  UI_Modal -> UI_Main: showToast("Dữ liệu không hợp lệ", "error")
+  activate UI_Main
+  UI_Main --> KeToan: showToast("Dữ liệu không hợp lệ", "error")
+  deactivate UI_Main
+end
+
+deactivate UI_Modal
+deactivate KeToan
+
+== Xử lý thanh toán sau đối soát (tùy chọn) ==
+KeToan -> UI_Main: handleProcessPayment(maBangDoiSoat)
+activate KeToan
+activate UI_Main
+UI_Main -> S_Settlement: processPayment(maBangDoiSoat, action)
+activate S_Settlement
+S_Settlement -> DB_Settlement: findById(maBangDoiSoat)
+activate DB_Settlement
+DB_Settlement --> S_Settlement: BangDoiSoat
+deactivate DB_Settlement
+S_Settlement -> DB_Settlement: update(maBangDoiSoat, {trangThai})
+activate DB_Settlement
+DB_Settlement --> S_Settlement: BangDoiSoat
+deactivate DB_Settlement
+S_Settlement --> UI_Main: processPayment(...): Void
+deactivate S_Settlement
+
+UI_Main -> UI_Main: loadPendingContracts(params)
+UI_Main -> UI_Main: showToast("Cập nhật trạng thái thanh toán thành công", "success")
+UI_Main --> KeToan: showToast("Cập nhật trạng thái thanh toán thành công", "success")
+deactivate UI_Main
+deactivate KeToan
+
+@enduml

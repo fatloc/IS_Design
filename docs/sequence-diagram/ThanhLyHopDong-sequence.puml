@@ -1,0 +1,168 @@
+@startuml
+title Chuc nang Thanh ly hop dong
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHQuanLyThanhLyHopDong" as UI_Main
+boundary ": MHBienBanThanhLyHopDong" as UI_Settlement
+
+control ": HopDongThue" as S_Contract
+control ": BangDoiSoat" as S_Settlement
+control ": KhachHang" as S_Customer
+control ": NhanVien" as S_Employee
+control ": GiaoDichThanhToan" as S_Payment
+
+database ": HopDongThueDB" as DB_Contract
+database ": BangDoiSoatDB" as DB_Settlement
+database ": KhachHangDB" as DB_Customer
+database ": NhanVienDB" as DB_Employee
+database ": GiaoDichThanhToanDB" as DB_Payment
+
+== Tai danh sach hop dong cho thanh ly ==
+Sale -> UI_Main: loadSettlementContracts(params)
+activate Sale
+activate UI_Main
+UI_Main -> S_Contract: getSettlementContracts(status, page, size)
+activate S_Contract
+S_Contract -> DB_Contract: findByFiltersWithSearch(keyword, trangThai, page, size)
+activate DB_Contract
+DB_Contract --> S_Contract: findByFiltersWithSearch(...): Page<HopDongThue>
+deactivate DB_Contract
+S_Contract --> UI_Main: getSettlementContracts(...): List<Map>
+deactivate S_Contract
+UI_Main --> Sale: render settlementTable + pagination
+deactivate UI_Main
+deactivate Sale
+
+== Mo bien ban thanh ly ==
+Sale -> UI_Main: handleOpenReconcile(row)
+activate Sale
+activate UI_Main
+UI_Main -> S_Contract: getContractById(maHopDongThue)
+activate S_Contract
+S_Contract -> DB_Contract: findById(maVanBan)
+activate DB_Contract
+DB_Contract --> S_Contract: findById(...): HopDongThue
+deactivate DB_Contract
+S_Contract --> UI_Main: getContractById(...): HopDongThue
+deactivate S_Contract
+
+UI_Main -> UI_Settlement: open(row)
+activate UI_Settlement
+UI_Settlement -> S_Customer: getCustomerById(maKhachHang)
+activate S_Customer
+S_Customer -> DB_Customer: findById(maKhachHang)
+activate DB_Customer
+DB_Customer --> S_Customer: findById(...): KhachHang
+deactivate DB_Customer
+S_Customer --> UI_Settlement: getCustomerById(...): KhachHang
+deactivate S_Customer
+
+UI_Settlement -> S_Settlement: getSettlementById(maBangDoiSoat)
+activate S_Settlement
+S_Settlement -> DB_Settlement: findByMaHopDongThue(maHopDongThue)
+activate DB_Settlement
+DB_Settlement --> S_Settlement: findByMaHopDongThue(...): BangDoiSoat
+deactivate DB_Settlement
+S_Settlement --> UI_Settlement: getSettlementById(...): BangDoiSoat
+deactivate S_Settlement
+
+UI_Settlement -> S_Payment: getTransactionsByContract(maHopDongThue)
+activate S_Payment
+S_Payment -> DB_Payment: findByMaHopDongThue(maHopDongThue)
+activate DB_Payment
+DB_Payment --> S_Payment: findByMaHopDongThue(...): List<GiaoDichThanhToan>
+deactivate DB_Payment
+S_Payment --> UI_Settlement: getTransactionsByContract(...): List<GiaoDichThanhToan>
+deactivate S_Payment
+
+UI_Settlement -> UI_Settlement: calculateNet()
+UI_Settlement --> UI_Main: render bien ban thanh ly
+deactivate UI_Settlement
+UI_Main --> Sale: hien thi thong tin bien ban thanh ly
+deactivate UI_Main
+deactivate Sale
+
+== Xac nhan thanh ly hop dong ==
+Sale -> UI_Settlement: handleConfirm()
+activate Sale
+activate UI_Settlement
+UI_Settlement -> UI_Settlement: calculateNet()
+
+alt Du lieu hop le
+  UI_Settlement -> S_Settlement: createSettlement(bangDoiSoat)
+  activate S_Settlement
+  S_Settlement -> DB_Settlement: save(entity: BangDoiSoat)
+  activate DB_Settlement
+  DB_Settlement --> S_Settlement: save(...): BangDoiSoat
+  deactivate DB_Settlement
+  S_Settlement --> UI_Settlement: createSettlement(...): BangDoiSoat
+  deactivate S_Settlement
+
+  UI_Settlement -> S_Payment: createTransaction(transaction)
+  activate S_Payment
+  S_Payment -> DB_Payment: save(entity: GiaoDichThanhToan)
+  activate DB_Payment
+  DB_Payment --> S_Payment: save(...): GiaoDichThanhToan
+  deactivate DB_Payment
+  S_Payment --> UI_Settlement: createTransaction(...): GiaoDichThanhToan
+  deactivate S_Payment
+
+  UI_Settlement -> S_Contract: updateSettlementStatus(maHopDongThue, trangThai)
+  activate S_Contract
+  S_Contract -> DB_Contract: update(maVanBan, entity: HopDongThue)
+  activate DB_Contract
+  DB_Contract --> S_Contract: update(...): HopDongThue
+  deactivate DB_Contract
+  S_Contract --> UI_Settlement: updateSettlementStatus(...): HopDongThue
+  deactivate S_Contract
+
+  UI_Settlement -> UI_Main: loadSettlementContracts(params)
+  activate UI_Main
+  UI_Main --> UI_Settlement: render settlementTable + pagination
+  deactivate UI_Main
+
+  UI_Settlement -> UI_Main: showToast("Thanh ly hop dong thanh cong", "success")
+  activate UI_Main
+  UI_Main --> Sale: showToast("Thanh ly hop dong thanh cong", "success")
+  deactivate UI_Main
+
+  UI_Settlement -> UI_Settlement: close()
+
+else Du lieu khong hop le
+  UI_Settlement -> UI_Main: showToast("Thong tin khong hop le", "error")
+  activate UI_Main
+  UI_Main --> Sale: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Main
+end
+
+deactivate UI_Settlement
+deactivate Sale
+
+== Huy thao tac thanh ly ==
+Sale -> UI_Settlement: handleCancel()
+activate Sale
+activate UI_Settlement
+UI_Settlement -> UI_Settlement: close()
+UI_Settlement --> UI_Main: quay lai man danh sach
+deactivate UI_Settlement
+UI_Main --> Sale: tiep tuc xem danh sach hop dong
+deactivate UI_Main
+deactivate Sale
+
+@enduml

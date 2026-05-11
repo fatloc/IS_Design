@@ -1,0 +1,124 @@
+@startuml
+title Chuc nang Dang nhap he thong
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nguoi dung" as User
+boundary ": MHDangNhap" as UI_Login
+control ": AuthService" as S_Auth
+control ": NhanVien" as S_Employee
+control ": JwtTokenProvider" as S_JWT
+database ": NhanVienDB" as DB_Employee
+
+== Nhap thong tin dang nhap ==
+User -> UI_Login: nhapEmailDangNhapPassword(emailOrUsername, matKhau, ghiNhoDangNhap)
+activate User
+activate UI_Login
+UI_Login -> UI_Login: validateForm()
+activate UI_Login
+UI_Login --> UI_Login: Boolean
+deactivate UI_Login
+note right: Kiem tra email/username va password khong rong
+
+== Validate va tim kiem user ==
+UI_Login -> S_Auth: login(request: LoginRequest)
+activate S_Auth
+
+S_Auth -> S_Auth: validateInputFormat(emailOrUsername)
+activate S_Auth
+S_Auth --> S_Auth: Boolean
+deactivate S_Auth
+
+S_Auth -> S_Employee: validateEmail(emailOrUsername)
+activate S_Employee
+S_Employee --> S_Auth: Boolean
+deactivate S_Employee
+
+S_Auth -> DB_Employee: findByEmail(emailOrUsername)
+activate DB_Employee
+DB_Employee --> S_Auth: Optional<NhanVien>
+deactivate DB_Employee
+
+alt User khong tim thay
+	S_Auth -> DB_Employee: findByTenDangNhap(emailOrUsername)
+	activate DB_Employee
+	DB_Employee --> S_Auth: Optional<NhanVien>
+	deactivate DB_Employee
+end
+
+alt User khong ton tai
+	S_Auth --> UI_Login: throw InvalidCredentialsException
+	activate UI_Login
+	UI_Login --> User: hien thi loi "Email/Username hoac mat khau khong dung"
+	activate User
+	deactivate User
+	deactivate UI_Login
+	deactivate S_Auth
+else User ton tai
+	== Kiem tra mat khau ==
+	S_Auth -> S_Employee: validatePassword(matKhau, nhanVien.matKhau)
+	activate S_Employee
+	S_Employee --> S_Auth: Boolean
+	deactivate S_Employee
+	
+	alt Mat khau sai
+		S_Auth --> UI_Login: throw InvalidCredentialsException
+		activate UI_Login
+		UI_Login --> User: hien thi loi "Email/Username hoac mat khau khong dung"
+		activate User
+		deactivate User
+		deactivate UI_Login
+		deactivate S_Auth
+	else Mat khau dung
+		== Tao JWT Token ==
+		S_Auth -> S_JWT: generateToken(nhanVien)
+		activate S_JWT
+		S_JWT --> S_Auth: token: String
+		deactivate S_JWT
+		
+		== Chuan hoa Role ==
+		S_Auth -> S_Employee: normalizeRole(nhanVien.loaiNhanVien)
+		activate S_Employee
+		S_Employee --> S_Auth: role: String (MANAGER, ACCOUNTANT, SALE)
+		deactivate S_Employee
+		
+		== Tao Response ==
+		S_Auth -> S_Auth: tao AuthResponse(token, nhanVien)
+		activate S_Auth
+		S_Auth --> S_Auth: AuthResponse
+		deactivate S_Auth
+		S_Auth --> UI_Login: login(...): AuthResponse
+		activate UI_Login
+		deactivate S_Auth
+		
+		== Luu thong tin va chuyen huong ==
+		UI_Login -> UI_Login: saveTokenToLocalStorage(token)
+		activate UI_Login
+		UI_Login --> UI_Login: void
+		deactivate UI_Login
+		
+		UI_Login -> UI_Login: if(ghiNhoDangNhap) saveRememberMe(emailOrUsername)
+		activate UI_Login
+		UI_Login --> UI_Login: void
+		deactivate UI_Login
+		
+		UI_Login --> User: dang nhap thanh cong, chuyen huong toi Dashboard
+		deactivate UI_Login
+		deactivate User
+	end
+end
+@enduml

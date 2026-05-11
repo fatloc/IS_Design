@@ -1,0 +1,208 @@
+@startuml
+title Chuc nang Quan ly don gia dich vu
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Quan ly" as Admin
+boundary ": MHQuanLyDonGiaDichVu" as UI_Main
+boundary ": MHChiTietDichVu" as UI_Detail
+boundary ": MHCapNhatDonGia" as UI_Update
+
+control ": DichVu" as S_Service
+control ": Phong" as S_Room
+
+database ": DichVuDB" as DB_Service
+database ": PhongDB" as DB_Room
+
+== Tai danh sach don gia dich vu ==
+Admin -> UI_Main: loadServices(params)
+activate Admin
+activate UI_Main
+UI_Main -> S_Service: getServices(page, size)
+activate S_Service
+S_Service -> DB_Service: findAll(pageable)
+activate DB_Service
+DB_Service --> S_Service: findAll(...): Page<DichVu>
+deactivate DB_Service
+S_Service --> UI_Main: getServices(...): ApiListResponse<DichVu>
+deactivate S_Service
+UI_Main --> Admin: render danh sach dich vu va don gia
+deactivate UI_Main
+deactivate Admin
+
+== Xem chi tiet dich vu ==
+Admin -> UI_Main: handleOpenService(maDichVu)
+activate Admin
+activate UI_Main
+UI_Main -> S_Service: getServiceById(maDichVu)
+activate S_Service
+S_Service -> DB_Service: findById(maDichVu)
+activate DB_Service
+DB_Service --> S_Service: findById(...): Optional<DichVu>
+deactivate DB_Service
+S_Service --> UI_Main: getServiceById(...): DichVu
+deactivate S_Service
+
+UI_Main -> UI_Detail: open(dichVu)
+activate UI_Detail
+UI_Detail --> UI_Main: render chi tiet dich vu
+deactivate UI_Detail
+UI_Main --> Admin: hien thi thong tin chi tiet dich vu
+deactivate UI_Main
+deactivate Admin
+
+== Cap nhat don gia dich vu ==
+Admin -> UI_Main: handleEditService(maDichVu)
+activate Admin
+activate UI_Main
+
+UI_Main -> S_Service: getServiceById(maDichVu)
+activate S_Service
+S_Service -> DB_Service: findById(maDichVu)
+activate DB_Service
+DB_Service --> S_Service: findById(...): Optional<DichVu>
+deactivate DB_Service
+S_Service --> UI_Main: getServiceById(...): DichVu
+deactivate S_Service
+
+UI_Main -> UI_Update: open(dichVu)
+activate UI_Update
+UI_Update --> UI_Main: render form cap nhat don gia
+deactivate UI_Main
+
+Admin -> UI_Update: submitUpdatePricing(payload)
+
+UI_Update -> UI_Update: validate()
+
+alt Du lieu hop le
+  UI_Update -> S_Service: updateService(maDichVu, req)
+  activate S_Service
+  S_Service -> DB_Service: findById(maDichVu)
+  activate DB_Service
+  DB_Service --> S_Service: findById(...): Optional<DichVu>
+  deactivate DB_Service
+  S_Service -> S_Service: validateDonGia(donGia)
+  S_Service -> S_Service: validateDonViTinh(donViTinh)
+  S_Service -> DB_Service: save(entity: DichVu)
+  activate DB_Service
+  DB_Service --> S_Service: save(...): DichVu
+  deactivate DB_Service
+  S_Service --> UI_Update: updateService(...): DichVu
+  deactivate S_Service
+
+  UI_Update -> UI_Main: loadServices(params)
+  activate UI_Main
+  UI_Main --> UI_Update: render danh sach dich vu cap nhat
+  deactivate UI_Main
+
+  UI_Update -> UI_Main: showToast("Cap nhat don gia thanh cong", "success")
+  activate UI_Main
+  UI_Main --> Admin: showToast("Cap nhat don gia thanh cong", "success")
+  deactivate UI_Main
+
+  UI_Update -> UI_Update: close()
+
+else Du lieu khong hop le
+  UI_Update -> UI_Main: showToast("Thong tin khong hop le", "error")
+  activate UI_Main
+  UI_Main --> Admin: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Main
+end
+
+deactivate UI_Update
+deactivate Admin
+
+== Them dich vu moi ==
+Admin -> UI_Main: handleAddNewService()
+activate Admin
+activate UI_Main
+
+UI_Main -> UI_Update: open()
+activate UI_Update
+UI_Update --> UI_Main: render form them dich vu moi
+deactivate UI_Main
+
+Admin -> UI_Update: submitCreateService(payload)
+
+UI_Update -> UI_Update: validate()
+
+alt Du lieu hop le
+  UI_Update -> S_Service: createService(req)
+  activate S_Service
+  S_Service -> S_Service: validateDonGia(donGia)
+  S_Service -> S_Service: validateDonViTinh(donViTinh)
+  S_Service -> DB_Service: save(entity: DichVu)
+  activate DB_Service
+  DB_Service --> S_Service: save(...): DichVu
+  deactivate DB_Service
+  S_Service --> UI_Update: createService(...): DichVu
+  deactivate S_Service
+
+  UI_Update -> UI_Main: loadServices(params)
+  activate UI_Main
+  UI_Main --> UI_Update: render danh sach dich vu cap nhat
+  deactivate UI_Main
+
+  UI_Update -> UI_Main: showToast("Them dich vu thanh cong", "success")
+  activate UI_Main
+  UI_Main --> Admin: showToast("Them dich vu thanh cong", "success")
+  deactivate UI_Main
+
+  UI_Update -> UI_Update: close()
+
+else Du lieu khong hop le
+  UI_Update -> UI_Main: showToast("Thong tin khong hop le", "error")
+  activate UI_Main
+  UI_Main --> Admin: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Main
+end
+
+deactivate UI_Update
+deactivate Admin
+
+== Xoa dich vu ==
+Admin -> UI_Main: handleDeleteService(maDichVu)
+activate Admin
+activate UI_Main
+
+UI_Main -> UI_Detail: deleteService()
+activate UI_Detail
+
+UI_Detail -> S_Service: deleteService(maDichVu)
+activate S_Service
+S_Service -> DB_Service: findById(maDichVu)
+activate DB_Service
+DB_Service --> S_Service: findById(...): Optional<DichVu>
+deactivate DB_Service
+S_Service -> DB_Service: delete(entity: DichVu)
+activate DB_Service
+DB_Service --> S_Service: delete(...): Void
+deactivate DB_Service
+S_Service --> UI_Detail: deleteService(...): Void
+deactivate S_Service
+
+UI_Detail -> UI_Detail: close()
+
+UI_Main -> UI_Main: loadServices(params)
+
+UI_Main -> UI_Main: showToast("Xoa dich vu thanh cong", "success")
+UI_Main --> Admin: showToast("Xoa dich vu thanh cong", "success")
+deactivate UI_Detail
+deactivate UI_Main
+deactivate Admin
+
+@enduml

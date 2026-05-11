@@ -1,0 +1,173 @@
+@startuml
+title Chuc nang Quan ly danh muc phong
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #4C6E8B
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #4C6E8B
+  ActivationBackgroundColor #E6F2FF
+}
+skinparam ActorBorderColor #4C6E8B
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHQuanLyPhongGiuong" as UI_Main
+boundary ": MHThemPhong" as UI_Add
+boundary ": MHSuaPhong" as UI_Edit
+boundary ": MHXoaPhong" as UI_Delete
+
+control ": Phong" as S_Room
+database ": PhongDB" as DB_Room
+
+== Tai danh sach phong ==
+Sale -> UI_Main: loadRoomList(params)
+activate Sale
+activate UI_Main
+UI_Main -> S_Room: getRooms(page, size, search, filters)
+activate S_Room
+S_Room -> DB_Room: findAll(pageable) / findByFilters(...)
+activate DB_Room
+DB_Room --> S_Room: Page<Phong>
+deactivate DB_Room
+S_Room --> UI_Main: ApiListResponse<Phong>
+deactivate S_Room
+UI_Main --> Sale: render roomGrid + pagination
+deactivate UI_Main
+deactivate Sale
+
+== Them phong moi ==
+Sale -> UI_Main: handleOpenAddModal()
+activate Sale
+activate UI_Main
+UI_Main -> UI_Add: open()
+activate UI_Add
+UI_Add --> UI_Main: render addModal
+deactivate UI_Main
+
+Sale -> UI_Add: submitAddRoom(payload)
+activate Sale
+activate UI_Add
+UI_Add -> UI_Add: validate()
+
+alt Du lieu hop le
+  UI_Add -> S_Room: createRoom(req)
+  activate S_Room
+  S_Room -> DB_Room: save(entity: Phong)
+  activate DB_Room
+  DB_Room --> S_Room: save(...): Phong
+  deactivate DB_Room
+  S_Room --> UI_Add: createRoom(...): Phong
+  deactivate S_Room
+
+  UI_Add -> UI_Main: loadRoomList(params)
+  activate UI_Main
+  UI_Main --> UI_Add: render roomGrid + pagination
+  deactivate UI_Main
+
+  UI_Add -> UI_Add: close()
+  UI_Add -> UI_Add: showToast("Them phong thanh cong", "success")
+  UI_Add --> Sale: showToast("Them phong thanh cong", "success")
+
+else Du lieu khong hop le
+  UI_Add -> UI_Add: showToast("Thong tin khong hop le", "error")
+  UI_Add --> Sale: showToast("Thong tin khong hop le", "error")
+end
+
+deactivate UI_Add
+deactivate Sale
+
+== Sua thong tin phong ==
+Sale -> UI_Main: handleOpenEditModal(maPhong)
+activate Sale
+activate UI_Main
+UI_Main -> S_Room: getRoomById(maPhong)
+activate S_Room
+S_Room -> DB_Room: findById(maPhong)
+activate DB_Room
+DB_Room --> S_Room: Optional<Phong>
+deactivate DB_Room
+S_Room --> UI_Main: getRoomById(...): Phong
+deactivate S_Room
+
+UI_Main -> UI_Edit: open(phong)
+activate UI_Edit
+UI_Edit --> UI_Main: render editModal
+deactivate UI_Main
+
+Sale -> UI_Edit: submitEditRoom(maPhong, payload)
+activate Sale
+activate UI_Edit
+UI_Edit -> UI_Edit: validate()
+
+alt Du lieu hop le
+  UI_Edit -> S_Room: updateRoom(maPhong, req)
+  activate S_Room
+  S_Room -> DB_Room: update(maPhong, entity: Phong)
+  activate DB_Room
+  DB_Room --> S_Room: update(...): Phong
+  deactivate DB_Room
+  S_Room --> UI_Edit: updateRoom(...): Phong
+  deactivate S_Room
+
+  UI_Edit -> UI_Main: loadRoomList(params)
+  activate UI_Main
+  UI_Main --> UI_Edit: render roomGrid + pagination
+  deactivate UI_Main
+
+  UI_Edit -> UI_Edit: close()
+  UI_Edit -> UI_Edit: showToast("Cap nhat phong thanh cong", "success")
+  UI_Edit --> Sale: showToast("Cap nhat phong thanh cong", "success")
+
+else Du lieu khong hop le
+  UI_Edit -> UI_Edit: showToast("Thong tin khong hop le", "error")
+  UI_Edit --> Sale: showToast("Thong tin khong hop le", "error")
+end
+
+deactivate UI_Edit
+deactivate Sale
+
+== Xoa phong ==
+Sale -> UI_Main: handleOpenDeleteModal(maPhong)
+activate Sale
+activate UI_Main
+UI_Main -> UI_Delete: open(maPhong)
+activate UI_Delete
+UI_Delete --> UI_Main: render deleteConfirm
+deactivate UI_Main
+
+Sale -> UI_Delete: confirmDelete(maPhong)
+activate Sale
+activate UI_Delete
+UI_Delete -> S_Room: deleteRoom(maPhong)
+activate S_Room
+S_Room -> DB_Room: findById(maPhong)
+activate DB_Room
+DB_Room --> S_Room: Optional<Phong>
+deactivate DB_Room
+S_Room -> DB_Room: delete(entity: Phong)
+activate DB_Room
+DB_Room --> S_Room: delete(...): Void
+deactivate DB_Room
+S_Room --> UI_Delete: deleteRoom(...): Void
+deactivate S_Room
+
+UI_Delete -> UI_Main: loadRoomList(params)
+activate UI_Main
+UI_Main --> UI_Delete: render roomGrid + pagination
+deactivate UI_Main
+
+UI_Delete -> UI_Delete: close()
+UI_Delete -> UI_Delete: showToast("Xoa phong thanh cong", "success")
+UI_Delete --> Sale: showToast("Xoa phong thanh cong", "success")
+
+deactivate UI_Delete
+deactivate Sale
+
+@enduml
