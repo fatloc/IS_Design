@@ -31,7 +31,7 @@ public interface YeuCauDangKyRepository extends JpaRepository<YeuCauDangKy, Stri
            "(:trangThaiYeuCau IS NULL OR y.trangThaiYeuCau = :trangThaiYeuCau) AND " +
            "(:ngayTao IS NULL OR y.ngayTao = :ngayTao) AND " +
            "(:search IS NULL OR LOWER(y.maYeuCau) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(k.hoTen) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           "ORDER BY ABS(DATEDIFF(y.ngayTao, CURRENT_DATE)) ASC, y.maYeuCau DESC",
+           "ORDER BY y.ngayTao DESC, y.maYeuCau DESC",
            countQuery = "SELECT COUNT(y) FROM YeuCauDangKy y LEFT JOIN y.khachHang k WHERE " +
            "(:nhanVienPhuTrach IS NULL OR y.nhanVienPhuTrach = :nhanVienPhuTrach) AND " +
            "(:trangThaiYeuCau IS NULL OR y.trangThaiYeuCau = :trangThaiYeuCau) AND " +
@@ -50,7 +50,7 @@ public interface YeuCauDangKyRepository extends JpaRepository<YeuCauDangKy, Stri
            "(:trangThaiYeuCau IS NULL OR y.trangThaiYeuCau = :trangThaiYeuCau) AND " +
            "YEAR(y.ngayTao) = :year AND MONTH(y.ngayTao) = :month AND " +
            "(:search IS NULL OR LOWER(y.maYeuCau) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(k.hoTen) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           "ORDER BY ABS(DATEDIFF(y.ngayTao, CURRENT_DATE)) ASC, y.maYeuCau DESC",
+           "ORDER BY y.ngayTao DESC, y.maYeuCau DESC",
            countQuery = "SELECT COUNT(y) FROM YeuCauDangKy y LEFT JOIN y.khachHang k WHERE " +
            "(:nhanVienPhuTrach IS NULL OR y.nhanVienPhuTrach = :nhanVienPhuTrach) AND " +
            "(:trangThaiYeuCau IS NULL OR y.trangThaiYeuCau = :trangThaiYeuCau) AND " +

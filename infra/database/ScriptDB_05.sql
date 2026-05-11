@@ -129,8 +129,10 @@ CREATE TABLE THANHVIENNHOM (
     QuocTich VARCHAR(30),
     MaHopDongThue CHAR(6),
     NguoiDaiDien CHAR(6),
+    MaYeuCau CHAR(6),
     FOREIGN KEY (MaHopDongThue) REFERENCES HOPDONGTHUE(MaHopDongThue),
-    FOREIGN KEY (NguoiDaiDien) REFERENCES KHACHHANG(MaKhachHang)
+    FOREIGN KEY (NguoiDaiDien) REFERENCES KHACHHANG(MaKhachHang),
+    FOREIGN KEY (MaYeuCau) REFERENCES YEUCAUDANGKY(MaYeuCau)
 );
 
 -- 3. Phân hệ Nghiệp vụ Trước thuê

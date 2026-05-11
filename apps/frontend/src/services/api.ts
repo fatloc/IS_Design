@@ -9,7 +9,8 @@ import type {
   Transaction,
   User,
   Document,
-  DepositFile
+  DepositFile,
+  GroupMember
 } from "../types";
 
 const API_BASE_URL = "http://localhost:8888/api";
@@ -48,7 +49,9 @@ export type LoginResponse = {
 export type CreateRoomPayload = Omit<Room, "maPhong">;
 export type UpdateRoomPayload = Partial<Room>;
 
-export type CreateRequestPayload = Omit<RoomRequest, "maYeuCau">;
+export type CreateRequestPayload = Omit<RoomRequest, "maYeuCau"> & {
+  danhSachThanhVien?: GroupMember[];
+};
 export type UpdateRequestPayload = Partial<RoomRequest>;
 
 export type CreateAppointmentPayload = Omit<Appointment, "maLichHen">;

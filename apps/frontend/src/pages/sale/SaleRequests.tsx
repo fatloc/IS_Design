@@ -7,9 +7,9 @@ import {
 import { usePagedList } from "../../hooks/usePagedList";
 import { useToast } from "../../components/ToastProvider";
 import { formatVNDInput, parseVNDInput } from "../../utils/format";
-import { getCustomers, getRequests, updateRequest, createRequest, getAppointments, getAppointmentByRequest, getRequestStatusCounts, createCustomer } from "../../services/api";
+import { getCustomers, getRequests, updateRequest, createRequest, getAppointments, getAppointmentByRequest, getRequestStatusCounts, createCustomer, getRoomAvailability } from "../../services/api";
 import { Pagination } from "../../components/Pagination";
-import type { Appointment, Customer, Request, Gender } from "../../types";
+import type { Appointment, Customer, Request, Gender, GroupMember } from "../../types";
 
 
 const O = "#EA580C"; // orange accent
@@ -282,10 +282,22 @@ function CreateRequestTab({
   const [budget, setBudget] = useState(formatVNDInput("1500000"));
   const [note, setNote] = useState("");
   
-  const [thoiGianBatDauThue, setThoiGianBatDauThue] = useState(() => new Date().toISOString().split('T')[0]);
-  const [thoiGianBanGiao, setThoiGianBanGiao] = useState(() => new Date().toISOString().split('T')[0]);
+  // Hàm helper lấy ngày hiện tại định dạng YYYY-MM-DD theo giờ VN
+  const getVNDate = () => {
+    const d = new Date();
+    const vnTime = new Date(d.getTime() + (7 * 60 * 60 * 1000));
+    return vnTime.toISOString().split('T')[0];
+  };
+
+  const [thoiGianBatDauThue, setThoiGianBatDauThue] = useState(getVNDate);
+  const [thoiGianBanGiao, setThoiGianBanGiao] = useState(getVNDate);
   const [coDieuHoa, setCoDieuHoa] = useState(true);
   const [coBaiGuiXe, setCoBaiGuiXe] = useState(true);
+  
+  const [danhSachThanhVien, setDanhSachThanhVien] = useState<Partial<GroupMember>[]>([]);
+  const [isXacMinhLuuTru, setIsXacMinhLuuTru] = useState(false);
+  const [availability, setAvailability] = useState<any[]>([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -300,6 +312,36 @@ function CreateRequestTab({
     const handler = setTimeout(() => setDebouncedSearchCustomer(searchCustomer), 400);
     return () => clearTimeout(handler);
   }, [searchCustomer]);
+
+  useEffect(() => {
+    if (soLuongNguoi > 1) {
+      setDanhSachThanhVien(prev => {
+        const count = soLuongNguoi - 1; // Khách hàng chính không tính vào danh sách thành viên đi kèm
+        if (prev.length === count) return prev;
+        if (prev.length > count) return prev.slice(0, count);
+        const newMembers = [...prev];
+        for (let i = prev.length; i < count; i++) {
+          newMembers.push({ hoTen: "", cccd: "", gioiTinhYeuCau: "Bất kỳ" } as any);
+        }
+        return newMembers;
+      });
+    } else {
+      setDanhSachThanhVien([]);
+    }
+  }, [soLuongNguoi]);
+
+  const handleCheckAvailability = async () => {
+    setCheckingAvailability(true);
+    try {
+      const data = await getRoomAvailability();
+      setAvailability(data);
+      addToast({ message: "Đã cập nhật trạng thái phòng trống realtime.", type: "success" });
+    } catch (e) {
+      addToast({ message: "Lỗi khi kiểm tra phòng.", type: "error" });
+    } finally {
+      setCheckingAvailability(false);
+    }
+  };
 
   useEffect(() => {
     if (!debouncedSearchCustomer || debouncedSearchCustomer.includes(" - ")) {
@@ -361,6 +403,11 @@ function CreateRequestTab({
       return;
     }
     
+    if (soLuongNguoi > 1 && !isXacMinhLuuTru) {
+      addToast({ message: "Vui lòng 'Rà soát hồ sơ cư trú' của cả nhóm trước khi tạo yêu cầu.", type: "error" });
+      return;
+    }
+
     try {
       setLoading(true);
       await createRequest({
@@ -375,7 +422,8 @@ function CreateRequestTab({
         mucGiaMongMuon: Number(parseVNDInput(budget)),
         coBaiGuiXe,
         cacTieuChiKhac: note,
-        trangThaiYeuCau: "Mới tạo",
+        trangThaiYeuCau: "Yêu cầu mới",
+        danhSachThanhVien: danhSachThanhVien as any
       } as any);
       addToast({ message: "Tạo yêu cầu thuê thành công!", type: "success" });
       onSuccess();
@@ -566,6 +614,131 @@ function CreateRequestTab({
           <label className="block text-sm font-bold text-slate-700 mb-1.5">Ghi chú tiêu chí khác</label>
           <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Nhập thêm yêu cầu của khách..." className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition" rows={3}></textarea>
         </div>
+
+        {/* --- KIỂM TRA PHÒNG TRỐNG (CROSS-CHECK) --- */}
+        <div className="p-5 rounded-2xl border border-blue-100 bg-blue-50/50">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+              <MapPin size={16} /> Kiểm tra tình trạng phòng trống (Cross-check)
+            </h4>
+            <button 
+              onClick={handleCheckAvailability} 
+              disabled={checkingAvailability}
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-sm transition"
+            >
+              <Flame size={12} className={checkingAvailability ? "animate-pulse" : ""} />
+              {checkingAvailability ? "Đang kiểm tra..." : "Lấy dữ liệu Realtime"}
+            </button>
+          </div>
+          
+          {availability.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {availability.filter(r => r.slotsTrong > 0).slice(0, 8).map(room => (
+                <div key={room.maPhong} className="bg-white p-2.5 rounded-xl border border-blue-100 flex flex-col items-center">
+                  <div className="text-[0.65rem] font-bold text-slate-400">{room.maPhong}</div>
+                  <div className="text-sm font-black text-blue-600">{room.slotsTrong} chỗ</div>
+                  <div className="text-[0.6rem] text-slate-500">{Number(room.giaThuePhong).toLocaleString()}đ</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[0.7rem] text-slate-500 italic">Nhấp nút để đối soát phòng trống khả dụng từ Quản lý.</p>
+          )}
+        </div>
+
+        {/* --- THÀNH VIÊN NHÓM --- */}
+        {danhSachThanhVien.length > 0 && (
+          <div className="space-y-6 pt-4 border-t border-slate-100 mt-6">
+            <div>
+              <h4 className="text-sm font-black text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+                <Plus size={16} className="text-orange-500" /> Thông tin hồ sơ nhóm ({danhSachThanhVien.length} người đi cùng)
+              </h4>
+              <p className="text-xs text-slate-500 mt-1">Vui lòng nhập đầy đủ thông tin để phục vụ khâu rà soát điều kiện cư trú.</p>
+            </div>
+            
+            <div className="space-y-8">
+              {danhSachThanhVien.map((tv, idx) => (
+                <div key={idx} className="relative group">
+                  {/* Member Badge/Divider */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-black text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                      {idx + 1}
+                    </div>
+                    <div className="h-px flex-1 bg-slate-100 group-hover:bg-orange-100 transition-colors" />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[0.7rem] font-bold text-slate-500 mb-1.5 uppercase ml-1">Họ và tên</label>
+                      <input 
+                        value={tv.hoTen || ""} 
+                        onChange={e => {
+                          const newMembers = [...danhSachThanhVien];
+                          newMembers[idx].hoTen = e.target.value;
+                          setDanhSachThanhVien(newMembers);
+                        }}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition" 
+                        placeholder="Họ tên thành viên..." 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[0.7rem] font-bold text-slate-500 mb-1.5 uppercase ml-1">Số CCCD / CMND</label>
+                      <input 
+                        value={tv.cccd || ""} 
+                        onChange={e => {
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          const newMembers = [...danhSachThanhVien];
+                          newMembers[idx].cccd = val.slice(0, 12);
+                          setDanhSachThanhVien(newMembers);
+                        }}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition font-mono" 
+                        placeholder="12 chữ số..." 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[0.7rem] font-bold text-slate-500 mb-1.5 uppercase ml-1">Giới tính</label>
+                      <select 
+                        value={tv.phai || "Nam"} 
+                        onChange={e => {
+                          const newMembers = [...danhSachThanhVien];
+                          newMembers[idx].phai = e.target.value as any;
+                          setDanhSachThanhVien(newMembers);
+                        }}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none transition"
+                      >
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 p-4 rounded-2xl bg-orange-50/50 border border-orange-100 animate-pulse-slow">
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="relative flex items-center justify-center mt-1">
+                  <input 
+                    type="checkbox" 
+                    checked={isXacMinhLuuTru} 
+                    onChange={e => setIsXacMinhLuuTru(e.target.checked)}
+                    className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 transition-all checked:bg-gradient-to-br checked:from-orange-500 checked:to-red-600 checked:border-orange-500" 
+                  />
+                  <CheckCircle size={12} className="absolute text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-orange-600 transition-colors">
+                    Cam kết rà soát hồ sơ cư trú
+                  </span>
+                  <p className="text-[0.72rem] text-slate-500 leading-relaxed mt-0.5">
+                    Tôi xác nhận đã đối chiếu giấy tờ gốc của <b>toàn bộ {danhSachThanhVien.length + 1} thành viên</b> (bao gồm khách chính) và đảm bảo giới tính, độ tuổi khớp với tiêu chuẩn phòng đã kiểm tra.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
+
         <div className="pt-2 flex justify-end">
           <button onClick={handleCreate} disabled={loading || !searchCustomer} className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold rounded-xl hover:brightness-110 transition shadow-lg shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
             {loading ? "Đang xử lý..." : <><CheckCircle size={18} /> Xác nhận Tạo yêu cầu</>}

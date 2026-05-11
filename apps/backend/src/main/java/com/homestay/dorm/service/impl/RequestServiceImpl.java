@@ -24,8 +24,10 @@ import java.util.stream.Collectors;
 public class RequestServiceImpl implements RequestService {
     private static final Logger log = LoggerFactory.getLogger(RequestServiceImpl.class);
     private static final String DEFAULT_REQUEST_STATUS = "Yêu cầu mới";
+    private static final java.time.ZoneId VN_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final YeuCauDangKyRepository yeuCauRepository;
+    private final com.homestay.dorm.repository.ThanhVienNhomRepository thanhVienRepository;
 
     @Override
     public ApiListResponse<YeuCauDangKy> getRequests(int page, int size, String nhanVienPhuTrach, String trangThaiYeuCau, String ngayTao, String thang, String search) {
@@ -87,7 +89,7 @@ public class RequestServiceImpl implements RequestService {
         yeuCauPage.forEach(req -> {
             boolean overdue = false;
             if ("Yêu cầu mới".equals(req.getTrangThaiYeuCau()) && req.getThoiGianBatDauThueDuKien() != null) {
-                if (req.getThoiGianBatDauThueDuKien().isBefore(LocalDate.now())) {
+                if (req.getThoiGianBatDauThueDuKien().isBefore(LocalDate.now(VN_ZONE))) {
                     overdue = true;
                 }
             }
@@ -111,7 +113,7 @@ public class RequestServiceImpl implements RequestService {
         
         YeuCauDangKy yeuCau = YeuCauDangKy.builder()
                 .maYeuCau(newId)
-                .ngayTao(LocalDate.now()) // Auto-set creation date
+                .ngayTao(LocalDate.now(VN_ZONE)) // Auto-set creation date (VN Time)
                 .soLuongNguoi(req.getSoLuongNguoi())
                 .gioiTinhYeuCau(req.getGioiTinhYeuCau())
                 .thoiGianBatDauThueDuKien(req.getThoiGianBatDauThueDuKien())
@@ -128,6 +130,25 @@ public class RequestServiceImpl implements RequestService {
         
         log.info("Dự kiến lưu yêu cầu với ID: {}", newId);
         YeuCauDangKy saved = yeuCauRepository.save(yeuCau);
+
+        // Lưu danh sách thành viên nhóm nếu có
+        if (req.getDanhSachThanhVien() != null && !req.getDanhSachThanhVien().isEmpty()) {
+            for (com.homestay.dorm.dto.request.ThanhVienRequest tvReq : req.getDanhSachThanhVien()) {
+                String tvId = "TV" + UUID.randomUUID().toString().replace("-", "").substring(0, 3).toUpperCase();
+                com.homestay.dorm.entity.ThanhVienNhom tv = com.homestay.dorm.entity.ThanhVienNhom.builder()
+                        .maThanhVien(tvId)
+                        .hoTen(tvReq.getHoTen())
+                        .cccd(tvReq.getCccd())
+                        .soDienThoai(tvReq.getSoDienThoai())
+                        .phai(tvReq.getPhai())
+                        .quocTich(tvReq.getQuocTich())
+                        .maYeuCau(saved.getMaYeuCau())
+                        .nguoiDaiDien(saved.getKhachHangYeuCau())
+                        .build();
+                thanhVienRepository.save(tv);
+            }
+        }
+
         log.info("Đã lưu thành công yêu cầu: {} vào database.", saved.getMaYeuCau());
         return saved;
     }

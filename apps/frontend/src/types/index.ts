@@ -90,6 +90,8 @@ export interface ContractMember {
   nguoiDaiDien: string | null;
 }
 
+export type GroupMember = ContractMember;
+
 export interface Request {
   maYeuCau: string;
   soLuongNguoi: number | null;
