@@ -120,6 +120,9 @@ export type DashboardResponse = {
   pendingRequests: number;
   pendingAppointments: number;
   pendingTransactions: number;
+  activeTenants: number;
+  totalCapacity: number;
+  fullRooms: number;
   monthlyRevenue: number;
   urgentTasks: DashboardTask[];
 };
@@ -271,6 +274,11 @@ export async function getAvailableRooms(params: AvailableRoomParams) {
 export async function getRooms(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Room>>("/rooms", { params });
   return response.data;
+}
+
+export async function getRoomStatusCounts() {
+  const response = await api.get<ApiResponse<Record<string, number>>>("/rooms/status-counts");
+  return response.data.data;
 }
 
 export async function getRoomById(maPhong: string) {

@@ -14,6 +14,8 @@ export interface Branch {
 export interface Room {
   maPhong: string;
   sucChuaToiDa: number | null;
+  soNguoiHienTai?: number | null;
+  slotsTrong?: number | null;
   giaThuePhong: SqlDecimal | null;
   trangThai: string | null;
   chiNhanh: string | null;

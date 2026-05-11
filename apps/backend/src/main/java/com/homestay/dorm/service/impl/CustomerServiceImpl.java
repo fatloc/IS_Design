@@ -96,10 +96,11 @@ public class CustomerServiceImpl implements CustomerService {
         KhachHang kh = getCustomerById(maKhachHang);
         try {
             khachHangRepository.delete(kh);
+            khachHangRepository.flush(); // Force immediate check of constraints
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new org.springframework.web.server.ResponseStatusException(
                 org.springframework.http.HttpStatus.CONFLICT, 
-                "Không thể xoá khách hàng này vì đã có dữ liệu liên quan (lịch hẹn, hợp đồng...)"
+                "Không thể xóa khách hàng này vì đang trong quá trình thuê hoặc có dữ liệu liên quan (hợp đồng, hóa đơn...)."
             );
         }
     }

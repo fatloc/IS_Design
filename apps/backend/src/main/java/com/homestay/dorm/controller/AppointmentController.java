@@ -21,10 +21,11 @@ public class AppointmentController {
     public ApiListResponse<LichXemPhong> getAppointments(
             @RequestParam(defaultValue = "0")    int page,
             @RequestParam(defaultValue = "100")  int size,
+            @RequestParam(required = false)      Integer day,
             @RequestParam(required = false)      Integer month,
             @RequestParam(required = false)      Integer year,
             @RequestParam(required = false)      String search) {
-        return appointmentService.getAppointments(page, size, month, year, search);
+        return appointmentService.getAppointments(page, size, day, month, year, search);
     }
 
     @GetMapping("/by-request/{maYeuCau}")
