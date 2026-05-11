@@ -266,11 +266,11 @@ MHLapLichXemPhong o-- NhanVien
 MHChiTietLichHen o-- LichXemPhong
 
 ' 2. Quan hệ nội bộ tầng Nghiệp vụ
-KhachHang "1" -- "0..*" YeuCauDangKy : có
-KhachHang "1" -- "0..*" LichXemPhong : có
-YeuCauDangKy "1" -- "0..1" LichXemPhong : tạo lịch
-Phong "1" -- "0..*" LichXemPhong : được xem
-NhanVien "1" -- "0..*" LichXemPhong : phụ trách
+KhachHang "1..1" -- "0..*" YeuCauDangKy : có
+KhachHang "1..1" -- "0..*" LichXemPhong : có
+YeuCauDangKy "1..1" -- "0..1" LichXemPhong : tạo lịch
+Phong "1..1" -- "0..*" LichXemPhong : được xem
+NhanVien "1..1" -- "0..*" LichXemPhong : phụ trách
 
 ' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
 LichXemPhong o-- LichXemPhongDB

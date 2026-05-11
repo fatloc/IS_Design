@@ -219,8 +219,8 @@ MHLapYeuCauMoi o-- KhachHang
 MHHoSoKhachHang o-- KhachHang
 
 ' 2. Quan hệ nội bộ tầng Nghiệp vụ (Entity Relationships)
-KhachHang "1" -right- "0..*" YeuCauDangKy : có
-KhachHang "1" -- "0..*" LichXemPhong : có
+KhachHang "1..1" -right- "0..*" YeuCauDangKy : có
+KhachHang "1..1" -- "0..*" LichXemPhong : có
 
 ' 3. Nghiệp vụ gọi Truy cập dữ liệu (BLL -> DAL)
 YeuCauDangKy o-- YeuCauDangKyDB
