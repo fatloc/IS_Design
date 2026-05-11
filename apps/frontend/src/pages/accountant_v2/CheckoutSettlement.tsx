@@ -39,6 +39,7 @@ interface ContractRow {
   danhSachGiuong: string | null;
   maBienBanTraPhong: string | null;
   soTienDoiSoat: number | null;
+  tienCoc: number | null;
 }
 
 function mapRow(r: any): ContractRow {
@@ -66,6 +67,7 @@ function mapRow(r: any): ContractRow {
     danhSachGiuong: r.DanhSachGiuong ?? r.danhSachGiuong ?? null,
     maBienBanTraPhong: r.MaBienBanTraPhong ?? r.maBienBanTraPhong ?? null,
     soTienDoiSoat: r.SoTienDoiSoat != null ? Number(r.SoTienDoiSoat) : null,
+    tienCoc: r.MucTienCoc != null ? Number(r.MucTienCoc) : (r.mucTienCoc != null ? Number(r.mucTienCoc) : null),
   };
 }
 
@@ -80,7 +82,7 @@ function ReconcileModal({
   onSuccess: () => void;
 }) {
   const { addToast } = useToast();
-  const [tienCoc, setTienCoc] = useState(5000000);
+  const [tienCoc, setTienCoc] = useState(row.tienCoc ?? 0);
   const [tyLeHoan, setTyLeHoan] = useState(100);
   const [khauTruPhong, setKhauTruPhong] = useState(0);
   const [khauTruDonDep, setKhauTruDonDep] = useState(0);
@@ -147,6 +149,9 @@ function ReconcileModal({
                 onChange={e => setTienCoc(Number(e.target.value) || 0)}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
+              <div className="mt-1 text-xs text-slate-500">
+                Lấy từ database: {money(row.tienCoc)}
+              </div>
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Tỷ lệ hoàn cọc</label>

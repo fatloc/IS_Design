@@ -378,7 +378,7 @@ def generate_data():
                 random.choice(nhanvien_ids),
                 random.choice(yeu_cau_statuses) if i <= 10000 else "Yêu cầu mới",
                 random.choice([1, 3, 6, None]),  # ThoiHanThue
-                random.choice(phong_ids) if random.random() < 0.4 else None,  # MaPhongDeXuat
+                random.choice(phong_ids),  # MaPhongDeXuat - assign room to all requests
             )
         )
 

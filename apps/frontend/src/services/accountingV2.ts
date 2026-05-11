@@ -47,7 +47,7 @@ export async function getRentalRequests() {
     return allData.map((r: any) => ({ 
       id: r.maYeuCau, 
       client: r.khachHangYeuCau ?? "", 
-      room: "-", 
+      room: r.maPhongDeXuat ?? "-", 
       sales: r.nhanVienPhuTrach ?? "", 
       date: r.thoiGianBatDauThueDuKien ?? "", 
       rent: r.mucGiaMongMuon ?? 0, 

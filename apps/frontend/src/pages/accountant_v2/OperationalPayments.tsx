@@ -326,6 +326,7 @@ export default function OperationalPayments() {
         return false;
       }
 
+      const hasRoom = r.danhSachPhong && r.danhSachPhong.trim();  // Only show contracts with rooms
       const matchSearch =
         r.maHopDongThue.toLowerCase().includes(q) ||
         (r.tenKhachHang || "").toLowerCase().includes(q) ||
@@ -335,7 +336,7 @@ export default function OperationalPayments() {
         statusFilter === "Tất cả" ||
         (statusFilter === "Đã thu" && status === "da thu") ||
         (statusFilter === "Chưa thu" && status === "chua thu");
-      return matchSearch && matchStatus;
+      return matchSearch && matchStatus && hasRoom;
     });
   }, [rows, search, statusFilter]);
 
@@ -345,7 +346,8 @@ export default function OperationalPayments() {
   const paginated = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   const chuaThuCount = rows.filter(r => {
-    return normalizePaymentStatus(r.trangThaiThanhToan) === "chua thu";
+    const hasRoom = r.danhSachPhong && r.danhSachPhong.trim();
+    return hasRoom && normalizePaymentStatus(r.trangThaiThanhToan) === "chua thu";
   }).length;
 
   return (

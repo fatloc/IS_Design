@@ -63,7 +63,8 @@ export default function RentalRequests() {
                           (r.client || "").toString().toLowerCase().includes(q) || 
                           (r.room || "").toString().toLowerCase().includes(q);
       const matchStatus = statusFilter === "Tất cả" || r.status === statusFilter;
-      return matchSearch && matchStatus;
+      const hasRoom = r.room && r.room !== "-";  // Only show requests with rooms
+      return matchSearch && matchStatus && hasRoom;
     });
   }, [rows, search, statusFilter]);
 
