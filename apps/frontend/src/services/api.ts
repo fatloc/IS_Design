@@ -313,6 +313,29 @@ export async function updateRequest(maYeuCau: string, payload: UpdateRequestPayl
   return response.data.data;
 }
 
+export type ApproveRequestResponse = {
+  yeuCau: RoomRequest;
+  hopDong: {
+    maVanBan: string;
+    hinhThucThue: string | null;
+    kyThanhToan: string | null;
+    soLuongThanhVien: number | null;
+    ngayKetThuc: string | null;
+    trangThaiThanhLy: string | null;
+  };
+  message: string;
+};
+
+export async function approveRequest(maYeuCau: string) {
+  const response = await api.post<ApiResponse<ApproveRequestResponse>>(`/requests/${maYeuCau}/approve`);
+  return response.data.data;
+}
+
+export async function rejectRequest(maYeuCau: string, lyDo?: string) {
+  const response = await api.post<ApiResponse<RoomRequest>>(`/requests/${maYeuCau}/reject`, { lyDo });
+  return response.data.data;
+}
+
 export async function getAppointments(params?: Record<string, unknown>) {
   const response = await api.get<ApiListResponse<Appointment>>("/appointments", { params });
   return response.data;
