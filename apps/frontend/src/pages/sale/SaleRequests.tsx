@@ -452,7 +452,7 @@ function CreateRequestTab({
         mucGiaMongMuon: Number(parseVNDInput(budget)),
         coBaiGuiXe,
         cacTieuChiKhac: note,
-        trangThaiYeuCau: "Mới tạo",
+        trangThaiYeuCau: "Yêu cầu mới",
         thoiHanThue: thoiHanThue ?? undefined,
         maPhongDeXuat: selectedRoomId ?? undefined,
         thanhVienList: companions.length > 0 ? companions.map(c => ({

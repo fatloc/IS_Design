@@ -38,4 +38,10 @@ public class CustomerController {
     public ApiResponse<KhachHang> createCustomer(@RequestBody KhachHang data) {
         return ApiResponse.ok(customerService.createCustomer(data));
     }
+
+    @DeleteMapping("/{maKhachHang}")
+    public ApiResponse<Void> deleteCustomer(@PathVariable String maKhachHang) {
+        customerService.deleteCustomer(maKhachHang);
+        return ApiResponse.ok(null);
+    }
 }

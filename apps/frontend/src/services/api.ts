@@ -254,6 +254,10 @@ export async function createCustomer(data: Partial<Customer>) {
   return response.data.data;
 }
 
+export async function deleteCustomer(maKhachHang: string) {
+  await api.delete(`/customers/${maKhachHang}`);
+}
+
 
 export type AvailableRoomParams = {
   loaiPhong: string;
