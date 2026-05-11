@@ -18,4 +18,5 @@ public class CreateYeuCauRequest {
     private String khachHangYeuCau;
     private String nhanVienPhuTrach;
     private String trangThaiYeuCau;
+    private java.util.List<ThanhVienRequest> danhSachThanhVien;
 }

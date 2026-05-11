@@ -3,8 +3,6 @@ export type SqlTime = string;
 export type SqlDecimal = string;
 export type SqlBoolean = boolean;
 
-export type Gender = "Nam" | "Nữ";
-
 export interface Branch {
   maChiNhanh: string;
   tenChiNhanh: string | null;
@@ -89,6 +87,8 @@ export interface ContractMember {
   maHopDongThue: string | null;
   nguoiDaiDien: string | null;
 }
+
+export type GroupMember = ContractMember;
 
 export interface Request {
   maYeuCau: string;

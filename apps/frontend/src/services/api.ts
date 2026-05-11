@@ -10,6 +10,7 @@ import type {
   User,
   Document,
   DepositFile,
+  GroupMember,
   Deposit
 } from "../types";
 
@@ -49,7 +50,9 @@ export type LoginResponse = {
 export type CreateRoomPayload = Omit<Room, "maPhong">;
 export type UpdateRoomPayload = Partial<Room>;
 
-export type CreateRequestPayload = Omit<RoomRequest, "maYeuCau">;
+export type CreateRequestPayload = Omit<RoomRequest, "maYeuCau"> & {
+  danhSachThanhVien?: GroupMember[];
+};
 export type UpdateRequestPayload = Partial<RoomRequest>;
 
 export type CreateAppointmentPayload = Omit<Appointment, "maLichHen">;
