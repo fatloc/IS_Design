@@ -19,7 +19,7 @@ pnpm-debug.log*
 
 # --- Java / Maven ---
 **/target/
-**/.mvn/wrapper/maven-wrapper.jar
+#**/.mvn/wrapper/maven-wrapper.jar
 
 # --- Node / Frontend ---
 **/node_modules/
@@ -51,3 +51,4 @@ GEMINI.md
 ERRORS.md
 .config.kiro
 .kiro
+apps/frontend/package-lock.json
