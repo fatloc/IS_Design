@@ -418,17 +418,32 @@ function RoomTab() {
               {([
                 { key:"sucChuaToiDa", label:"Sức chứa", type:"number" },
                 { key:"giaThuePhong", label:"Giá thuê (đ)", type:"text" },
-                { key:"trangThai",    label:"Trạng thái", type:"text" },
+                { key:"trangThai",    label:"Trạng thái", type:"select", options: ["Trống", "Đang có người", "Đang bảo trì", "Đã đặt cọc"] },
                 { key:"chiNhanh",     label:"Chi nhánh",  type:"text" },
-              ] as const).map(f=>(
+              ]).map(f=>(
                 <div key={f.key}>
                   <label className="block mb-1.5 text-slate-700" style={{ fontSize:"0.78rem", fontWeight:600 }}>{f.label}</label>
-                  <input type={f.type} value={String((editForm as any)[f.key] ?? "")}
-                    onChange={e=>setEditForm(prev=>({...prev,[f.key]:f.type==="number"?Number(e.target.value):e.target.value}))}
-                    className="w-full px-3 rounded-xl"
-                    style={{ paddingTop:"0.6rem", paddingBottom:"0.6rem", border:"1.5px solid #E2E8F0", background:"#FAFAFA", fontSize:"0.85rem", outline:"none" }}
-                    onFocus={e=>{ e.currentTarget.style.borderColor=A; e.currentTarget.style.boxShadow=`0 0 0 3px ${A}12`; }}
-                    onBlur={e=>{ e.currentTarget.style.borderColor="#E2E8F0"; e.currentTarget.style.boxShadow="none"; }}/>
+                  {f.type === "select" ? (
+                    <select 
+                      value={String((editForm as any)[f.key] ?? "")}
+                      onChange={e=>setEditForm(prev=>({...prev,[f.key]:e.target.value}))}
+                      className="w-full px-3 rounded-xl appearance-none cursor-pointer"
+                      style={{ paddingTop:"0.6rem", paddingBottom:"0.6rem", border:"1.5px solid #E2E8F0", background:"#FAFAFA", fontSize:"0.85rem", outline:"none" }}
+                      onFocus={e=>{ e.currentTarget.style.borderColor=A; e.currentTarget.style.boxShadow=`0 0 0 3px ${A}12`; }}
+                      onBlur={e=>{ e.currentTarget.style.borderColor="#E2E8F0"; e.currentTarget.style.boxShadow="none"; }}
+                    >
+                      {f.options?.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type={f.type} value={String((editForm as any)[f.key] ?? "")}
+                      onChange={e=>setEditForm(prev=>({...prev,[f.key]:f.type==="number"?Number(e.target.value):e.target.value}))}
+                      className="w-full px-3 rounded-xl"
+                      style={{ paddingTop:"0.6rem", paddingBottom:"0.6rem", border:"1.5px solid #E2E8F0", background:"#FAFAFA", fontSize:"0.85rem", outline:"none" }}
+                      onFocus={e=>{ e.currentTarget.style.borderColor=A; e.currentTarget.style.boxShadow=`0 0 0 3px ${A}12`; }}
+                      onBlur={e=>{ e.currentTarget.style.borderColor="#E2E8F0"; e.currentTarget.style.boxShadow="none"; }}/>
+                  )}
                 </div>
               ))}
             </div>
