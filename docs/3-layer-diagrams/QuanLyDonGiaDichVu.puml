@@ -116,14 +116,4 @@ MHQuanLyDonGiaDichVu o-- DichVu
 Phong o-- PhongDB
 DichVu o-- DichVuDB
 
-note bottom of MHQuanLyDonGiaDichVu
-Use case này <<include>> Đăng nhập trước khi truy cập.
-UI cho phép cập nhật giá thuê và giá dịch vụ, sau đó bấm lưu.
-end note
-
-note bottom of DichVu
-A4: Đơn giá không hợp lệ (số âm, chữ, để trống) -> từ chối lưu và báo lỗi.
-Hậu điều kiện: Bảng giá mới áp dụng cho kỳ tiếp theo, không đổi hợp đồng cũ.
-end note
-
 @enduml
