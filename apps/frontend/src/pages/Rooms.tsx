@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, Filter, Layers3, Search, SlidersHorizontal } from "lucide-react";
 import { Pagination } from "../components/Pagination";
 import { usePagedList } from "../hooks/usePagedList";
-import { getRooms } from "../services/api";
+import { getRooms, getRoomStatusCounts } from "../services/api";
 import type { Room } from "../types";
 
 const STATUS_OPTIONS = [
@@ -36,6 +36,7 @@ export default function Rooms() {
   const [branchFilter, setBranchFilter] = useState<(typeof BRANCH_OPTIONS)[number]>("All");
   const [searchText, setSearchText] = useState("");
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   const apiParams = useMemo(() => {
     const query: Record<string, unknown> = {};
@@ -56,29 +57,18 @@ export default function Rooms() {
     setSelectedRoom(null);
   }, [statusFilter, branchFilter, setPage]);
 
+  // Load status counts từ API (tổng toàn bộ, không phụ thuộc trang hiện tại)
+  useEffect(() => {
+    getRoomStatusCounts()
+      .then(data => setStatusCounts(data ?? {}))
+      .catch(() => setStatusCounts({}));
+  }, []);
+
   const visibleRooms = items.filter((room) => {
     const matchBranch = branchFilter === "All" || String(room.chiNhanh ?? "") === branchFilter;
     const matchSearch = !searchText.trim() || String(room.maPhong ?? "").toLowerCase().includes(searchText.trim().toLowerCase());
     return matchBranch && matchSearch;
   });
-
-  const statusCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    items.forEach((room) => {
-      const normalized = (room.trangThai ?? "").toLowerCase();
-      const key = normalized.includes("trong")
-        ? "Trong"
-        : normalized.includes("da dat")
-          ? "Da dat"
-          : normalized.includes("dang thue")
-            ? "Dang thue"
-            : normalized.includes("bao tri")
-              ? "Bao tri"
-              : room.trangThai ?? "Khac";
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    });
-    return counts;
-  }, [items]);
 
   useEffect(() => {
     if (!selectedRoom && visibleRooms.length > 0) {
@@ -93,7 +83,13 @@ export default function Rooms() {
     <div className="space-y-5">
       <div className="grid grid-cols-4 gap-4">
         {STATUS_OPTIONS.filter((option) => option.value !== "All").map((option) => {
-          const count = statusCounts.get(option.value) ?? 0;
+          // Map từ STATUS_OPTIONS value sang key trả về từ API
+          const apiKey = option.value === "Trong" ? "Trống"
+            : option.value === "Da dat" ? "Đã đặt"
+            : option.value === "Dang thue" ? "Đang thuê"
+            : option.value === "Bao tri" ? "Bảo trì"
+            : option.label;
+          const count = statusCounts[apiKey] ?? 0;
           return (
             <button
               key={option.value}
@@ -226,7 +222,12 @@ export default function Rooms() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">{room.sucChuaToiDa ?? "—"} người</td>
+                    <td className="px-4 py-4 text-sm text-slate-700">
+                      {room.soNguoiHienTai != null
+                        ? <><span style={{ fontWeight: 700, color: room.soNguoiHienTai > 0 ? "#4F46E5" : "#94A3B8" }}>{room.soNguoiHienTai}</span><span className="text-slate-400">/{room.sucChuaToiDa ?? "?"} người</span></>
+                        : <>{room.sucChuaToiDa ?? "—"} người</>
+                      }
+                    </td>
                     <td className="px-4 py-4 text-sm text-slate-700">{formatMoney(room.giaThuePhong)}</td>
                     <td className="px-4 py-4">
                       <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs" style={{ background: state.bg, color: state.color, fontWeight: 700 }}>
@@ -278,7 +279,7 @@ export default function Rooms() {
                     </span>
                   </div>
                   <div className="space-y-1 text-sm text-slate-600">
-                    <div>Sức chứa: {room.sucChuaToiDa ?? "—"}</div>
+                    <div>Sức chứa: {room.soNguoiHienTai != null ? `${room.soNguoiHienTai}/${room.sucChuaToiDa ?? "?"}` : (room.sucChuaToiDa ?? "—")} người</div>
                     <div>Giá: {formatMoney(room.giaThuePhong)}</div>
                     <div>Chi nhánh: {room.chiNhanh ?? "—"}</div>
                   </div>
@@ -301,7 +302,12 @@ export default function Rooms() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-slate-50 p-3">
                   <div className="text-xs text-slate-400">Sức chứa</div>
-                  <div className="mt-1 text-sm text-slate-900" style={{ fontWeight: 800 }}>{selectedRoom.sucChuaToiDa ?? "—"} người</div>
+                  <div className="mt-1 text-sm text-slate-900" style={{ fontWeight: 800 }}>
+                    {selectedRoom.soNguoiHienTai != null
+                      ? <><span style={{ color: "#4F46E5" }}>{selectedRoom.soNguoiHienTai}</span>/{selectedRoom.sucChuaToiDa ?? "?"} người</>
+                      : <>{selectedRoom.sucChuaToiDa ?? "—"} người</>
+                    }
+                  </div>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
                   <div className="text-xs text-slate-400">Giá thuê</div>

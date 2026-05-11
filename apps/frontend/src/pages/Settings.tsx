@@ -236,10 +236,10 @@ function RoomTab() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { label:"Tổng phòng",    value: totalElements,                                                         color:"#4F46E5", bg:"#EEF2FF", icon:Home },
-          { label:"Đang có người", value: rooms.filter(r=>r.trangThai==="Đang có người").length,                color:"#EA580C", bg:"#FFF7ED", icon:Users },
-          { label:"Phòng trống",   value: rooms.filter(r=>r.trangThai==="Trống").length,                        color:"#059669", bg:"#ECFDF5", icon:BedDouble },
-          { label:"Bảo trì/Cọc",  value: rooms.filter(r=>r.trangThai==="Đang bảo trì"||r.trangThai==="Đã đặt cọc").length, color:"#D97706", bg:"#FFFBEB", icon:Settings2 },
+          { label:"Tổng phòng",    value: totalElements,                                                                                                                    color:"#4F46E5", bg:"#EEF2FF", icon:Home },
+          { label:"Đang có người", value: rooms.filter(r=>statusStyle(r.trangThai).label==="Đang thuê").length,                                                          color:"#EA580C", bg:"#FFF7ED", icon:Users },
+          { label:"Phòng trống",   value: rooms.filter(r=>statusStyle(r.trangThai).label==="Trống").length,                                                              color:"#059669", bg:"#ECFDF5", icon:BedDouble },
+          { label:"Bảo trì/Cọc",  value: rooms.filter(r=>statusStyle(r.trangThai).label==="Bảo trì"||statusStyle(r.trangThai).label==="Đã đặt").length,                 color:"#D97706", bg:"#FFFBEB", icon:Settings2 },
         ].map(s => (
           <div key={s.label} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background:"white", border:"1px solid #F1F5F9", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background:s.bg }}>
