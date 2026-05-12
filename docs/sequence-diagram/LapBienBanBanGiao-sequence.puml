@@ -1,0 +1,165 @@
+@startuml
+title Chuc nang Lap bien ban ban giao
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Quan ly" as Manager
+boundary ": MHVanhanh" as UI_Main
+boundary ": MHBienBanBanGiao" as UI_Handover
+
+control ": HoSoDatCoc" as S_Deposit
+control ": BienBanBanGiaoTaiSan" as S_Handover
+control ": ChiTietBanGiao" as S_HandoverDetail
+
+database ": HoSoDatCocDB" as DB_Deposit
+database ": BienBanBanGiaoDB" as DB_Handover
+database ": ChiTietBanGiaoDB" as DB_HandoverDetail
+database ": RoomBedStatusDB" as DB_Status
+
+== Tai danh sach cho ban giao ==
+Manager -> UI_Main: loadOperations(page, size, status, search)
+activate Manager
+activate UI_Main
+UI_Main -> S_Deposit: getCheckinQueue()
+activate S_Deposit
+S_Deposit -> DB_Deposit: findAllWaitingCheckin()
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findAllWaitingCheckin(): List<HoSoDatCoc>
+deactivate DB_Deposit
+S_Deposit --> UI_Main: getCheckinQueue(): List<HoSoDatCoc>
+deactivate S_Deposit
+UI_Main --> Manager: render danh sach cho ban giao
+deactivate UI_Main
+deactivate Manager
+
+== Mo bien ban ban giao ==
+Manager -> UI_Main: handleOpenHandoverModal(hoSoDatCocId)
+activate Manager
+activate UI_Main
+UI_Main -> UI_Handover: loadHandoverDetail(hoSoDatCocId)
+activate UI_Handover
+
+UI_Handover -> S_Deposit: getById(hoSoDatCocId)
+activate S_Deposit
+S_Deposit -> DB_Deposit: findSourceDocument(hoSoDatCocId)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findSourceDocument(...): Map<String, Object>
+deactivate DB_Deposit
+S_Deposit -> DB_Deposit: findRoomsByDeposit(hoSoDatCocId)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findRoomsByDeposit(...): List<String>
+deactivate DB_Deposit
+S_Deposit -> DB_Deposit: findBedsByDeposit(hoSoDatCocId)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findBedsByDeposit(...): List<String>
+deactivate DB_Deposit
+S_Deposit --> UI_Handover: getById(...): HoSoDatCoc
+deactivate S_Deposit
+
+UI_Handover -> S_HandoverDetail: loadAssetTemplate()
+activate S_HandoverDetail
+S_HandoverDetail -> DB_HandoverDetail: loadAssetTemplate()
+activate DB_HandoverDetail
+DB_HandoverDetail --> S_HandoverDetail: loadAssetTemplate(): List<OperationAsset>
+deactivate DB_HandoverDetail
+S_HandoverDetail --> UI_Handover: loadAssetTemplate(): List<OperationAsset>
+deactivate S_HandoverDetail
+
+UI_Handover --> Manager: render thong tin phong + checklist tai san
+deactivate UI_Handover
+deactivate UI_Main
+deactivate Manager
+
+== Xac nhan bien ban ban giao ==
+Manager -> UI_Handover: handleConfirmHandover(payload)
+activate Manager
+activate UI_Handover
+
+UI_Handover -> UI_Handover: validateBeforeSubmit()
+
+alt Du lieu hop le
+  UI_Handover -> S_Handover: createFromDeposit(maHoSoDatCoc, request)
+  activate S_Handover
+
+  S_Handover -> DB_Deposit: findSourceDocument(maHoSoDatCoc)
+  activate DB_Deposit
+  DB_Deposit --> S_Handover: findSourceDocument(...): Map<String, Object>
+  deactivate DB_Deposit
+
+  S_Handover -> DB_Handover: insertChungTu(maBienBan, "Bien ban ban giao", ngayLap, gioLap, chiNhanh, khachHang)
+  activate DB_Handover
+  DB_Handover --> S_Handover: Void
+  deactivate DB_Handover
+
+  S_Handover -> DB_Handover: insertBienBanBanGiao(maBienBan)
+  activate DB_Handover
+  DB_Handover --> S_Handover: Void
+  deactivate DB_Handover
+
+  loop Cho tung tai san trong checklist
+    S_Handover -> S_HandoverDetail: saveChecklist(maBienBan, assets)
+    activate S_HandoverDetail
+    S_HandoverDetail -> DB_HandoverDetail: findAssetIdByName(tenTaiSan)
+    activate DB_HandoverDetail
+    DB_HandoverDetail --> S_HandoverDetail: maTaiSan
+    deactivate DB_HandoverDetail
+    S_HandoverDetail -> DB_HandoverDetail: insertChiTiet(maBienBan, maTaiSan, soLuong)
+    activate DB_HandoverDetail
+    DB_HandoverDetail --> S_HandoverDetail: Void
+    deactivate DB_HandoverDetail
+    S_HandoverDetail --> S_Handover: Void
+    deactivate S_HandoverDetail
+  end
+
+  alt La phong
+    S_Handover -> DB_Status: updatePhongDaThue(maPhong)
+    activate DB_Status
+    DB_Status --> S_Handover: Void
+    deactivate DB_Status
+  else La giuong
+    S_Handover -> DB_Status: updateGiuongDaThue(maGiuong)
+    activate DB_Status
+    DB_Status --> S_Handover: Void
+    deactivate DB_Status
+  end
+
+  S_Handover --> UI_Handover: createFromDeposit(...): BienBanBanGiaoTaiSan
+  deactivate S_Handover
+
+  UI_Handover -> UI_Main: loadOperations(params)
+  activate UI_Main
+  UI_Main --> UI_Handover: render danh sach cho ban giao da cap nhat
+  deactivate UI_Main
+
+  UI_Handover -> UI_Main: showToast("Lap bien ban ban giao thanh cong", "success")
+  activate UI_Main
+  UI_Main --> Manager: showToast("Lap bien ban ban giao thanh cong", "success")
+  deactivate UI_Main
+
+  UI_Handover -> UI_Handover: close()
+
+else Du lieu khong hop le
+  UI_Handover -> UI_Main: showToast("Thong tin khong hop le", "error")
+  activate UI_Main
+  UI_Main --> Manager: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Main
+end
+
+deactivate UI_Handover
+deactivate Manager
+
+@enduml
