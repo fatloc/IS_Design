@@ -1,0 +1,166 @@
+@startuml
+title Chuc nang Lap yeu cau thue
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHYeuCauThue" as UI_Request
+boundary ": MHLapYeuCauMoi" as UI_Create
+boundary ": MHChiTietYeuCauThue" as UI_Detail
+boundary ": MHHoSoKhachHang" as UI_Customer
+
+control ": YeuCauDangKy" as S_Request
+control ": KhachHang" as S_Customer
+control ": LichXemPhong" as S_Appointment
+
+database ": YeuCauDangKyDB" as DB_Request
+database ": KhachHangDB" as DB_Customer
+database ": LichXemPhongDB" as DB_Appointment
+
+== Tai danh sach yeu cau ==
+Sale -> UI_Request: loadRequests(params)
+activate Sale
+activate UI_Request
+UI_Request -> S_Request: getRequests(page,size,filters,search)
+activate S_Request
+S_Request -> DB_Request: findByFiltersWithSearch(...)
+activate DB_Request
+DB_Request --> S_Request: findByFiltersWithSearch(...): Page<YeuCauDangKy>
+deactivate DB_Request
+S_Request -> DB_Request: countByStatus()
+activate DB_Request
+DB_Request --> S_Request: countByStatus(): List<Object[]>
+deactivate DB_Request
+S_Request --> UI_Request: getRequests(...): ApiListResponse<YeuCauDangKy>
+deactivate S_Request
+UI_Request --> Sale: render requestTable + statusCards
+deactivate UI_Request
+deactivate Sale
+
+== Tao yeu cau moi ==
+Sale -> UI_Create: submitCreateRequest(payload)
+activate Sale
+activate UI_Create
+UI_Create -> UI_Create: validate()
+
+alt Du lieu hop le
+  opt Khach hang chua ton tai
+    UI_Create -> S_Customer: createCustomer(data: KhachHang)
+    activate S_Customer
+    S_Customer -> DB_Customer: save(entity: KhachHang)
+    activate DB_Customer
+    DB_Customer --> S_Customer: save(...): KhachHang
+    deactivate DB_Customer
+    S_Customer --> UI_Create: createCustomer(...): KhachHang
+    deactivate S_Customer
+    UI_Create -> UI_Create: onCreateCustomerSuccess(customer)
+  end
+
+  UI_Create -> S_Request: createRequest(req: CreateYeuCauRequest)
+  activate S_Request
+  S_Request -> DB_Request: save(entity: YeuCauDangKy)
+  activate DB_Request
+  DB_Request --> S_Request: save(...): YeuCauDangKy
+  deactivate DB_Request
+  S_Request --> UI_Create: createRequest(...): YeuCauDangKy
+  deactivate S_Request
+
+  UI_Create -> UI_Request: loadRequests(params)
+  activate UI_Request
+  UI_Request --> UI_Create: render requestTable + statusCards
+  deactivate UI_Request
+
+  UI_Create -> UI_Request: showToast("Tao yeu cau thanh cong", "success")
+  activate UI_Request
+  UI_Request --> Sale: showToast("Tao yeu cau thanh cong", "success")
+  deactivate UI_Request
+
+else Du lieu khong hop le
+  UI_Create -> UI_Request: showToast("Thong tin khong hop le", "error")
+  activate UI_Request
+  UI_Request --> Sale: showToast("Thong tin khong hop le", "error")
+  deactivate UI_Request
+end
+deactivate UI_Create
+deactivate Sale
+
+== Xem chi tiet yeu cau + lich hen ==
+Sale -> UI_Request: openDetail(requestId)
+activate Sale
+activate UI_Request
+UI_Request -> S_Request: getRequestById(maYeuCau)
+activate S_Request
+S_Request -> DB_Request: findById(id)
+activate DB_Request
+DB_Request --> S_Request: findById(id): Optional<YeuCauDangKy>
+deactivate DB_Request
+S_Request --> UI_Request: getRequestById(...): YeuCauDangKy
+deactivate S_Request
+
+UI_Request -> UI_Detail: renderRequestDetails()
+activate UI_Detail
+UI_Detail -> S_Appointment: getAppointmentByMaYeuCau(maYeuCau)
+activate S_Appointment
+S_Appointment -> DB_Appointment: findByMaYeuCau(maYeuCau)
+activate DB_Appointment
+DB_Appointment --> S_Appointment: findByMaYeuCau(...): Optional<LichXemPhong>
+deactivate DB_Appointment
+S_Appointment --> UI_Detail: getAppointmentByMaYeuCau(...): LichXemPhong
+deactivate S_Appointment
+UI_Detail --> UI_Request: render done
+deactivate UI_Detail
+UI_Request --> Sale: hien thi thong tin chi tiet
+deactivate UI_Request
+deactivate Sale
+
+== Cap nhat trang thai yeu cau ==
+Sale -> UI_Request: updateRequestStatus(maYeuCau, payload)
+activate Sale
+activate UI_Request
+UI_Request -> S_Request: updateRequest(maYeuCau, req)
+activate S_Request
+S_Request -> DB_Request: findById(id)
+activate DB_Request
+DB_Request --> S_Request: findById(id): Optional<YeuCauDangKy>
+deactivate DB_Request
+S_Request -> DB_Request: save(entity: YeuCauDangKy)
+activate DB_Request
+DB_Request --> S_Request: save(...): YeuCauDangKy
+deactivate DB_Request
+S_Request --> UI_Request: updateRequest(...): YeuCauDangKy
+deactivate S_Request
+UI_Request --> Sale: showToast("Cap nhat thanh cong", "success")
+deactivate UI_Request
+deactivate Sale
+
+== Tra cuu ho so khach hang ==
+Sale -> UI_Customer: loadCustomers(params)
+activate Sale
+activate UI_Customer
+UI_Customer -> S_Customer: getCustomers(page,size,search)
+activate S_Customer
+S_Customer -> DB_Customer: findAll(...)
+activate DB_Customer
+DB_Customer --> S_Customer: findAll(...): Page<KhachHang>
+deactivate DB_Customer
+S_Customer --> UI_Customer: getCustomers(...): ApiListResponse<KhachHang>
+deactivate S_Customer
+UI_Customer --> Sale: hien thi danh sach/ho so
+deactivate UI_Customer
+deactivate Sale
+
+@enduml

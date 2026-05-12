@@ -1,0 +1,192 @@
+@startuml
+title Chức năng Quản lý tài khoản người dùng
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #4C6E8B
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #E6F2FF
+  ParticipantFontColor #222222
+  ActivationBorderColor #4C6E8B
+  ActivationBackgroundColor #EAF6FF
+}
+skinparam ActorBorderColor #4C6E8B
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhân viên Quản trị" as Admin
+boundary ": MHQuanLyTaiKhoanNguoiDung" as UI_Main
+boundary ": MHThemTaiKhoanNhanSu" as UI_Create
+boundary ": MHCapNhatTaiKhoan" as UI_Edit
+
+
+control ": NhanVien" as S_User
+database ": NhanVienDB" as DB_User
+
+== Tải danh sách tài khoản ==
+Admin -> UI_Main: loadUsers(params)
+activate Admin
+activate UI_Main
+UI_Main -> S_User: getUsers(page, size, role, status, search)
+activate S_User
+S_User -> DB_User: findAllWithFilters(...)
+activate DB_User
+DB_User --> S_User: Page<NhanVien>
+deactivate DB_User
+S_User --> UI_Main: ApiListResponse<NhanVien>
+deactivate S_User
+UI_Main --> Admin: render userTable + pagination
+deactivate UI_Main
+deactivate Admin
+
+== Mở modal tạo tài khoản ==
+Admin -> UI_Main: handleOpenCreateModal()
+activate Admin
+activate UI_Main
+UI_Main -> UI_Create: open()
+activate UI_Create
+UI_Create -> S_User: generateUniqueUsername(email)
+activate S_User
+S_User -> DB_User: existsByTenDangNhap(...)
+activate DB_User
+DB_User --> S_User: Boolean
+deactivate DB_User
+S_User --> UI_Create: suggestedUsername
+deactivate S_User
+UI_Create --> Admin: render createForm
+deactivate UI_Create
+deactivate UI_Main
+deactivate Admin
+
+== Tạo tài khoản mới ==
+Admin -> UI_Create: submitCreateUser(payload)
+activate Admin
+activate UI_Create
+UI_Create -> UI_Create: validate()
+
+alt Dữ liệu hợp lệ
+  UI_Create -> S_User: createUser(request)
+  activate S_User
+  S_User -> DB_User: save(entity: NhanVien)
+  activate DB_User
+  DB_User --> S_User: NhanVien
+  deactivate DB_User
+  S_User --> UI_Create: createUser(...): NhanVien
+  deactivate S_User
+
+  UI_Create -> UI_Main: loadUsers(params)
+  activate UI_Main
+  UI_Main --> UI_Create: render updated list
+  deactivate UI_Main
+
+  UI_Create -> UI_Create: showToast("Tạo tài khoản thành công", "success")
+  UI_Create -> UI_Create: close()
+
+else Dữ liệu không hợp lệ
+  UI_Create -> UI_Create: showToast("Thông tin không hợp lệ", "error")
+  UI_Create --> Admin: showToast("Thông tin không hợp lệ", "error")
+end
+
+deactivate UI_Create
+deactivate Admin
+
+== Cập nhật thông tin / phân quyền ==
+Admin -> UI_Main: handleOpenEdit(maNhanVien)
+activate Admin
+activate UI_Main
+UI_Main -> S_User: getUserById(maNhanVien)
+activate S_User
+S_User -> DB_User: findById(maNhanVien)
+activate DB_User
+DB_User --> S_User: Optional<NhanVien>
+deactivate DB_User
+S_User --> UI_Main: NhanVien
+deactivate S_User
+UI_Main -> UI_Edit: open(user)
+activate UI_Edit
+UI_Edit --> Admin: render editForm
+
+Admin -> UI_Edit: submitUpdate(maNhanVien, payload)
+activate UI_Edit
+UI_Edit -> UI_Edit: validate()
+
+alt Hợp lệ
+  UI_Edit -> S_User: updateUser(maNhanVien, request)
+  activate S_User
+  S_User -> DB_User: save(entity: NhanVien)
+  activate DB_User
+  DB_User --> S_User: NhanVien
+  deactivate DB_User
+  S_User --> UI_Edit: updateUser(...): NhanVien
+  deactivate S_User
+
+  UI_Edit -> UI_Main: loadUsers(params)
+  UI_Main --> Admin: render updated list
+  UI_Edit -> UI_Edit: showToast("Cập nhật thành công", "success")
+  UI_Edit -> UI_Edit: close()
+else Không hợp lệ
+  UI_Edit -> Admin: showToast("Thông tin không hợp lệ", "error")
+end
+
+deactivate UI_Edit
+deactivate UI_Main
+deactivate Admin
+
+== Tạm dừng / Khóa tài khoản ==
+Admin -> UI_Main: handleLockUser(maNhanVien)
+activate Admin
+activate UI_Main
+UI_Main -> S_User: lockUser(maNhanVien, lockedBy)
+activate S_User
+S_User -> DB_User: lockUser(maNhanVien, lockedBy)
+activate DB_User
+DB_User --> S_User: NhanVien
+deactivate DB_User
+S_User --> UI_Main: lockUser(...)
+deactivate S_User
+UI_Main -> UI_Main: loadUsers(params)
+UI_Main --> Admin: showToast("Khóa tài khoản thành công", "success")
+deactivate UI_Main
+deactivate Admin
+
+== Đặt lại mật khẩu ==
+Admin -> UI_Main: handleResetPassword(maNhanVien)
+activate Admin
+activate UI_Main
+UI_Main -> S_User: resetPassword(maNhanVien)
+activate S_User
+S_User -> DB_User: resetPassword(maNhanVien, tempPasswordHash)
+activate DB_User
+DB_User --> S_User: Boolean
+deactivate DB_User
+S_User --> UI_Main: Boolean
+deactivate S_User
+UI_Main -> UI_Main: showToast("Reset mật khẩu thành công", "success")
+deactivate UI_Main
+deactivate Admin
+
+== Xóa tài khoản ==
+Admin -> UI_Main: handleDeleteUser(maNhanVien)
+activate Admin
+activate UI_Main
+UI_Main -> S_User: deleteUser(maNhanVien)
+activate S_User
+S_User -> DB_User: findById(maNhanVien)
+activate DB_User
+DB_User --> S_User: Optional<NhanVien>
+deactivate DB_User
+S_User -> DB_User: delete(entity: NhanVien)
+activate DB_User
+DB_User --> S_User: Void
+deactivate DB_User
+S_User --> UI_Main: deleteUser(...): Void
+deactivate S_User
+UI_Main -> UI_Main: loadUsers(params)
+UI_Main -> Admin: showToast("Xóa tài khoản thành công", "success")
+deactivate UI_Main
+deactivate Admin
+
+@enduml

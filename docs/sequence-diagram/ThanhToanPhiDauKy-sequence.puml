@@ -1,0 +1,176 @@
+@startuml
+title Chuc nang Thanh toan phi dau ky
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien / Quan ly" as User
+boundary ": MHTaoPhieuThu" as UI_Receipt
+boundary ": MHDanhSachHoSoDatCoc" as UI_Deposit_List
+
+control ": ReceiptService" as S_Receipt
+control ": DepositService" as S_Deposit
+control ": HoSoDatCoc" as S_Deposit_Entity
+control ": PhieuThanhToan" as S_Receipt_Entity
+
+database ": HoSoDatCocDB" as DB_Deposit
+database ": PhieuThanhToanDB" as DB_Receipt
+
+== Tai danh sach ho so dat coc ==
+User -> UI_Deposit_List: loadDepositList(filters)
+activate User
+activate UI_Deposit_List
+UI_Deposit_List -> S_Deposit: getDepositsByStatus(status, page, size)
+activate S_Deposit
+S_Deposit -> DB_Deposit: findByTrangThaiAndXacNhan(status, true, pageable)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findByTrangThaiAndXacNhan(...): Page<HoSoDatCoc>
+deactivate DB_Deposit
+S_Deposit --> UI_Deposit_List: getDepositsByStatus(...): ApiListResponse<HoSoDatCoc>
+deactivate S_Deposit
+UI_Deposit_List --> User: render danh sach ho so dat coc
+deactivate UI_Deposit_List
+deactivate User
+
+== Mo form tao phieu thu ==
+User -> UI_Deposit_List: handleOpenReceiptForm(maHoSoDatCoc)
+activate User
+activate UI_Deposit_List
+
+UI_Deposit_List -> S_Deposit: getDepositById(maHoSoDatCoc)
+activate S_Deposit
+S_Deposit -> DB_Deposit: findById(maHoSoDatCoc)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findById(...): Optional<HoSoDatCoc>
+deactivate DB_Deposit
+S_Deposit --> UI_Deposit_List: getDepositById(...): HoSoDatCoc
+deactivate S_Deposit
+
+UI_Deposit_List -> UI_Receipt: open(hoSoDatCoc)
+activate UI_Receipt
+UI_Receipt --> UI_Deposit_List: render form tao phieu thu voi thong tin ho so
+deactivate UI_Receipt
+UI_Deposit_List --> User: hien thi form tao phieu thu
+deactivate UI_Deposit_List
+deactivate User
+
+== Dieu chinh so tien va xac nhan ==
+User -> UI_Receipt: handleAdjustAmount(newAmount)
+activate User
+activate UI_Receipt
+UI_Receipt -> UI_Receipt: validateAmount(newAmount, mucTienCoc)
+alt So tien hop le
+  UI_Receipt --> User: cap nhat so tien trong form
+else So tien khong hop le
+  UI_Receipt -> UI_Receipt: showAmountErrorMessage()
+  UI_Receipt --> User: thong bao loi so tien
+end
+deactivate UI_Receipt
+deactivate User
+
+== Tao phieu thanh toan ==
+User -> UI_Receipt: handleConfirmCreateReceipt(maHoSoDatCoc, amount)
+activate User
+activate UI_Receipt
+
+UI_Receipt -> UI_Receipt: validateForm()
+
+alt Du lieu khong hop le
+  UI_Receipt -> UI_Receipt: showValidationError()
+  UI_Receipt --> User: hien thi thong bao loi
+
+else Du lieu hop le
+  UI_Receipt -> S_Receipt: createReceipt(request)
+  activate S_Receipt
+
+  S_Receipt -> S_Deposit: getDepositById(maHoSoDatCoc)
+  activate S_Deposit
+  S_Deposit -> DB_Deposit: findById(maHoSoDatCoc)
+  activate DB_Deposit
+  DB_Deposit --> S_Deposit: findById(...): Optional<HoSoDatCoc>
+  deactivate DB_Deposit
+  S_Deposit --> S_Receipt: getDepositById(...): HoSoDatCoc
+  deactivate S_Deposit
+
+  S_Receipt -> S_Receipt: validateDepositAmount(hoSoDatCoc.getMucTienCoc(), amount)
+
+  alt So tien thanh toan khong hop le
+    S_Receipt --> UI_Receipt: createReceipt(...): ValidationError
+    UI_Receipt -> UI_Receipt: showAmountValidationError()
+    UI_Receipt --> User: thong bao loi so tien khong hop le
+
+  else So tien thanh toan hop le
+    S_Receipt -> S_Receipt: generateReceiptNumber()
+    S_Receipt -> S_Receipt: assignRoleByPaymentMethod(hinhThucThanhToan)
+    S_Receipt -> S_Receipt: calculateFinalAmount(amount)
+    S_Receipt -> S_Receipt: createPhieuThanhToanFromDeposit(maHoSoDatCoc, amount)
+    
+    S_Receipt -> S_Receipt: markReceiptAsIssued()
+    S_Receipt -> S_Receipt: recordTransactionDetails()
+    
+    S_Receipt -> S_Receipt: savePaymentLog(loaiGiaoDich, ngayGiaoDich, soTienGiaoDich)
+    S_Receipt -> S_Receipt: updateDepositStatus(maHoSoDatCoc, "DaThanhToan")
+    
+    S_Receipt -> S_Receipt: notifyAccounting(phieuThanhToan)
+    
+    S_Receipt -> S_Receipt: createAuditTrail()
+
+    S_Receipt -> S_Receipt: buildReceiptEntity()
+    activate S_Receipt_Entity
+    S_Receipt_Entity --> S_Receipt: buildReceiptEntity(...): PhieuThanhToan
+    deactivate S_Receipt_Entity
+
+    S_Receipt -> DB_Receipt: save(entity: PhieuThanhToan)
+    activate DB_Receipt
+    DB_Receipt --> S_Receipt: save(...): PhieuThanhToan
+    deactivate DB_Receipt
+
+    S_Receipt -> S_Deposit: updateDepositAfterPayment(maHoSoDatCoc)
+    activate S_Deposit
+    S_Deposit -> DB_Deposit: save(entity: HoSoDatCoc)
+    activate DB_Deposit
+    DB_Deposit --> S_Deposit: save(...): HoSoDatCoc
+    deactivate DB_Deposit
+    S_Deposit --> S_Receipt: updateDepositAfterPayment(...): HoSoDatCoc
+    deactivate S_Deposit
+
+    S_Receipt --> UI_Receipt: createReceipt(...): PhieuThanhToan
+    deactivate S_Receipt
+
+    UI_Receipt --> User: thong bao tao phieu thanh toan thanh cong
+    UI_Receipt -> UI_Receipt: showReceiptConfirmation(phieuThanhToan)
+    UI_Receipt -> UI_Receipt: close()
+    UI_Receipt -> UI_Deposit_List: reloadDepositList()
+    activate UI_Deposit_List
+    UI_Deposit_List --> UI_Receipt: render danh sach ho so cap nhat
+    deactivate UI_Deposit_List
+  end
+
+end
+
+deactivate UI_Receipt
+deactivate User
+
+== In hoac tai ve phieu thu ==
+User -> UI_Receipt: handlePrintReceipt(maPhieuThanhToan)
+activate User
+activate UI_Receipt
+UI_Receipt -> UI_Receipt: generateReceiptPDF(phieuThanhToan)
+UI_Receipt --> User: in hoac tai ve phieu thu
+deactivate UI_Receipt
+deactivate User
+
+@enduml

@@ -1,0 +1,103 @@
+@startuml
+title Chức năng Thanh toán tiền cọc
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHTaoPhieuThu" as UI_TaoPhieu
+control ": PhieuThanhToan" as S_Transaction
+control ": HoSoDatCoc" as S_Deposit
+control ": YeuCauDangKy" as S_Request
+database ": PhieuThanhToanDB" as DB_Transaction
+database ": HoSoDatCocDB" as DB_Deposit
+
+== Tải thông tin tiền cọc ==
+Sale -> UI_TaoPhieu: openDeposit(maHoSoDatCoc)
+activate Sale
+activate UI_TaoPhieu
+UI_TaoPhieu -> S_Deposit: getDepositById(maHoSoDatCoc)
+activate S_Deposit
+S_Deposit -> DB_Deposit: findById(maHoSoDatCoc)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: findById(...): HoSoDatCoc
+deactivate DB_Deposit
+S_Deposit --> UI_TaoPhieu: getDepositById(...): HoSoDatCoc
+deactivate S_Deposit
+UI_TaoPhieu --> Sale: render modal Tạo Phiếu Thu (preview)
+deactivate UI_TaoPhieu
+deactivate Sale
+
+== Xác nhận tạo phiếu thu từ tiền cọc ==
+Sale -> UI_TaoPhieu: submitCreateReceipt(maHoSoDatCoc, amount)
+activate Sale
+activate UI_TaoPhieu
+
+UI_TaoPhieu -> UI_TaoPhieu: validate()
+activate UI_TaoPhieu
+deactivate UI_TaoPhieu
+
+alt Dữ liệu hợp lệ
+  UI_TaoPhieu -> S_Transaction: createReceiptFromDeposit(maHoSoDatCoc, amount, requestedBy)
+  activate S_Transaction
+  S_Transaction -> DB_Transaction: saveReceiptForDeposit(maHoSoDatCoc, phieu)
+  activate DB_Transaction
+  DB_Transaction --> S_Transaction: save(...): PhieuThanhToan
+  deactivate DB_Transaction
+
+  S_Transaction -> S_Deposit: markAsCheckedForReceipt(maHoSoDatCoc, requestedBy)
+  activate S_Deposit
+  S_Deposit -> DB_Deposit: markChecked(maHoSoDatCoc, requestedBy)
+  activate DB_Deposit
+  DB_Deposit --> S_Deposit: markChecked(...): HoSoDatCoc
+  deactivate DB_Deposit
+  S_Deposit --> S_Transaction: markAsCheckedForReceipt(...): HoSoDatCoc
+  deactivate S_Deposit
+
+  S_Transaction --> UI_TaoPhieu: createReceiptFromDeposit(...): PhieuThanhToan
+  deactivate S_Transaction
+
+  UI_TaoPhieu -> UI_TaoPhieu: showToast("Tạo phiếu thu thành công", "success")
+  activate UI_TaoPhieu
+  deactivate UI_TaoPhieu
+  UI_TaoPhieu -> UI_TaoPhieu: close()
+  activate UI_TaoPhieu
+  deactivate UI_TaoPhieu
+  UI_TaoPhieu --> Sale: showToast("Tạo phiếu thu thành công", "success")
+
+else Dữ liệu không hợp lệ
+  UI_TaoPhieu -> UI_TaoPhieu: showToast("Thông tin không hợp lệ", "error")
+  activate UI_TaoPhieu
+  deactivate UI_TaoPhieu
+  UI_TaoPhieu --> Sale: showToast("Thông tin không hợp lệ", "error")
+end
+
+deactivate UI_TaoPhieu
+deactivate Sale
+
+== Tùy chọn: tạo tài liệu phiếu thu ==
+Sale -> UI_TaoPhieu: generateDocument(maPhieuThanhToan)
+activate Sale
+activate UI_TaoPhieu
+UI_TaoPhieu -> S_Transaction: generateReceiptDocument(maPhieuThanhToan)
+activate S_Transaction
+S_Transaction --> UI_TaoPhieu: generateReceiptDocument(...): Binary
+deactivate S_Transaction
+UI_TaoPhieu --> Sale: download(Binary)
+deactivate UI_TaoPhieu
+deactivate Sale
+
+@enduml

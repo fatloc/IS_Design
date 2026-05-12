@@ -1,0 +1,144 @@
+@startuml
+title Chức năng Xác nhận thuê phòng
+
+hide footbox
+autonumber 1
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #8A2E5D
+  LifeLineBorderColor #666666
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #666666
+  ParticipantBackgroundColor #F6F3C9
+  ParticipantFontColor #222222
+  ActivationBorderColor #8A2E5D
+  ActivationBackgroundColor #F9EAF2
+}
+skinparam ActorBorderColor #8A2E5D
+skinparam ActorBackgroundColor #FFFFFF
+
+actor ": Nhan vien Sale" as Sale
+boundary ": MHXacNhanThuePhong" as UI_Main
+boundary ": MHThanhToanTienCoc" as UI_Payment
+boundary ": MHTaoPhieuThu" as UI_CreateReceipt
+boundary ": MHPheDuyetThuePhong" as UI_Approve
+
+control ": YeuCauDangKy" as S_Request
+control ": HoSoDatCoc" as S_Deposit
+control ": PhieuThanhToan" as S_Transaction
+
+database ": YeuCauDangKyDB" as DB_Request
+database ": HoSoDatCocDB" as DB_Deposit
+database ": PhieuThanhToanDB" as DB_Transaction
+
+== Tải danh sách yêu cầu cần chốt phòng ==
+Sale -> UI_Main: loadRequests(params)
+activate Sale
+activate UI_Main
+UI_Main -> S_Request: getRequests(page,size,filters)
+activate S_Request
+S_Request -> DB_Request: findByFiltersWithSearch(...)
+activate DB_Request
+DB_Request --> S_Request: Page<YeuCauDangKy>
+deactivate DB_Request
+S_Request --> UI_Main: ApiListResponse<YeuCauDangKy>
+deactivate S_Request
+UI_Main --> Sale: render requestList
+deactivate UI_Main
+deactivate Sale
+
+== Mở chi tiết & bắt đầu chốt phòng ==
+Sale -> UI_Main: handleOpenDetail(requestId)
+activate Sale
+activate UI_Main
+UI_Main -> S_Request: getRequestById(maYeuCau)
+activate S_Request
+S_Request -> DB_Request: findById(maYeuCau)
+activate DB_Request
+DB_Request --> S_Request: Optional<YeuCauDangKy>
+deactivate DB_Request
+S_Request --> UI_Main: YeuCauDangKy
+deactivate S_Request
+
+UI_Main -> UI_Payment: open(yeuCau)
+activate UI_Payment
+UI_Payment -> S_Deposit: getDepositByRequestId(maYeuCau)
+activate S_Deposit
+S_Deposit -> DB_Deposit: findByMaYeuCau(maYeuCau)
+activate DB_Deposit
+DB_Deposit --> S_Deposit: HoSoDatCoc | null
+deactivate DB_Deposit
+S_Deposit --> UI_Payment: HoSoDatCoc?
+deactivate S_Deposit
+
+alt Đã có hồ sơ đặt cọc
+  UI_Payment -> UI_CreateReceipt: openCreateReceiptModal(hoSoDatCoc)
+  activate UI_CreateReceipt
+
+  UI_CreateReceipt -> UI_CreateReceipt: validateInput()
+
+  alt Dữ liệu hợp lệ
+    UI_CreateReceipt -> S_Transaction: createReceiptFromDeposit(maHoSoDatCoc, amount, createdBy)
+    activate S_Transaction
+    S_Transaction -> DB_Transaction: saveReceiptForDeposit(maHoSoDatCoc, phieu)
+    activate DB_Transaction
+    DB_Transaction --> S_Transaction: PhieuThanhToan
+    deactivate DB_Transaction
+
+    S_Transaction -> S_Deposit: markAsCheckedForReceipt(maHoSoDatCoc, checkedBy)
+    activate S_Deposit
+    S_Deposit -> DB_Deposit: markChecked(maHoSoDatCoc, checkedBy)
+    activate DB_Deposit
+    DB_Deposit --> S_Deposit: HoSoDatCoc
+    deactivate DB_Deposit
+    S_Deposit --> S_Transaction: HoSoDatCoc (checked)
+    deactivate S_Deposit
+
+    S_Transaction --> UI_CreateReceipt: PhieuThanhToan
+    deactivate S_Transaction
+
+    UI_CreateReceipt -> UI_Payment: showToast("Tạo phiếu thu thành công", "success")
+    UI_Payment -> S_Request: approveRequest(maYeuCau)
+    activate S_Request
+    S_Request -> DB_Request: approveRequest(maYeuCau)
+    activate DB_Request
+    DB_Request --> S_Request: YeuCauDangKy (approved)
+    deactivate DB_Request
+    S_Request --> UI_Payment: YeuCauDangKy (approved)
+    deactivate S_Request
+
+    UI_Payment --> Sale: showToast("Chốt phòng thành công", "success")
+
+    UI_CreateReceipt -> UI_CreateReceipt: close()
+  else Dữ liệu không hợp lệ
+    UI_CreateReceipt -> UI_Payment: showToast("Thông tin không hợp lệ", "error")
+  end
+
+  deactivate UI_CreateReceipt
+
+else Chưa có hồ sơ đặt cọc
+  UI_Payment -> UI_Payment: showToast("Chưa có hồ sơ đặt cọc. Vui lòng tạo hồ sơ đặt cọc trước.", "warning")
+  UI_Payment --> Sale: hiển thị hướng dẫn tạo hồ sơ đặt cọc
+end
+
+deactivate UI_Payment
+deactivate UI_Main
+deactivate Sale
+
+== Tùy chọn: Nhân viên duyệt yêu cầu (quy trình riêng) ==
+Sale -> UI_Approve: openApproval(requestId)
+activate Sale
+activate UI_Approve
+UI_Approve -> S_Request: approveRequest(maYeuCau)
+activate S_Request
+S_Request -> DB_Request: approveRequest(maYeuCau)
+activate DB_Request
+DB_Request --> S_Request: YeuCauDangKy (approved)
+deactivate DB_Request
+S_Request --> UI_Approve: YeuCauDangKy (approved)
+deactivate S_Request
+UI_Approve --> Sale: render approvalResult
+deactivate UI_Approve
+deactivate Sale
+
+@enduml
